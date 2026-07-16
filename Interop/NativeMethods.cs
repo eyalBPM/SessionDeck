@@ -165,8 +165,15 @@ public static class NativeMethods
         return DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0;
     }
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
     // ---- WinEvent hooks ----
+    public const uint EVENT_SYSTEM_MOVESIZEEND = 0x000B;
+    public const uint EVENT_OBJECT_CREATE = 0x8000;
     public const uint EVENT_OBJECT_DESTROY = 0x8001;
+    public const uint EVENT_OBJECT_SHOW = 0x8002;
     public const uint EVENT_OBJECT_NAMECHANGE = 0x800C;
     public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;

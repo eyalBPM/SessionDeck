@@ -11,18 +11,37 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Title}" Foreground="White" FontWeight="SemiBold"
-                           Margin="8,4" TextTrimming="CharacterEllipsis">
-                    <TextBlock.ToolTip>
-                        <TextBlock>
-                            <Run Text="{Binding Title}"/> (<Run Text="{Binding ProcessName}"/>)
-                        </TextBlock>
-                    </TextBlock.ToolTip>
-                </TextBlock>
-                <Button Grid.Column="1" Content="📌" Click="Pin_Click" ToolTip="Pin ל-Stage"
+                <StackPanel Margin="8,4">
+                    <StackPanel.ToolTip>
+                        <StackPanel>
+                            <TextBlock>
+                                <Run Text="{Binding Title}"/> (<Run Text="{Binding ProcessName}"/>)
+                            </TextBlock>
+                            <TextBlock Text="{Binding Description}"/>
+                        </StackPanel>
+                    </StackPanel.ToolTip>
+                    <TextBlock Text="{Binding Title}" Foreground="White" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Description}" Foreground="#FF999999" FontSize="11"
+                               TextTrimming="CharacterEllipsis">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Description}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+                <Button Grid.Column="1" Content="✏" Click="Edit_Click" ToolTip="ערוך אריח"
                         Background="Transparent" Foreground="White" BorderThickness="0" Padding="6,2" Cursor="Hand"/>
-                <Button Grid.Column="2" Content="✕" Click="Remove_Click" ToolTip="הסר אריח"
+                <Button Grid.Column="2" Content="📌" Click="Pin_Click" ToolTip="Pin ל-Stage"
+                        Background="Transparent" Foreground="White" BorderThickness="0" Padding="6,2" Cursor="Hand"/>
+                <Button Grid.Column="3" Content="✕" Click="Remove_Click" ToolTip="הסר אריח"
                         Background="Transparent" Foreground="#FFCC7777" BorderThickness="0" Padding="6,2" Cursor="Hand"/>
             </Grid>
             <Grid>

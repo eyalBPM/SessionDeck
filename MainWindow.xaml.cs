@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private readonly ConfigStore _configStore;
     private readonly WindowTracker _tracker = new();
     private readonly AppBarService _appBar = new();
+    private readonly BlinkEngine _blink;
     private PipeServer? _pipe;
     private CommandExecutor? _executor;
     private List<MonitorEntry> _monitors;
@@ -37,15 +38,18 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = Vm;
         _configStore = new ConfigStore(BuildConfig);
+        _blink = new BlinkEngine(Vm.Tiles);
         _monitors = MonitorService.GetMonitors();
 
         LoadFromConfig(config);
         PopulateCombos();
+        _blink.Refresh();
 
         Vm.Tiles.CollectionChanged += (_, _) =>
         {
             UpdateGridColumns();
             UpdateEmptyHint();
+            _blink.Refresh();
             QueueSave();
         };
         SourceInitialized += OnSourceInitialized;
@@ -71,6 +75,8 @@ public partial class MainWindow : Window
                 ManualTitle = tc.ManualTitle,
                 Description = tc.Description,
                 ColorName = tc.Color,
+                AltColorName = tc.AltColor,
+                BlinkIntervalMs = tc.BlinkIntervalMs,
                 ProcessName = tc.ProcessName,
                 TitlePattern = tc.TitlePattern,
                 State = TileState.Disconnected,
@@ -81,6 +87,9 @@ public partial class MainWindow : Window
         Vm.ZoneMonitor = Math.Clamp(config.Zone.Monitor, 0, _monitors.Count - 1);
         if (ModeNames.TryParseStage(config.Stage.Mode, out var sm)) Vm.StageMode = sm;
         Vm.StageMonitor = Math.Clamp(config.Stage.Monitor, 0, _monitors.Count - 1);
+        Vm.StageRect = ParseRect(config.Stage.Rect);
+        if (Vm.StageMode == StageMode.Rect && Vm.StageRect == null) Vm.StageMode = StageMode.HalfRight;
+        Vm.AutoRemoveDisconnected = config.AutoRemoveDisconnected;
 
         if (config.Window is { } wb && wb.W > 100 && wb.H > 100)
         {
@@ -95,6 +104,8 @@ public partial class MainWindow : Window
         _appBar.Attach(source);
         _tracker.TitleChanged += OnWindowTitleChanged;
         _tracker.WindowDestroyed += OnWindowDestroyed;
+        _tracker.WindowAppeared += TryRebindWindow;
+        _tracker.MoveSizeEnded += HandleDragIn;
         _tracker.Start();
 
         RebindAll();
@@ -123,7 +134,13 @@ public partial class MainWindow : Window
         {
             NextTileId = Vm.NextTileId,
             Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode) },
-            Stage = new StageConfig { Monitor = Vm.StageMonitor, Mode = ModeNames.ToName(Vm.StageMode) },
+            Stage = new StageConfig
+            {
+                Monitor = Vm.StageMonitor,
+                Mode = ModeNames.ToName(Vm.StageMode),
+                Rect = Vm.StageRect is { } r ? $"{r.Left},{r.Top},{r.Width},{r.Height}" : null,
+            },
+            AutoRemoveDisconnected = Vm.AutoRemoveDisconnected,
         };
         foreach (var t in Vm.Tiles)
         {
@@ -136,6 +153,8 @@ public partial class MainWindow : Window
                 ManualTitle = t.ManualTitle,
                 Description = t.Description,
                 Color = t.ColorName,
+                AltColor = t.AltColorName,
+                BlinkIntervalMs = t.BlinkIntervalMs,
             });
         }
         if (Vm.ZoneMode == ZoneMode.Off && WindowState == WindowState.Normal)
@@ -205,7 +224,13 @@ public partial class MainWindow : Window
     private void OnWindowTitleChanged(IntPtr hwnd, string newTitle)
     {
         var tile = Vm.FindByHwnd(hwnd);
-        if (tile == null || newTitle.Length == 0) return;
+        if (tile == null)
+        {
+            // A title change can make an unbound window match a disconnected tile's Matcher.
+            if (newTitle.Length > 0) TryRebindWindow(hwnd);
+            return;
+        }
+        if (newTitle.Length == 0) return;
         if (!tile.ManualTitle && tile.Title != newTitle)
         {
             tile.Title = newTitle;
@@ -217,9 +242,67 @@ public partial class MainWindow : Window
     {
         var tile = Vm.FindByHwnd(hwnd);
         if (tile == null) return;
+        if (Vm.AutoRemoveDisconnected)
+        {
+            RemoveTile(tile);   // F6 option (off by default); CollectionChanged persists
+            return;
+        }
         tile.Hwnd = IntPtr.Zero;
         tile.State = TileState.Disconnected;
         QueueSave();
+    }
+
+    /// <summary>Automatic re-bind (SPEC §F6): a new/renamed window that matches a
+    /// disconnected tile's Matcher reconnects that tile.</summary>
+    private void TryRebindWindow(IntPtr hwnd)
+    {
+        if (Vm.FindByHwnd(hwnd) != null) return;
+        if (!Vm.Tiles.Any(t => t.State == TileState.Disconnected)) return;
+        if (NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT) != hwnd) return;
+        if (!WindowEnumerator.IsEligible(hwnd, Environment.ProcessId)) return;
+
+        string title = NativeMethods.GetWindowTextSafe(hwnd);
+        string process = WindowEnumerator.GetProcessName(hwnd);
+
+        foreach (var tile in Vm.Tiles.Where(t => t.State == TileState.Disconnected))
+        {
+            if (tile.ProcessName.Length > 0 &&
+                !string.Equals(process, tile.ProcessName, StringComparison.OrdinalIgnoreCase)) continue;
+            bool titleOk;
+            try { titleOk = Regex.IsMatch(title, tile.TitlePattern); }
+            catch { titleOk = false; }
+            if (!titleOk) continue;
+
+            tile.Hwnd = hwnd;
+            tile.ProcessName = process;
+            if (!tile.ManualTitle) tile.Title = title;
+            tile.State = TileState.Connected;
+            SetStatus($"אריח {tile.Id} התחבר מחדש: {title}");
+            QueueSave();
+            return;
+        }
+    }
+
+    /// <summary>Drag-in (SPEC §F5 stage B): a foreign window whose move-drag ended with the
+    /// cursor over WinGrid gets added as a tile (or reconnects a matching disconnected tile).</summary>
+    private void HandleDragIn(IntPtr hwnd)
+    {
+        if (!IsVisible || !NativeMethods.GetCursorPos(out POINT pt)) return;
+        if (PresentationSource.FromVisual(this) is not HwndSource source) return;
+        if (!NativeMethods.GetWindowRect(source.Handle, out RECT self)) return;
+        if (pt.X < self.Left || pt.X >= self.Right || pt.Y < self.Top || pt.Y >= self.Bottom) return;
+
+        IntPtr root = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
+        if (Vm.FindByHwnd(root) != null) return;
+        if (!WindowEnumerator.IsEligible(root, Environment.ProcessId)) return;
+
+        TryRebindWindow(root);
+        if (Vm.FindByHwnd(root) != null) return;   // reconnected an existing tile
+
+        string title = NativeMethods.GetWindowTextSafe(root);
+        var candidate = new CandidateWindow(root, title, WindowEnumerator.GetProcessName(root));
+        var tile = AddTile("^" + Regex.Escape(title) + "$", candidate.ProcessName, "", "gray", candidate);
+        SetStatus($"נוסף אריח {tile.Id} (גרירה): {title}");
     }
 
     // ---- focus / pin / stage (SPEC §F3) ----
@@ -243,6 +326,8 @@ public partial class MainWindow : Window
     /// <summary>Stage rect from the target monitor's work area — respects taskbar and our own zone.</summary>
     private RECT GetStageRect()
     {
+        if (Vm.StageMode == StageMode.Rect && Vm.StageRect is { } custom)
+            return custom;
         _monitors = MonitorService.GetMonitors();
         var mon = _monitors[Math.Clamp(Vm.StageMonitor, 0, _monitors.Count - 1)];
         RECT work = mon.WorkArea;
@@ -252,6 +337,40 @@ public partial class MainWindow : Window
             StageMode.HalfRight => new RECT { Left = work.Left + work.Width / 2, Top = work.Top, Right = work.Right, Bottom = work.Bottom },
             _ => work,
         };
+    }
+
+    public static RECT? ParseRect(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        var parts = s.Split(',');
+        if (parts.Length != 4) return null;
+        if (!int.TryParse(parts[0], out int x) || !int.TryParse(parts[1], out int y) ||
+            !int.TryParse(parts[2], out int w) || !int.TryParse(parts[3], out int h) || w <= 0 || h <= 0)
+            return null;
+        return new RECT { Left = x, Top = y, Right = x + w, Bottom = y + h };
+    }
+
+    public void EditTile(TileViewModel tile)
+    {
+        var dialog = new EditTileDialog(tile) { Owner = this };
+        if (dialog.ShowDialog() == true)
+        {
+            _blink.Refresh();
+            QueueSave();
+        }
+    }
+
+    /// <summary>Called by the CLI after border changes that may start/stop blinking.</summary>
+    public void RefreshBlink() => _blink.Refresh();
+
+    /// <summary>Stage definition from the CLI (SPEC §F3): monitor + full/half, or a custom rect.</summary>
+    public void SetStage(int monitor, StageMode mode, RECT? rect)
+    {
+        Vm.StageMonitor = Math.Clamp(monitor, 0, _monitors.Count - 1);
+        Vm.StageMode = mode;
+        if (mode == StageMode.Rect) Vm.StageRect = rect;
+        SyncCombosFromVm();
+        QueueSave();
     }
 
     // ---- Reserved Zone (SPEC §F4) ----
@@ -280,7 +399,9 @@ public partial class MainWindow : Window
         ZoneModeCombo.Items.Clear();
         foreach (var name in new[] { "כבוי", "חצי שמאל", "חצי ימין", "מסך מלא" }) ZoneModeCombo.Items.Add(name);
         StageModeCombo.Items.Clear();
-        foreach (var name in new[] { "מסך מלא", "חצי שמאל", "חצי ימין" }) StageModeCombo.Items.Add(name);
+        foreach (var name in new[] { "מסך מלא", "חצי שמאל", "חצי ימין", "מלבן (CLI)" }) StageModeCombo.Items.Add(name);
+        StartupMenuItem.IsChecked = StartupService.IsEnabled();
+        AutoRemoveMenuItem.IsChecked = Vm.AutoRemoveDisconnected;
         _syncingUi = false;
         SyncCombosFromVm();
     }
@@ -306,8 +427,43 @@ public partial class MainWindow : Window
     {
         if (_syncingUi || _initializing) return;
         if (StageMonitorCombo.SelectedIndex < 0 || StageModeCombo.SelectedIndex < 0) return;
+        var mode = (StageMode)StageModeCombo.SelectedIndex;
+        if (mode == StageMode.Rect && Vm.StageRect == null)
+        {
+            // Custom rect can only be defined via CLI (wingrid stage --rect x,y,w,h).
+            SetStatus("מלבן מותאם מוגדר רק דרך CLI: wingrid stage --rect x,y,w,h");
+            SyncCombosFromVm();
+            return;
+        }
         Vm.StageMonitor = StageMonitorCombo.SelectedIndex;
-        Vm.StageMode = (StageMode)StageModeCombo.SelectedIndex;
+        Vm.StageMode = mode;
+        QueueSave();
+    }
+
+    // ---- settings (SPEC §F6/§F9) ----
+
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsButton.ContextMenu.PlacementTarget = SettingsButton;
+        SettingsButton.ContextMenu.IsOpen = true;
+    }
+
+    private void StartupMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            StartupService.SetEnabled(StartupMenuItem.IsChecked);
+        }
+        catch (Exception ex)
+        {
+            SetStatus("שגיאה בעדכון ה-startup: " + ex.Message);
+            StartupMenuItem.IsChecked = StartupService.IsEnabled();
+        }
+    }
+
+    private void AutoRemoveMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        Vm.AutoRemoveDisconnected = AutoRemoveMenuItem.IsChecked;
         QueueSave();
     }
 

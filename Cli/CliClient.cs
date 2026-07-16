@@ -63,20 +63,25 @@ public static class CliClient
         }
     }
 
-    private const string HelpText = """
-        WinGrid CLI (v0.1.0)
+    private static string HelpText => $"""
+        WinGrid CLI (v{typeof(CliClient).Assembly.GetName().Version?.ToString(3)})
 
-        wingrid list                          tiles table: id, title, desc, process, color, state
+        wingrid list                          tiles table: id, state, process, color, title, desc
         wingrid add --match "<title regex>" [--process <name>] [--desc "..."] [--color <c>]
         wingrid remove <target>
-        wingrid border <target> --color <c>   static border color
+        wingrid set <target> [--title "..."] [--desc "..."]     empty --title reverts to auto
+        wingrid border <target> --color <c>                     static border color
+        wingrid border <target> --color <c> --alt <c2> [--interval <ms>]   blinking (default 500ms)
+        wingrid border --match "..." --color <c> --auto-add     add the window if not tiled yet
         wingrid focus <target>                activate window in place
         wingrid pin <target>                  move window to the Stage + activate
+        wingrid stage --monitor <n> --half left|right | --full | --rect x,y,w,h
         wingrid zone --monitor <n> --half left|right | --full | --off
+        wingrid status                        app state: version, zone, stage, tile counts
         wingrid help
 
         <target> = tile id, or --match "<regex>" on the tile title
         colors   = red, green, orange, blue, gray, yellow, purple, cyan, magenta, white, black, or #RRGGBB
-        monitors = 1-based index
+        monitors = 1-based index; --rect is in virtual-screen pixels
         """;
 }

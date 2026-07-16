@@ -48,19 +48,54 @@ public sealed class TileViewModel : INotifyPropertyChanged
         }
     }
 
+    // Blinking border (SPEC §F2): alternates between ColorName and AltColorName.
+    private string? _altColorName;
+    public string? AltColorName
+    {
+        get => _altColorName;
+        set
+        {
+            if (_altColorName == value) return;
+            _altColorName = value;
+            _altBrush = null;
+            if (value == null) _altPhase = false;
+            Raise();
+            Raise(nameof(BorderBrush));
+        }
+    }
+
+    public int BlinkIntervalMs { get; set; } = 500;
+
+    private bool _altPhase;
+    /// <summary>Set by the shared BlinkEngine; true while the alternate color is shown.</summary>
+    public bool AltPhase
+    {
+        get => _altPhase;
+        set
+        {
+            if (_altPhase == value) return;
+            _altPhase = value;
+            Raise(nameof(BorderBrush));
+        }
+    }
+
     private Brush? _borderBrush;
+    private Brush? _altBrush;
     public Brush BorderBrush
     {
         get
         {
-            if (_borderBrush == null)
-            {
-                var color = ColorUtil.TryParse(_colorName, out var c) ? c : Colors.Gray;
-                _borderBrush = new SolidColorBrush(color);
-                _borderBrush.Freeze();
-            }
-            return _borderBrush;
+            if (_altPhase && _altColorName != null)
+                return _altBrush ??= MakeBrush(_altColorName);
+            return _borderBrush ??= MakeBrush(_colorName);
         }
+    }
+
+    private static Brush MakeBrush(string name)
+    {
+        var brush = new SolidColorBrush(ColorUtil.TryParse(name, out var c) ? c : Colors.Gray);
+        brush.Freeze();
+        return brush;
     }
 
     private string _processName = "";

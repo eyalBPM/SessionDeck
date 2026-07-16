@@ -22,8 +22,22 @@
                     <ComboBox x:Name="StageMonitorCombo" Width="110" SelectionChanged="StageUi_Changed"/>
                     <ComboBox x:Name="StageModeCombo" Width="110" Margin="4,0,0,0" SelectionChanged="StageUi_Changed"/>
                 </StackPanel>
-                <TextBlock x:Name="StatusText" DockPanel.Dock="Right" Foreground="#FF999999"
-                           VerticalAlignment="Center" Margin="12,0"/>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <TextBlock x:Name="StatusText" Foreground="#FF999999"
+                               VerticalAlignment="Center" Margin="12,0"/>
+                    <Button x:Name="SettingsButton" Content="⚙" FontSize="15" ToolTip="הגדרות"
+                            Background="Transparent" Foreground="White" BorderThickness="0"
+                            Padding="8,2" Cursor="Hand" Click="Settings_Click">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem x:Name="StartupMenuItem" Header="עלייה אוטומטית עם Windows"
+                                          IsCheckable="True" Click="StartupMenuItem_Click"/>
+                                <MenuItem x:Name="AutoRemoveMenuItem" Header="הסר אריח אוטומטית כשהחלון נסגר"
+                                          IsCheckable="True" Click="AutoRemoveMenuItem_Click"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                </StackPanel>
             </DockPanel>
         </Border>
 
@@ -42,7 +56,7 @@
             </ItemsControl>
             <TextBlock x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
                        Foreground="#FF666666" FontSize="15" TextAlignment="Center"
-                       Text="אין אריחים עדיין&#10;גרור את ⌖ מהסרגל אל חלון כלשהו, או הרץ:&#10;wingrid add --match &quot;&lt;title regex&gt;&quot;"/>
+                       Text="אין אריחים עדיין&#10;גרור את ⌖ מהסרגל אל חלון, גרור חלון אמיתי ושחרר מעליי,&#10;או הרץ: wingrid add --match &quot;&lt;title regex&gt;&quot;"/>
         </Grid>
     </DockPanel>
 </Window>

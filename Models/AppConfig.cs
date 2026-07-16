@@ -1,7 +1,7 @@
 namespace WinGrid.Models;
 
 public enum ZoneMode { Off, HalfLeft, HalfRight, Full }
-public enum StageMode { Full, HalfLeft, HalfRight }
+public enum StageMode { Full, HalfLeft, HalfRight, Rect }
 
 public static class ModeNames
 {
@@ -32,6 +32,7 @@ public static class ModeNames
         StageMode.Full => "full",
         StageMode.HalfLeft => "half-left",
         StageMode.HalfRight => "half-right",
+        StageMode.Rect => "rect",
         _ => "full",
     };
 
@@ -42,6 +43,7 @@ public static class ModeNames
             "full" => StageMode.Full,
             "half-left" => StageMode.HalfLeft,
             "half-right" => StageMode.HalfRight,
+            "rect" => StageMode.Rect,
             _ => (StageMode)(-1),
         };
         return (int)m >= 0;
@@ -57,6 +59,8 @@ public class TileConfig
     public bool ManualTitle { get; set; }
     public string Description { get; set; } = "";
     public string Color { get; set; } = "gray";
+    public string? AltColor { get; set; }            // non-null = blinking border
+    public int BlinkIntervalMs { get; set; } = 500;
 }
 
 public class ZoneConfig
@@ -69,6 +73,7 @@ public class StageConfig
 {
     public int Monitor { get; set; }          // 0-based
     public string Mode { get; set; } = "half-right";
+    public string? Rect { get; set; }         // "x,y,w,h" in virtual-screen device px (mode=rect)
 }
 
 public class WindowBounds
@@ -87,4 +92,5 @@ public class AppConfig
     public ZoneConfig Zone { get; set; } = new();
     public StageConfig Stage { get; set; } = new();
     public WindowBounds? Window { get; set; }
+    public bool AutoRemoveDisconnected { get; set; }   // F6 option, off by default
 }

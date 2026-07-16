@@ -22,6 +22,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public int ZoneMonitor { get; set; }
     public StageMode StageMode { get; set; } = StageMode.HalfRight;
     public int StageMonitor { get; set; }
+    public Interop.RECT? StageRect { get; set; }       // used when StageMode == Rect
+    public bool AutoRemoveDisconnected { get; set; }   // F6 option, off by default
 
     public TileViewModel? FindById(int id)
     {

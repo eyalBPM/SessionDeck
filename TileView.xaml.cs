@@ -136,6 +136,13 @@ public partial class TileView : UserControl
     {
         if (e.OriginalSource is DependencyObject d && FindAncestorButton(d) != null)
             return;
+        if (e.ClickCount == 2)
+        {
+            // Double-click = Pin to Stage (SPEC §F3).
+            _mouseDown = false;
+            if (Vm != null) Owner?.PinTile(Vm);
+            return;
+        }
         _mouseDown = true;
         _dragging = false;
         _downPos = e.GetPosition(null);
@@ -176,6 +183,11 @@ public partial class TileView : UserControl
     private void Pin_Click(object sender, RoutedEventArgs e)
     {
         if (Vm != null) Owner?.PinTile(Vm);
+    }
+
+    private void Edit_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm != null) Owner?.EditTile(Vm);
     }
 
     private void Remove_Click(object sender, RoutedEventArgs e)
