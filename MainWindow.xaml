@@ -18,7 +18,8 @@
                     <ComboBox x:Name="ZoneMonitorCombo" Width="110" SelectionChanged="ZoneUi_Changed"/>
                     <ComboBox x:Name="ZoneModeCombo" Width="110" Margin="4,0,0,0" SelectionChanged="ZoneUi_Changed"/>
 
-                    <TextBlock Text="Stage:" Foreground="#FFBBBBBB" Margin="18,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="אזור פתיחה:" Foreground="#FFBBBBBB" Margin="18,0,6,0" VerticalAlignment="Center"
+                               ToolTip="לאן החלון ייפתח בלחיצה על ▶ (Stage)"/>
                     <ComboBox x:Name="StageMonitorCombo" Width="110" SelectionChanged="StageUi_Changed"/>
                     <ComboBox x:Name="StageModeCombo" Width="110" Margin="4,0,0,0" SelectionChanged="StageUi_Changed"/>
                 </StackPanel>

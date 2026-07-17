@@ -20,9 +20,7 @@ public partial class TileView : UserControl
     private RECT _lastDest;
     private TileViewModel? _vm;
 
-    private Point _downPos;
     private bool _mouseDown;
-    private bool _dragging;
 
     private TileViewModel? Vm => DataContext as TileViewModel;
     private MainWindow? Owner => Window.GetWindow(this) as MainWindow;
@@ -130,7 +128,7 @@ public partial class TileView : UserControl
         }
     }
 
-    // ---- mouse: click = Focus, drag = reorder (SPEC §F1/§F3) ----
+    // ---- mouse: click = Focus, double-click = Pin (drag-reorder removed 2026-07-17) ----
 
     private void Root_MouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -144,40 +142,13 @@ public partial class TileView : UserControl
             return;
         }
         _mouseDown = true;
-        _dragging = false;
-        _downPos = e.GetPosition(null);
-        CaptureMouse();
-    }
-
-    private void Root_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (!_mouseDown || _dragging) return;
-        Point pos = e.GetPosition(null);
-        if (Math.Abs(pos.X - _downPos.X) > SystemParameters.MinimumHorizontalDragDistance ||
-            Math.Abs(pos.Y - _downPos.Y) > SystemParameters.MinimumVerticalDragDistance)
-        {
-            _dragging = true;
-            Mouse.OverrideCursor = Cursors.SizeAll;
-        }
     }
 
     private void Root_MouseUp(object sender, MouseButtonEventArgs e)
     {
         if (!_mouseDown) return;
         _mouseDown = false;
-        ReleaseMouseCapture();
-
-        if (_dragging)
-        {
-            _dragging = false;
-            Mouse.OverrideCursor = null;
-            if (Vm != null && NativeMethods.GetCursorPos(out POINT pt))
-                Owner?.HandleTileDrop(Vm, pt);
-        }
-        else if (Vm != null)
-        {
-            Owner?.HandleTileClick(Vm);
-        }
+        if (Vm != null) Owner?.HandleTileClick(Vm);
     }
 
     private void Pin_Click(object sender, RoutedEventArgs e)

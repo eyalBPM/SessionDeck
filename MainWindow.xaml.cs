@@ -547,29 +547,6 @@ public partial class MainWindow : Window
         if (!ok) SetStatus(msg);
     }
 
-    public void HandleTileDrop(TileViewModel tile, POINT screenPt)
-    {
-        int from = Vm.Tiles.IndexOf(tile);
-        if (from < 0) return;
-        int to = HitTestTileIndex(screenPt);
-        if (to < 0 || to == from) return;
-        Vm.Tiles.Move(from, to);
-    }
-
-    private int HitTestTileIndex(POINT screenPt)
-    {
-        for (int i = 0; i < Vm.Tiles.Count; i++)
-        {
-            if (TilesHost.ItemContainerGenerator.ContainerFromIndex(i) is not FrameworkElement fe || !fe.IsLoaded)
-                continue;
-            Point tl = fe.PointToScreen(new Point(0, 0));
-            Point br = fe.PointToScreen(new Point(fe.ActualWidth, fe.ActualHeight));
-            if (screenPt.X >= tl.X && screenPt.X < br.X && screenPt.Y >= tl.Y && screenPt.Y < br.Y)
-                return i;
-        }
-        return -1;
-    }
-
     // ---- CLI ----
 
     public void ActivateFromCli()

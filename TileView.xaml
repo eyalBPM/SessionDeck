@@ -4,7 +4,7 @@
     <Border x:Name="RootBorder"
             BorderBrush="{Binding BorderBrush}" BorderThickness="3" CornerRadius="6"
             Background="#FF1E1E1E" Margin="6"
-            MouseLeftButtonDown="Root_MouseDown" MouseLeftButtonUp="Root_MouseUp" MouseMove="Root_MouseMove">
+            MouseLeftButtonDown="Root_MouseDown" MouseLeftButtonUp="Root_MouseUp">
         <DockPanel>
             <Grid DockPanel.Dock="Top" Background="#CC2A2A2A">
                 <Grid.ColumnDefinitions>
@@ -39,7 +39,7 @@
                 </StackPanel>
                 <Button Grid.Column="1" Content="✏" Click="Edit_Click" ToolTip="ערוך אריח"
                         Background="Transparent" Foreground="White" BorderThickness="0" Padding="6,2" Cursor="Hand"/>
-                <Button Grid.Column="2" Content="📌" Click="Pin_Click" ToolTip="Pin ל-Stage"
+                <Button Grid.Column="2" Content="▶" Click="Pin_Click" ToolTip="פתח את החלון באזור הפתיחה המוגדר"
                         Background="Transparent" Foreground="White" BorderThickness="0" Padding="6,2" Cursor="Hand"/>
                 <Button Grid.Column="3" Content="✕" Click="Remove_Click" ToolTip="הסר אריח"
                         Background="Transparent" Foreground="#FFCC7777" BorderThickness="0" Padding="6,2" Cursor="Hand"/>

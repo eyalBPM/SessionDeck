@@ -1,9 +1,9 @@
-# WinGrid — אפיון פיתוח (v0.4)
+# SessionDeck (לשעבר WinGrid) — אפיון פיתוח (v0.6)
 
-> Last updated: 2026-07-16
-> Status: **אפיון בלבד — טרם נכתב קוד.**
-> שם: **WinGrid** (אושר סופית 2026-07-16).
-> מחבר האפיון: Claude Code בשיתוף אייל, סשן 2026-07-16.
+> Last updated: 2026-07-17
+> Status: **שלבים א'+ב' ממומשים** (v0.2.0 על `main`, ממתין לבדיקות ידניות — `MANUAL_TESTS.md`); שלבים ג'–ד' באפיון לפי האג'נדה החדשה (§1, §2ב).
+> שם: **SessionDeck** (נבחר 2026-07-17 — החלטה 20). ה-rename בקוד (csproj, namespaces, pipe, config) יבוצע לפני מימוש שלב ג' — החלטה 19. עד אז הקוד והפקודות עדיין `WinGrid`/`wingrid`.
+> מחבר האפיון: Claude Code בשיתוף אייל, סשנים 2026-07-16 – 2026-07-17.
 
 ---
 
@@ -12,6 +12,8 @@
 אפליקציית Windows כללית לניטור ושליטה בחלונות: לוח (grid) של "אריחים" (tiles), כל אריח מציג **תצוגה חיה** של חלון OS נבחר, עם כותרת, תיאור ומסגרת צבעונית. לחיצה מקפיצה/מפעילה את החלון האמיתי. האפליקציה נשלטת גם מ-CLI.
 
 **מטרת-על (זכורה, אך האפיון נשאר גנרי):** שליטה בכל ה-sessions של Claude Code שרצים במחשב (כל session בחלון VSCode). בשלב 2, hooks של Claude Code יקראו ל-CLI כדי לעדכן צבע מסגרת לפי סטטוס העבודה של כל session (למשל: עובד = ירוק, ממתין לאינפוט = מהבהב כתום/שחור).
+
+**עדכון אג'נדה (2026-07-17, v0.5 — החלטה 15):** האפליקציה ממוקדת מעתה **במפורש בסשני Claude Code ב-VSCode** — לוח בקרה שמציג כל חלון VSCode ככרטיס, ואת הסשנים (טאבים) שבתוכו כתת-כרטיסים עם סטטוס חי מה-hooks. היכולת הגנרית (ניטור כל חלון OS) נשמרת במנוע מתחת למכסה, אבל ה-UI וה-flows מסוננים ל-VSCode בלבד (החלטה 13). המודל המלא — §2ב. שלבים א'–ב' (שכבר ממומשים) הם התשתית: thumbnails, focus/pin, zone, CLI, persistence, blink — הכל משרת את המבנה החדש.
 
 ---
 
@@ -23,6 +25,47 @@
 | **Stage** | אזור יעד גלובלי מוגדר-מראש (מסך שלם / חצי מסך / מלבן), שאליו "קופץ" חלון בפעולת **Pin**. |
 | **Reserved Zone** | שטח המסך שהאפליקציה עצמה תופסת (מסך מלא או חצי מסך). מנוכה מה-work area של Windows — חלונות אחרים (כולל maximized) לא נכנסים אליו; העכבר חופשי לנוע לשם. |
 | **Matcher** | כלל שיוך persistent של tile לחלון: process name + title pattern (regex), לצורך re-bind אחרי הפעלה מחדש. |
+| **Window Card** | (v0.5) כרטיס לכל חלון VSCode: תצוגה חיה + פרטי חלון + כפתור Focus + כפתור הרחבה. גלגול של ה-Tile הקיים. |
+| **Session Card** | (v0.5) תת-כרטיס בתוך Window Card, מייצג סשן Claude Code (טאב): שם, סטטוס, מסגרת צבע לפי סטטוס. ללא thumbnail. |
+
+---
+
+## 2ב. מודל Cards וסטטוסים (v0.5 — האג'נדה החדשה)
+
+### מבנה ה-UI
+- **Window Card** לכל חלון VSCode: תצוגה חיה (DWM thumbnail) למעלה, פרטי החלון (workspace, process), כפתור פתיחה (Focus), וכפתור הרחבה.
+- **Session Cards** מתחת ל-thumbnail: אחד לכל סשן Claude Code פעיל באותו חלון — שם הסשן, סטטוס טקסטואלי, ו**מסגרת צבעונית לפי סטטוס** (הצבעים וההבהוב חיים כאן, לא ברמת החלון). ללא thumbnail — טאב לא-אקטיבי אינו מרונדר ע"י VSCode/DWM, אין פיקסלים להציג (מגבלה טכנית מוחלטת).
+- **הרחבה**: לחיצה על כפתור ההרחבה מציגה גם סשנים **סגורים** של אותו workspace, עם אפשרות פתיחה מחדש (resume — המימוש בשלב ד'). retention לסשנים סגורים: ~20 אחרונים ל-workspace (config).
+
+### סטטוסים (החלטה 11)
+| סטטוס | מסגרת | מעברים |
+|--------|--------|---------|
+| `idle` | אפורה קבועה | סשן קיים ולא עובד (אחרי SessionStart, לפני prompt ראשון) |
+| `working` | כחולה קבועה | עד האירוע הבא |
+| `waiting` | כתומה מהבהבת | ממתין ל-permission/אינפוט; עד לחיצה או אירוע הבא |
+| `done` | ירוקה מהבהבת → קבועה | מהבהבת עד **acknowledge** (לחיצת המשתמש) → ירוקה קבועה |
+| `error` | אדומה מהבהבת → קבועה | כנ"ל — מהבהבת עד acknowledge → אדומה קבועה |
+
+- **לחיצה על Session Card** = Focus לחלון + acknowledge (עצירת הבהוב done/error). בשלב ד': גם הפעלת הטאב הספציפי, ו-auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode.
+- **מיפוי סטטוס→צבע/הבהוב יושב ב-config** — ניתן לשינוי בלי לגעת ב-hooks או בקוד.
+- הערה: ל-hooks של Claude Code אין אירוע error ייעודי; מצב `error` קיים במודל וב-CLI, והמיפוי מאירועים בפועל ייקבע בשלב ג' לפי מה שה-hooks מספקים.
+
+### מחזור חיים של סשן (החלטה 12)
+- SessionStart (hook) → נוצר Session Card תחת ה-Window Card של ה-workspace (נוצר Window Card אם אין).
+- SessionEnd (hook) → הכרטיס נעלם מהתצוגה הרגילה; נשמר ומוצג בתצוגה המורחבת.
+
+### ניהול Workspaces (נוסף 2026-07-17 — החלטות 16–18)
+- **Workspace = ישות persistent**: נזכר גם כשאין חלון VSCode פתוח (מקביל ל-disconnected tile היום). ה-Window Card הופך בפועל ל-**Workspace Card** — החלון הוא רק ה-binding החי שלו.
+- **מיון**: workspaces פעילים (חלון פתוח / סשן חי) עולים למעלה; ישנים ניתנים **להסתרה** ומוצגים דרך כפתור/פילטר "הצג מוסתרים".
+- **פריסה**: כרטיסים רחבים, ירידות שורה לפי רוחב, **גודל מינימום** לכרטיס, והכל בתוך **אזור גלילה** אנכי (ה-grid כבר לא חייב להיכנס כולו למסך).
+- **תוכן הכרטיס הראשי**: שם הפרויקט, ה-**branch הנוכחי** של git, תצוגה חיה, ותת-כרטיסי הסשנים. **Custom title + description** נתמכים גם בכרטיס הראשי וגם בתת-הכרטיסים.
+- **צבע הכרטיס הראשי**: נלקח אוטומטית מהגדרות ה-workspace של VSCode (`.vscode/settings.json` — ‏`peacock.color` או `workbench.colorCustomizations.titleBar.activeBackground`) כשקיים — אינטגרציה טבעית למי שעובד עם Peacock; אחרת צבע ידני/ברירת מחדל.
+- **הוספת workspace ל-deck (החלטה 21)** — לפי סדר העדיפות:
+  1. **בחירת תיקייה** (primary, שלב ג'): דיאלוג בחירת תיקייה כמו פתיחת פרויקט ב-VSCode. הנתיב ידוע מיידית → צבע Peacock + branch זמינים עוד לפני שנפתח חלון או רץ סשן.
+  2. **דיווח מה-VSCode extension** (שלב ד'): ה-extension מדווח על ה-workspaces הפתוחים ומוסיף אוטומטית.
+  3. **גרירת חלון (drag-in)** — נשארת כערוץ משני: נחסמת אם החלון אינו VSCode או אם ה-workspace כבר קיים ב-deck (וכשה-extension פעיל הוא ממילא כבר יהיה קיים).
+  4. **hook `cwd`** — רשת ביטחון: סשן שמדווח על workspace שלא קיים ב-deck יוצר אותו אוטומטית עם הנתיב מה-cwd.
+- **הערה טכנית**: קריאת settings.json וה-branch (`.git/HEAD`) דורשת את **נתיב** ה-workspace — מובטח מזרימות 1/2/4 (בחירת תיקייה, extension, hook cwd). הנתיב נשמר ב-config לתמיד.
 
 ---
 
@@ -103,6 +146,18 @@ wingrid status                        # מצב האפליקציה: zone, stage, 
 - **צבעים**: שמות (`red`, `green`, `orange`, `blue`, `gray`, ...) או hex `#RRGGBB`.
 - `wingrid border --match "..."` על חלון שעדיין לא ב-grid: שגיאה, עם דגל אופציונלי `--auto-add` (שלב 2 — נוח ל-hooks).
 
+### 4ב. CLI לסשנים (v0.5 — טיוטה לשלב ג')
+
+```
+wingrid session start  --id <session_id> --workspace <name> [--title "..."]
+wingrid session status --id <session_id> --state working|waiting|done|error|idle
+wingrid session end    --id <session_id>
+wingrid session list   [--workspace <name>] [--all]     # --all כולל סגורים
+```
+
+- `session_id` מגיע מה-hook של Claude Code; ה-workspace משמש למיפוי לחלון (לפי title).
+- הפקודות נקראות מסקריפט ה-hooks (שלב ג') — ולכן חייבות להישאר מהירות (<100ms) ואטומיות.
+
 ---
 
 ## 5. ארכיטקטורה (הוחלט 2026-07-16: C# / .NET + WPF)
@@ -153,13 +208,25 @@ wingrid status                        # מצב האפליקציה: zone, stage, 
 - עלייה אוטומטית עם Windows + שחזור מצב מלא (F9 — תלוי ב-re-bind)
 - `stage` / `set` / `status` ב-CLI
 
-### שלב ג' — אינטגרציית Claude Code (המטרה)
-- סקריפט hooks (PowerShell) שנרשם ב-settings של Claude Code ומריץ `wingrid border --match "<workspace>" ...` לפי אירועים:
-  - `UserPromptSubmit` / תחילת עבודה → ירוק
-  - `Notification` (ממתין ל-permission/אינפוט) → מהבהב כתום/שחור
-  - `Stop` (סיים turn) → כחול
-- `--auto-add` ל-hooks, פרופיל "Claude sessions"
+### שלב ג' — Cards UI + אינטגרציית hooks (עודכן v0.5; ללא extension)
+- מבנה UI חדש: Window Cards + Session Cards לפי §2ב; סינון התצוגה ל-VSCode בלבד (המנוע נשאר גנרי)
+- CLI סשנים לפי §4ב; הסשנים נוצרים ומתעדכנים **מה-hooks בלבד**
+- מנוע סטטוסים + acknowledge בלחיצה; מיפוי סטטוס→צבע ב-config
+- סקריפט hooks (PowerShell) שנרשם ב-settings של Claude Code:
+  - `SessionStart` → `session start` (idle)
+  - `UserPromptSubmit` → working
+  - `Notification` (ממתין ל-permission/אינפוט) → waiting
+  - `Stop` (סיים turn) → done
+  - `SessionEnd` → `session end`
+- לחיצה על Session Card בשלב זה: Focus לחלון בלבד (הפעלת הטאב הספציפי — שלב ד')
 - מיפוי session→window לפי workspace name ב-title של VSCode
+
+### שלב ד' — VSCode Extension (נוסף v0.5)
+- **Spike ראשון**: קורלציה `session_id` ↔ טאב (tabGroups API) — הסיכון הטכני המרכזי
+- סנכרון רשימת טאבים מה-extension ל-WinGrid (דרך ה-pipe הקיים)
+- לחיצה על Session Card → הפעלת הטאב הספציפי ב-VSCode
+- auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode (בלי לחיצה באפליקציה)
+- פתיחה מחדש (resume) של סשן סגור מהתצוגה המורחבת
 
 ---
 
@@ -177,10 +244,26 @@ wingrid status                        # מצב האפליקציה: zone, stage, 
 | 8 | חלון שנסגר | tile נשאר עם title/desc/color ללא שינוי; נוסף שדה **state** (connected/disconnected) + re-bind אוטומטי |
 | 9 | מיקום ה-repo | **`D:\Eyal\WinGrid`** (עודכן 2026-07-16 — אייל יצר שם את הפרויקט בפועל) — repo git עצמאי, מחוץ לעץ ה-OneDrive. הערה: תחת `D:\Eyal\` חל סיווג "פרויקט אישי" בהגדרות של אייל — פרוטוקולי BPM לא חלים, כללי Git/safety כלליים כן |
 | 10 | Reserved Zone | **בשלב א' (MVP)** — חלק מהותי מהאפליקציה (החלטת אייל 2026-07-16) |
+| 11 | סכמת סטטוסים (2026-07-17, עודכן) | **working=כחול קבוע** (הוכרע — כתום שמור בלעדית ל-waiting), waiting=כתום מהבהב, done=ירוק מהבהב→קבוע ב-acknowledge, error=אדום מהבהב→קבוע, idle=אפור; המיפוי ב-config |
+| 12 | סשן שנסגר (2026-07-17) | ה-Session Card נעלם; זמין בתצוגה מורחבת של ה-Window Card עם אפשרות resume (שלב ד'); retention ~20 |
+| 13 | סקופ תצוגה (2026-07-17) | VSCode בלבד ב-UI; המנוע נשאר גנרי. תמיכה ב-terminals — אולי בעתיד, לא עכשיו |
+| 14 | שם (2026-07-17) | ~~נשאר WinGrid בינתיים~~ → הוחלף בהחלטה 19 |
+| 15 | אג'נדה v0.5 (2026-07-17) | האפליקציה = לוח בקרה לסשני Claude Code ב-VSCode; מבנה Cards לפי §2ב; שלבים ג'–ד' הוגדרו מחדש |
+| 16 | ניהול workspaces (2026-07-17) | workspace = ישות persistent; פעילים למעלה; הסתרת ישנים; כרטיסים רחבים עם min-size באזור גלילה |
+| 17 | תוכן כרטיס ראשי (2026-07-17) | שם פרויקט + branch נוכחי; custom title/description בשתי רמות הכרטיסים |
+| 18 | צבע כרטיס מ-VSCode (2026-07-17) | נלקח מ-settings.json של ה-workspace ‏(Peacock / titleBar.activeBackground) כשקיים |
+| 19 | שינוי שם — מוקדם (2026-07-17) | יבוצע לפני מימוש שלב ג', בשיטת **rename-in-place** (לא פרויקט חדש) |
+| 20 | השם (2026-07-17) | **SessionDeck** |
+| 21 | הוספת workspace (2026-07-17) | ערוץ ראשי: בחירת תיקייה; extension (שלב ד'); drag-in נשאר אך נחסם ללא-VSCode/כפולים; hook cwd כרשת ביטחון |
 
 ## 9. שאלות פתוחות
 
-אין — כל שאלות האפיון הוכרעו (ראה §8). שאלות מימוש יוכרעו תוך כדי הפיתוח.
+1. **קורלציה session↔טאב (שלב ד')** — איך מקשרים `session_id` מה-hook לטאב ספציפי ב-tabGroups API. ייבדק ב-spike בתחילת שלב ד'.
+2. **מקור מצב error (שלב ג')** — אין hook ייעודי; ייבדק מול מה שה-hooks מספקים בפועל (למשל SessionEnd reason).
+
+**היקף ה-rename ל-SessionDeck** (החלטות 19–20, לביצוע לפני שלב ג'): שם קבצי csproj/slnx, ‏RootNamespace/AssemblyName, ‏namespaces בקוד, שם ה-pipe (`sessiondeck`), ה-mutex, תיקיית ה-config (‏`%APPDATA%\SessionDeck` + מיגרציה אוטומטית של config קיים), ערך ה-HKCU Run, שם התיקייה (`D:\Eyal\SessionDeck`), ואזכורים ב-SPEC/MANUAL_TESTS. ההיסטוריה של git נשמרת.
+
+שאר שאלות האפיון הוכרעו (ראה §8); שאלות מימוש יוכרעו תוך כדי הפיתוח.
 
 ---
 
