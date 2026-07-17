@@ -3,13 +3,13 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-using WinGrid.Cli;
-using WinGrid.Interop;
-using WinGrid.Models;
-using WinGrid.Services;
-using WinGrid.ViewModels;
+using SessionDeck.Cli;
+using SessionDeck.Interop;
+using SessionDeck.Models;
+using SessionDeck.Services;
+using SessionDeck.ViewModels;
 
-namespace WinGrid;
+namespace SessionDeck;
 
 /// <summary>
 /// Main controller: owns the view-model, services, zone/stage orchestration
@@ -284,7 +284,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Drag-in (SPEC §F5 stage B): a foreign window whose move-drag ended with the
-    /// cursor over WinGrid gets added as a tile (or reconnects a matching disconnected tile).</summary>
+    /// cursor over SessionDeck gets added as a tile (or reconnects a matching disconnected tile).</summary>
     private void HandleDragIn(IntPtr hwnd)
     {
         if (!IsVisible || !NativeMethods.GetCursorPos(out POINT pt)) return;
@@ -430,8 +430,8 @@ public partial class MainWindow : Window
         var mode = (StageMode)StageModeCombo.SelectedIndex;
         if (mode == StageMode.Rect && Vm.StageRect == null)
         {
-            // Custom rect can only be defined via CLI (wingrid stage --rect x,y,w,h).
-            SetStatus("מלבן מותאם מוגדר רק דרך CLI: wingrid stage --rect x,y,w,h");
+            // Custom rect can only be defined via CLI (sessiondeck stage --rect x,y,w,h).
+            SetStatus("מלבן מותאם מוגדר רק דרך CLI: sessiondeck stage --rect x,y,w,h");
             SyncCombosFromVm();
             return;
         }
@@ -491,7 +491,7 @@ public partial class MainWindow : Window
 
         if (!WindowEnumerator.IsEligible(root, Environment.ProcessId))
         {
-            SetStatus("החלון שנבחר אינו תקף (WinGrid עצמו / ללא כותרת / tool window)");
+            SetStatus("החלון שנבחר אינו תקף (SessionDeck עצמו / ללא כותרת / tool window)");
             return;
         }
         if (Vm.FindByHwnd(root) != null)

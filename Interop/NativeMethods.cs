@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace WinGrid.Interop;
+namespace SessionDeck.Interop;
 
 [StructLayout(LayoutKind.Sequential)]
 public struct RECT

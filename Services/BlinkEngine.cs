@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Windows.Threading;
-using WinGrid.ViewModels;
+using SessionDeck.ViewModels;
 
-namespace WinGrid.Services;
+namespace SessionDeck.Services;
 
 /// <summary>
 /// One shared DispatcherTimer for all blinking borders (SPEC §5 — never a timer per tile).

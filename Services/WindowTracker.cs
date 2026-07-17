@@ -1,6 +1,6 @@
-using WinGrid.Interop;
+using SessionDeck.Interop;
 
-namespace WinGrid.Services;
+namespace SessionDeck.Services;
 
 /// <summary>
 /// Global WinEvent hooks (no polling — SPEC §5): title changes, window destruction,

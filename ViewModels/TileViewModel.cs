@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
-using WinGrid.Services;
+using SessionDeck.Services;
 
-namespace WinGrid.ViewModels;
+namespace SessionDeck.ViewModels;
 
 public enum TileState { Connected, Disconnected }
 

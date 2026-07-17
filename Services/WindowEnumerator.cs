@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using WinGrid.Interop;
+using SessionDeck.Interop;
 
-namespace WinGrid.Services;
+namespace SessionDeck.Services;
 
 public sealed record CandidateWindow(IntPtr Hwnd, string Title, string ProcessName);
 
@@ -9,7 +9,7 @@ public static class WindowEnumerator
 {
     /// <summary>
     /// Top-level windows eligible for tiling: visible, titled, not tool windows,
-    /// not cloaked (UWP ghosts), and not WinGrid itself (SPEC §F5).
+    /// not cloaked (UWP ghosts), and not SessionDeck itself (SPEC §F5).
     /// </summary>
     public static List<CandidateWindow> GetCandidates()
     {

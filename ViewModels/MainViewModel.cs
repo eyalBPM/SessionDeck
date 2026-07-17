@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using WinGrid.Models;
+using SessionDeck.Models;
 
-namespace WinGrid.ViewModels;
+namespace SessionDeck.ViewModels;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {

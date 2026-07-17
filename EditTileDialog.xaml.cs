@@ -1,11 +1,11 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using WinGrid.Interop;
-using WinGrid.Services;
-using WinGrid.ViewModels;
+using SessionDeck.Interop;
+using SessionDeck.Services;
+using SessionDeck.ViewModels;
 
-namespace WinGrid;
+namespace SessionDeck;
 
 /// <summary>
 /// Full tile editing in the UI (SPEC §F2/§F6 — stage B): title (manual/auto),

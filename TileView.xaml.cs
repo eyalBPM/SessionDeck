@@ -4,10 +4,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using WinGrid.Interop;
-using WinGrid.ViewModels;
+using SessionDeck.Interop;
+using SessionDeck.ViewModels;
 
-namespace WinGrid;
+namespace SessionDeck;
 
 /// <summary>
 /// One grid tile: chrome (colored border + title bar) drawn by WPF, live preview drawn by

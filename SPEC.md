@@ -1,8 +1,8 @@
 # SessionDeck (לשעבר WinGrid) — אפיון פיתוח (v0.6)
 
 > Last updated: 2026-07-17
-> Status: **שלבים א'+ב' ממומשים** (v0.2.0 על `main`, ממתין לבדיקות ידניות — `MANUAL_TESTS.md`); שלבים ג'–ד' באפיון לפי האג'נדה החדשה (§1, §2ב).
-> שם: **SessionDeck** (נבחר 2026-07-17 — החלטה 20). ה-rename בקוד (csproj, namespaces, pipe, config) יבוצע לפני מימוש שלב ג' — החלטה 19. עד אז הקוד והפקודות עדיין `WinGrid`/`wingrid`.
+> Status: **שלבים א'+ב' ממומשים** (ממתין לבדיקות ידניות — `MANUAL_TESTS.md`); **rename ל-SessionDeck בוצע** (v0.3.0, 2026-07-17); שלבים ג'–ד' באפיון לפי האג'נדה החדשה (§1, §2ב).
+> שם: **SessionDeck** (נבחר 2026-07-17 — החלטה 20). ה-rename בקוד בוצע 2026-07-17 (csproj/slnx, namespaces, pipe `sessiondeck`, mutex, ‏`%APPDATA%\SessionDeck` + מיגרציה, ערך Run + מיגרציה). נותר: שינוי שם התיקייה `D:\Eyal\WinGrid` → `D:\Eyal\SessionDeck` (ידני, כשה-IDE סגור).
 > מחבר האפיון: Claude Code בשיתוף אייל, סשנים 2026-07-16 – 2026-07-17.
 
 ---
@@ -95,16 +95,16 @@
 ### F5 — הוספת חלונות (הוחלט 2026-07-16: Picker + גרירה)
 1. **Picker** (MVP): כפתור "בחר חלון" בסגנון crosshair (כמו Spy++) — גוררים את הסמן אל החלון הרצוי ומשחררים.
 2. **Drag-in** (שלב ב'): גרירת title bar של חלון אמיתי ושחרורו מעל האפליקציה → נוסף tile. מימוש: low-level mouse hook גלובלי שמזהה סיום move-drag של חלון זר מעל אזור האפליקציה.
-3. **CLI**: `wingrid add ...` (ראה §4).
-- חלונות מסוננים מה-picker: חלונות של WinGrid עצמו, חלונות ללא title, tool windows.
+3. **CLI**: `sessiondeck add ...` (ראה §4).
+- חלונות מסוננים מה-picker: חלונות של SessionDeck עצמו, חלונות ללא title, tool windows.
 
 ### F6 — ניהול Tiles (עודכן 2026-07-16)
 - הסרה (UI + CLI), עריכת כותרת/תיאור/צבע (UI + CLI), שינוי סדר בגרירה.
-- לכל tile יש שדה **state**: `connected` / `disconnected`. ה-state מוצג כאינדיקציית סטטוס על ה-tile (למשל אייקון/תג + placeholder במקום ה-thumbnail) — **הכותרת, התיאור והצבע לא משתנים בגלל ניתוק** (הוחלט 2026-07-16). ה-state מופיע גם ב-`wingrid list`.
+- לכל tile יש שדה **state**: `connected` / `disconnected`. ה-state מוצג כאינדיקציית סטטוס על ה-tile (למשל אייקון/תג + placeholder במקום ה-thumbnail) — **הכותרת, התיאור והצבע לא משתנים בגלל ניתוק** (הוחלט 2026-07-16). ה-state מופיע גם ב-`sessiondeck list`.
 - **חלון שנסגר**: ה-tile עובר ל-`disconnected` ולא נמחק; כשנפתח חלון חדש שתואם ל-Matcher — re-bind אוטומטי וה-tile חוזר ל-`connected`. הסרה אוטומטית = אופציה בהגדרות (כבויה כברירת מחדל).
 
 ### F7 — Persistence + Auto-Save (עודכן 2026-07-16)
-- פרופיל JSON ב-`%APPDATA%\WinGrid\config.json`: רשימת tiles (Matcher, כותרת ידנית, תיאור, צבע/הבהוב), מצב zone, הגדרת Stage, סדר, מיקום/גודל החלון הראשי.
+- פרופיל JSON ב-`%APPDATA%\SessionDeck\config.json` (מיגרציה אוטומטית חד-פעמית מ-`%APPDATA%\WinGrid` הישן): רשימת tiles (Matcher, כותרת ידנית, תיאור, צבע/הבהוב), מצב zone, הגדרת Stage, סדר, מיקום/גודל החלון הראשי.
 - **Auto-save תמידי**: כל שינוי (הוספה/הסרה/עריכה/צבע/סדר/zone/stage) נשמר מיידית (debounce ~1s, כתיבה אטומית: temp file + rename). אין כפתור "שמור" ואין מצב לא-שמור.
 - בהפעלה: טעינת הפרופיל, enumerate של חלונות קיימים + re-bind לפי Matchers; tiles שחלונם טרם נפתח מוצגים "מנותקים" (אפור) עד שיופיע חלון תואם.
 
@@ -112,7 +112,7 @@
 - כל יכולות הניהול זמינות מ-CLI, לצורך אוטומציה (ובפרט hooks של Claude Code בשלב 2).
 
 ### F9 — עלייה אוטומטית עם Windows (נוסף 2026-07-16)
-- WinGrid נרשם ל-startup של המשתמש (registry `HKCU\...\Run`, ללא admin; ניתן לכיבוי בהגדרות).
+- SessionDeck נרשם ל-startup של המשתמש (registry `HKCU\...\Run`, ללא admin; ניתן לכיבוי בהגדרות).
 - בעלייה משוחזר **המצב המלא** מהפרופיל: כל ה-tiles (דרך Matchers — אחרי ריסטארט כל החלונות מקבלים HWND חדש, ולכן השחזור מבוסס re-bind), מצב ה-Reserved Zone, הגדרת ה-Stage, וסדר ה-grid.
 - tiles שחלונם עוד לא נפתח אחרי הריסטארט מופיעים מנותקים ומתחברים אוטומטית ברגע שהחלון התואם נפתח.
 
@@ -121,38 +121,38 @@
 ## 4. CLI — פירוט
 
 ### מודל הפעלה
-- **Singleton**: ההרצה הראשונה מרימה את ה-UI + שרת **named pipe** (`\\.\pipe\wingrid`).
+- **Singleton**: ההרצה הראשונה מרימה את ה-UI + שרת **named pipe** (`\\.\pipe\sessiondeck`).
 - הרצה חוזרת עם ארגומנטים = CLI client: מעביר את הפקודה ל-pipe, מדפיס תשובה, מחזיר exit code (0 = הצלחה, ≠0 = שגיאה + הודעה ל-stderr). זמן ריצה יעד: <100ms (קריטי ל-hooks).
 - אם אין instance רץ: פקודות CLI נכשלות עם הודעה ברורה (אופציה עתידית: `--start` שמרים את ה-UI).
 
 ### פקודות (טיוטה)
 
 ```
-wingrid list                          # טבלת tiles: id, title, desc, process, color, state
-wingrid add --pick                    # פותח picker אינטראקטיבי
-wingrid add --match "<title regex>" [--process code] [--desc "..."] [--color <c>]
-wingrid remove <target>
-wingrid set <target> [--title "..."] [--desc "..."]
-wingrid border <target> --color <c>                        # צבע סטטי
-wingrid border <target> --color <c> --alt <c2> [--interval <ms>]   # מהבהב (ברירת מחדל 500ms)
-wingrid focus <target>                # הפעלה במקום הנוכחי
-wingrid pin <target>                  # הקפצה ל-Stage + הפעלה
-wingrid stage --monitor <n> --half left|right | --full | --rect x,y,w,h
-wingrid zone --monitor <n> --half left|right | --full | --off
-wingrid status                        # מצב האפליקציה: zone, stage, מספר tiles
+sessiondeck list                          # טבלת tiles: id, title, desc, process, color, state
+sessiondeck add --pick                    # פותח picker אינטראקטיבי
+sessiondeck add --match "<title regex>" [--process code] [--desc "..."] [--color <c>]
+sessiondeck remove <target>
+sessiondeck set <target> [--title "..."] [--desc "..."]
+sessiondeck border <target> --color <c>                        # צבע סטטי
+sessiondeck border <target> --color <c> --alt <c2> [--interval <ms>]   # מהבהב (ברירת מחדל 500ms)
+sessiondeck focus <target>                # הפעלה במקום הנוכחי
+sessiondeck pin <target>                  # הקפצה ל-Stage + הפעלה
+sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
+sessiondeck zone --monitor <n> --half left|right | --full | --off
+sessiondeck status                        # מצב האפליקציה: zone, stage, מספר tiles
 ```
 
 - **`<target>`**: id מספרי יציב של tile, או `--match "<regex>"` על הכותרת (שימושי ל-hooks: לפי שם ה-workspace).
 - **צבעים**: שמות (`red`, `green`, `orange`, `blue`, `gray`, ...) או hex `#RRGGBB`.
-- `wingrid border --match "..."` על חלון שעדיין לא ב-grid: שגיאה, עם דגל אופציונלי `--auto-add` (שלב 2 — נוח ל-hooks).
+- `sessiondeck border --match "..."` על חלון שעדיין לא ב-grid: שגיאה, עם דגל אופציונלי `--auto-add` (שלב 2 — נוח ל-hooks).
 
 ### 4ב. CLI לסשנים (v0.5 — טיוטה לשלב ג')
 
 ```
-wingrid session start  --id <session_id> --workspace <name> [--title "..."]
-wingrid session status --id <session_id> --state working|waiting|done|error|idle
-wingrid session end    --id <session_id>
-wingrid session list   [--workspace <name>] [--all]     # --all כולל סגורים
+sessiondeck session start  --id <session_id> --workspace <name> [--title "..."]
+sessiondeck session status --id <session_id> --state working|waiting|done|error|idle
+sessiondeck session end    --id <session_id>
+sessiondeck session list   [--workspace <name>] [--all]     # --all כולל סגורים
 ```
 
 - `session_id` מגיע מה-hook של Claude Code; ה-workspace משמש למיפוי לחלון (לפי title).
@@ -181,10 +181,10 @@ wingrid session list   [--workspace <name>] [--all]     # --all כולל סגו�
 ## 6. אילוצים וסיכונים טכניים
 
 1. **חלון ממוזער** — DWM thumbnail מקפיא את הפריים האחרון. המלצה: להשאיר חלונות restored (מאחורי חלונות אחרים זה בסדר — ה-thumbnail חי גם כשהחלון מכוסה). אופציה עתידית: מניעת minimize לחלונות במעקב.
-2. **SetForegroundWindow restrictions** — כשמשתמש לוחץ ב-UI שלנו, אנחנו ה-foreground process ומותר להעביר פוקוס. אבל `wingrid focus` שמגיע מתהליך רקע (hook) עלול להיחסם ע"י Windows (anti focus-stealing). לא קריטי: שלב 2 משנה רק צבעים. אם יידרש — יש workarounds מוכרים (AttachThreadInput וכו').
+2. **SetForegroundWindow restrictions** — כשמשתמש לוחץ ב-UI שלנו, אנחנו ה-foreground process ומותר להעביר פוקוס. אבל `sessiondeck focus` שמגיע מתהליך רקע (hook) עלול להיחסם ע"י Windows (anti focus-stealing). לא קריטי: שלב 2 משנה רק צבעים. אם יידרש — יש workarounds מוכרים (AttachThreadInput וכו').
 3. **גרנולריות = חלון OS** — כמה sessions של Claude Code באותו חלון VSCode לא ניתנים להבחנה. מוסכמת עבודה: **session אחד = חלון VSCode אחד**.
 4. **Drag-in דורש global low-level mouse hook** — רכיב רגיש (ביצועים/יציבות); לכן Picker הוא המנגנון העיקרי, drag-in נדחה לשלב ב'.
-5. **חלונות elevated (admin)** — thumbnail יעבוד, אבל move/activate ייחסמו אם WinGrid לא elevated. מתועד כמגבלה ידועה.
+5. **חלונות elevated (admin)** — thumbnail יעבוד, אבל move/activate ייחסמו אם SessionDeck לא elevated. מתועד כמגבלה ידועה.
 6. **זיהוי לפי title** — title של VSCode משתנה עם הקובץ הפתוח (`file — workspace — Visual Studio Code`). ה-Matcher חייב regex על שם ה-workspace, לא השוואה מלאה.
 
 ---
@@ -223,7 +223,7 @@ wingrid session list   [--workspace <name>] [--all]     # --all כולל סגו�
 
 ### שלב ד' — VSCode Extension (נוסף v0.5)
 - **Spike ראשון**: קורלציה `session_id` ↔ טאב (tabGroups API) — הסיכון הטכני המרכזי
-- סנכרון רשימת טאבים מה-extension ל-WinGrid (דרך ה-pipe הקיים)
+- סנכרון רשימת טאבים מה-extension ל-SessionDeck (דרך ה-pipe הקיים)
 - לחיצה על Session Card → הפעלת הטאב הספציפי ב-VSCode
 - auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode (בלי לחיצה באפליקציה)
 - פתיחה מחדש (resume) של סשן סגור מהתצוגה המורחבת
@@ -242,7 +242,7 @@ wingrid session list   [--workspace <name>] [--all]     # --all כולל סגו�
 | 6 | Auto-save | תמידי, ללא כפתור שמירה (F7) |
 | 7 | Startup | עלייה אוטומטית עם Windows + שחזור מצב מלא דרך re-bind (F9) |
 | 8 | חלון שנסגר | tile נשאר עם title/desc/color ללא שינוי; נוסף שדה **state** (connected/disconnected) + re-bind אוטומטי |
-| 9 | מיקום ה-repo | **`D:\Eyal\WinGrid`** (עודכן 2026-07-16 — אייל יצר שם את הפרויקט בפועל) — repo git עצמאי, מחוץ לעץ ה-OneDrive. הערה: תחת `D:\Eyal\` חל סיווג "פרויקט אישי" בהגדרות של אייל — פרוטוקולי BPM לא חלים, כללי Git/safety כלליים כן |
+| 9 | מיקום ה-repo | **`D:\Eyal\WinGrid`** (עודכן 2026-07-16 — אייל יצר שם את הפרויקט בפועל; יעד אחרי ה-rename: `D:\Eyal\SessionDeck`, שינוי ידני כשה-IDE סגור) — repo git עצמאי, מחוץ לעץ ה-OneDrive. הערה: תחת `D:\Eyal\` חל סיווג "פרויקט אישי" בהגדרות של אייל — פרוטוקולי BPM לא חלים, כללי Git/safety כלליים כן |
 | 10 | Reserved Zone | **בשלב א' (MVP)** — חלק מהותי מהאפליקציה (החלטת אייל 2026-07-16) |
 | 11 | סכמת סטטוסים (2026-07-17, עודכן) | **working=כחול קבוע** (הוכרע — כתום שמור בלעדית ל-waiting), waiting=כתום מהבהב, done=ירוק מהבהב→קבוע ב-acknowledge, error=אדום מהבהב→קבוע, idle=אפור; המיפוי ב-config |
 | 12 | סשן שנסגר (2026-07-17) | ה-Session Card נעלם; זמין בתצוגה מורחבת של ה-Window Card עם אפשרות resume (שלב ד'); retention ~20 |
@@ -261,7 +261,7 @@ wingrid session list   [--workspace <name>] [--all]     # --all כולל סגו�
 1. **קורלציה session↔טאב (שלב ד')** — איך מקשרים `session_id` מה-hook לטאב ספציפי ב-tabGroups API. ייבדק ב-spike בתחילת שלב ד'.
 2. **מקור מצב error (שלב ג')** — אין hook ייעודי; ייבדק מול מה שה-hooks מספקים בפועל (למשל SessionEnd reason).
 
-**היקף ה-rename ל-SessionDeck** (החלטות 19–20, לביצוע לפני שלב ג'): שם קבצי csproj/slnx, ‏RootNamespace/AssemblyName, ‏namespaces בקוד, שם ה-pipe (`sessiondeck`), ה-mutex, תיקיית ה-config (‏`%APPDATA%\SessionDeck` + מיגרציה אוטומטית של config קיים), ערך ה-HKCU Run, שם התיקייה (`D:\Eyal\SessionDeck`), ואזכורים ב-SPEC/MANUAL_TESTS. ההיסטוריה של git נשמרת.
+**היקף ה-rename ל-SessionDeck** (החלטות 19–20): **בוצע 2026-07-17 (v0.3.0)** — שם קבצי csproj/slnx, ‏RootNamespace/AssemblyName, ‏namespaces בקוד, שם ה-pipe (`sessiondeck`), ה-mutex, תיקיית ה-config (‏`%APPDATA%\SessionDeck` + מיגרציה אוטומטית של config קיים), ערך ה-HKCU Run (+מיגרציה), ואזכורים ב-SPEC/MANUAL_TESTS. ההיסטוריה של git נשמרה. **נותר ידני:** שינוי שם התיקייה `D:\Eyal\WinGrid` → `D:\Eyal\SessionDeck` (לבצע כשה-IDE וה-session סגורים).
 
 שאר שאלות האפיון הוכרעו (ראה §8); שאלות מימוש יוכרעו תוך כדי הפיתוח.
 

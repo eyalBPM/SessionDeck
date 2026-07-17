@@ -1,8 +1,8 @@
-<Window x:Class="WinGrid.MainWindow"
+<Window x:Class="SessionDeck.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:WinGrid"
-        Title="WinGrid" Height="700" Width="1100"
+        xmlns:local="clr-namespace:SessionDeck"
+        Title="SessionDeck" Height="700" Width="1100"
         Background="#FF161616">
     <DockPanel>
         <Border DockPanel.Dock="Top" Background="#FF232323" Padding="8,6">
@@ -57,7 +57,7 @@
             </ItemsControl>
             <TextBlock x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
                        Foreground="#FF666666" FontSize="15" TextAlignment="Center"
-                       Text="אין אריחים עדיין&#10;גרור את ⌖ מהסרגל אל חלון, גרור חלון אמיתי ושחרר מעליי,&#10;או הרץ: wingrid add --match &quot;&lt;title regex&gt;&quot;"/>
+                       Text="אין אריחים עדיין&#10;גרור את ⌖ מהסרגל אל חלון, גרור חלון אמיתי ושחרר מעליי,&#10;או הרץ: sessiondeck add --match &quot;&lt;title regex&gt;&quot;"/>
         </Grid>
     </DockPanel>
 </Window>

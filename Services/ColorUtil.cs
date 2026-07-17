@@ -1,6 +1,6 @@
 using System.Windows.Media;
 
-namespace WinGrid.Services;
+namespace SessionDeck.Services;
 
 public static class ColorUtil
 {

@@ -1,10 +1,10 @@
 using System.IO;
 using System.IO.Pipes;
 using System.Text.Json;
-using WinGrid.Interop;
-using WinGrid.Services;
+using SessionDeck.Interop;
+using SessionDeck.Services;
 
-namespace WinGrid.Cli;
+namespace SessionDeck.Cli;
 
 /// <summary>
 /// CLI mode: same exe launched with arguments (SPEC §4). Attaches to the parent console
@@ -28,7 +28,7 @@ public static class CliClient
         var response = Send(args);
         if (response == null)
         {
-            Console.Error.WriteLine("wingrid: no running WinGrid instance — start the app first.");
+            Console.Error.WriteLine("sessiondeck: no running SessionDeck instance — start the app first.");
             return 2;
         }
 
@@ -54,7 +54,7 @@ public static class CliClient
             writer.WriteLine(JsonSerializer.Serialize(new PipeRequest { Argv = argv }));
 
             string? line = reader.ReadLine();
-            if (line == null) return new PipeResponse(1, "no response from WinGrid");
+            if (line == null) return new PipeResponse(1, "no response from SessionDeck");
             return JsonSerializer.Deserialize<PipeResponse>(line) ?? new PipeResponse(1, "bad response");
         }
         catch
@@ -64,21 +64,21 @@ public static class CliClient
     }
 
     private static string HelpText => $"""
-        WinGrid CLI (v{typeof(CliClient).Assembly.GetName().Version?.ToString(3)})
+        SessionDeck CLI (v{typeof(CliClient).Assembly.GetName().Version?.ToString(3)})
 
-        wingrid list                          tiles table: id, state, process, color, title, desc
-        wingrid add --match "<title regex>" [--process <name>] [--desc "..."] [--color <c>]
-        wingrid remove <target>
-        wingrid set <target> [--title "..."] [--desc "..."]     empty --title reverts to auto
-        wingrid border <target> --color <c>                     static border color
-        wingrid border <target> --color <c> --alt <c2> [--interval <ms>]   blinking (default 500ms)
-        wingrid border --match "..." --color <c> --auto-add     add the window if not tiled yet
-        wingrid focus <target>                activate window in place
-        wingrid pin <target>                  move window to the Stage + activate
-        wingrid stage --monitor <n> --half left|right | --full | --rect x,y,w,h
-        wingrid zone --monitor <n> --half left|right | --full | --off
-        wingrid status                        app state: version, zone, stage, tile counts
-        wingrid help
+        sessiondeck list                          tiles table: id, state, process, color, title, desc
+        sessiondeck add --match "<title regex>" [--process <name>] [--desc "..."] [--color <c>]
+        sessiondeck remove <target>
+        sessiondeck set <target> [--title "..."] [--desc "..."]     empty --title reverts to auto
+        sessiondeck border <target> --color <c>                     static border color
+        sessiondeck border <target> --color <c> --alt <c2> [--interval <ms>]   blinking (default 500ms)
+        sessiondeck border --match "..." --color <c> --auto-add     add the window if not tiled yet
+        sessiondeck focus <target>                activate window in place
+        sessiondeck pin <target>                  move window to the Stage + activate
+        sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
+        sessiondeck zone --monitor <n> --half left|right | --full | --off
+        sessiondeck status                        app state: version, zone, stage, tile counts
+        sessiondeck help
 
         <target> = tile id, or --match "<regex>" on the tile title
         colors   = red, green, orange, blue, gray, yellow, purple, cyan, magenta, white, black, or #RRGGBB

@@ -1,6 +1,6 @@
-using WinGrid.Interop;
+using SessionDeck.Interop;
 
-namespace WinGrid.Services;
+namespace SessionDeck.Services;
 
 public static class WindowActions
 {

@@ -1,10 +1,10 @@
 using System.Threading;
 
-namespace WinGrid;
+namespace SessionDeck;
 
 public static class Program
 {
-    private const string MutexName = "WinGrid_SingletonMutex";
+    private const string MutexName = "SessionDeck_SingletonMutex";
 
     [STAThread]
     public static int Main(string[] args)
@@ -20,6 +20,8 @@ public static class Program
             Cli.CliClient.TrySendActivate();
             return 0;
         }
+
+        Services.StartupService.MigrateLegacyValue();
 
         var app = new App();
         app.InitializeComponent();

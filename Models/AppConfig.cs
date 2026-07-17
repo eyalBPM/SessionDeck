@@ -1,4 +1,4 @@
-namespace WinGrid.Models;
+namespace SessionDeck.Models;
 
 public enum ZoneMode { Off, HalfLeft, HalfRight, Full }
 public enum StageMode { Full, HalfLeft, HalfRight, Rect }

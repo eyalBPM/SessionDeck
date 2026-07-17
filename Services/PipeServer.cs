@@ -2,7 +2,7 @@ using System.IO;
 using System.IO.Pipes;
 using System.Text.Json;
 
-namespace WinGrid.Services;
+namespace SessionDeck.Services;
 
 public sealed record PipeResponse(int ExitCode, string Output);
 
@@ -12,7 +12,7 @@ public sealed record PipeResponse(int ExitCode, string Output);
 /// </summary>
 public sealed class PipeServer : IDisposable
 {
-    public const string PipeName = "wingrid";
+    public const string PipeName = "sessiondeck";
 
     private readonly Func<string[], PipeResponse> _handler;
     private readonly CancellationTokenSource _cts = new();

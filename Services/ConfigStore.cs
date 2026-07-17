@@ -1,9 +1,9 @@
 using System.IO;
 using System.Text.Json;
 using System.Windows.Threading;
-using WinGrid.Models;
+using SessionDeck.Models;
 
-namespace WinGrid.Services;
+namespace SessionDeck.Services;
 
 /// <summary>
 /// Persistence with permanent auto-save (SPEC §F7): every change is queued and flushed
@@ -12,7 +12,7 @@ namespace WinGrid.Services;
 public sealed class ConfigStore
 {
     public static readonly string ConfigDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WinGrid");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SessionDeck");
     public static readonly string ConfigPath = Path.Combine(ConfigDir, "config.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
@@ -29,6 +29,7 @@ public sealed class ConfigStore
 
     public static AppConfig Load()
     {
+        MigrateLegacyConfig();
         try
         {
             if (File.Exists(ConfigPath))
@@ -39,6 +40,27 @@ public sealed class ConfigStore
             // Corrupt config — start fresh rather than crash on startup.
         }
         return new AppConfig();
+    }
+
+    /// <summary>One-time migration from the pre-rename WinGrid config location (decision 19).</summary>
+    private static void MigrateLegacyConfig()
+    {
+        try
+        {
+            string legacyDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WinGrid");
+            string legacyPath = Path.Combine(legacyDir, "config.json");
+            if (File.Exists(ConfigPath) || !File.Exists(legacyPath))
+                return;
+            Directory.CreateDirectory(ConfigDir);
+            File.Move(legacyPath, ConfigPath);
+            if (Directory.GetFileSystemEntries(legacyDir).Length == 0)
+                Directory.Delete(legacyDir);
+        }
+        catch
+        {
+            // Migration is best-effort; a fresh config is an acceptable fallback.
+        }
     }
 
     public void QueueSave()

@@ -1,10 +1,10 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using WinGrid.Models;
-using WinGrid.Services;
-using WinGrid.ViewModels;
+using SessionDeck.Models;
+using SessionDeck.Services;
+using SessionDeck.ViewModels;
 
-namespace WinGrid.Cli;
+namespace SessionDeck.Cli;
 
 /// <summary>
 /// Executes CLI argv against the live app state. Always invoked on the UI thread
@@ -222,7 +222,7 @@ public sealed class CommandExecutor
             ? $"rect {r.Left},{r.Top},{r.Width},{r.Height}"
             : $"{ModeNames.ToName(Vm.StageMode)} (monitor {Vm.StageMonitor + 1})";
         return Ok($"""
-            WinGrid {version}
+            SessionDeck {version}
             zone:  {ModeNames.ToName(Vm.ZoneMode)} (monitor {Vm.ZoneMonitor + 1})
             stage: {stage}
             tiles: {Vm.Tiles.Count} ({connected} connected, {Vm.Tiles.Count - connected} disconnected)

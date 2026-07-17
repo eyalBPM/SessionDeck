@@ -1,8 +1,8 @@
 using System.Windows.Interop;
-using WinGrid.Interop;
-using WinGrid.Models;
+using SessionDeck.Interop;
+using SessionDeck.Models;
 
-namespace WinGrid.Services;
+namespace SessionDeck.Services;
 
 /// <summary>
 /// Reserved Zone via the AppBar API (SPEC §F4): the main window docks to a monitor edge
@@ -23,7 +23,7 @@ public sealed class AppBarService
     {
         _source = source;
         _hwnd = source.Handle;
-        _callbackMsg = NativeMethods.RegisterWindowMessage("WinGrid_AppBarCallback");
+        _callbackMsg = NativeMethods.RegisterWindowMessage("SessionDeck_AppBarCallback");
         source.AddHook(WndProc);
     }
 

@@ -1,6 +1,6 @@
-using WinGrid.Interop;
+using SessionDeck.Interop;
 
-namespace WinGrid.Services;
+namespace SessionDeck.Services;
 
 public sealed record MonitorEntry(int Index, string Device, RECT Bounds, RECT WorkArea, bool Primary)
 {
