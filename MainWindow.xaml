@@ -125,8 +125,33 @@
         <!-- status bar: full width at the window bottom, outside the scroll area, so long
              messages never crowd the toolbar (feedback 2026-07-19) -->
         <Border DockPanel.Dock="Bottom" Background="#FF232323" Padding="10,4">
-            <TextBlock x:Name="StatusText" Foreground="#FF999999" TextWrapping="Wrap"
-                       FlowDirection="{Binding Text, RelativeSource={RelativeSource Self}, Converter={StaticResource Rtl}}"/>
+            <DockPanel LastChildFill="True">
+                <!-- session-status summary (feature 2026-07-19): a dot per (status, blinking)
+                     group, colored like the session borders; empty groups are not shown.
+                     RTL panel so the most urgent group renders rightmost. -->
+                <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding StatusSummary}"
+                              VerticalAlignment="Center" Margin="12,0,0,0"
+                              FlowDirection="RightToLeft">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,10,0"
+                                        ToolTip="{Binding Tooltip}">
+                                <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}"
+                                         VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Count}" Foreground="#FFBBBBBB" FontSize="11"
+                                           Margin="4,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock x:Name="StatusText" Foreground="#FF999999" TextWrapping="Wrap"
+                           FlowDirection="{Binding Text, RelativeSource={RelativeSource Self}, Converter={StaticResource Rtl}}"/>
+            </DockPanel>
         </Border>
 
         <Grid>

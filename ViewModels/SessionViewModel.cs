@@ -245,7 +245,7 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
 
     private static readonly Dictionary<string, Brush> BrushCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private static Brush MakeBrush(string name)
+    internal static Brush MakeBrush(string name)
     {
         if (BrushCache.TryGetValue(name, out var cached)) return cached;
         var brush = new SolidColorBrush(ColorUtil.TryParse(name, out var c) ? c : Colors.Gray);

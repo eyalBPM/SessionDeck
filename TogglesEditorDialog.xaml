@@ -31,6 +31,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="86"/>
                 <ColumnDefinition Width="34"/>
+                <ColumnDefinition Width="34"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="אייקון" FontSize="11"/>
             <TextBlock Grid.Column="1" Text="מזהה (id)" FontSize="11"/>
@@ -48,6 +49,7 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="86"/>
                             <ColumnDefinition Width="34"/>
+                            <ColumnDefinition Width="34"/>
                         </Grid.ColumnDefinitions>
                         <TextBox Text="{Binding Icon, UpdateSourceTrigger=PropertyChanged}"
                                  HorizontalContentAlignment="Center" Margin="0,0,6,0"/>
@@ -57,7 +59,11 @@
                         <TextBox Grid.Column="2" Text="{Binding Tooltip, UpdateSourceTrigger=PropertyChanged}"/>
                         <CheckBox Grid.Column="3" IsChecked="{Binding DefaultOn}"
                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        <Button Grid.Column="4" Content="🗑" ToolTip="מחק מתג" Click="DeleteRow_Click"
+                        <Button Grid.Column="4" Content="📋" Click="CopyPrompt_Click"
+                                ToolTip="העתק פרומפט ל-AI agent: הדבק אותו אצל הסוכן שלך והוא יחבר את ה-hook שלך למתג הזה"
+                                Background="Transparent" Foreground="#FF88AACC" BorderThickness="0"
+                                Cursor="Hand" FontSize="13"/>
+                        <Button Grid.Column="5" Content="🗑" ToolTip="מחק מתג" Click="DeleteRow_Click"
                                 Background="Transparent" Foreground="#FFCC6666" BorderThickness="0"
                                 Cursor="Hand" FontSize="13"/>
                     </Grid>

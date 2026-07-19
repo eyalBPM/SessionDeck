@@ -57,17 +57,17 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = Vm;
         _configStore = new ConfigStore(BuildConfig);
-        _blink = new BlinkEngine(() => Vm.AllSessions());
+        _blink = new BlinkEngine(() => Vm.AllSessions().Cast<IBlinkable>().Concat(Vm.StatusSummary));
         _monitors = MonitorService.GetMonitors();
 
         LoadFromConfig(config);
         PopulateCombos();
-        _blink.Refresh();
+        RefreshBlinkAndSummary();
 
         Vm.Workspaces.CollectionChanged += (_, _) =>
         {
             UpdateEmptyHint();
-            _blink.Refresh();
+            RefreshBlinkAndSummary();
             QueueSave();
         };
         SourceInitialized += OnSourceInitialized;
@@ -385,6 +385,7 @@ public partial class MainWindow : Window
         if (anyChanged)
         {
             SortWorkspaces();
+            RefreshBlinkAndSummary();
             QueueSave();
         }
     }
@@ -533,6 +534,7 @@ public partial class MainWindow : Window
             ws.VisibleInDeck = (!ws.Hidden || Vm.ShowHidden)
                 && (!searching || ws.SelfMatchesSearch || ws.Sessions.Any(SessionMatchesSearch));
         UpdateEmptyHint();
+        RefreshBlinkAndSummary();   // hidden workspaces don't count in the summary dots
     }
 
     // ---- search / filter (feature 2026-07-19) ----
@@ -1006,7 +1008,7 @@ public partial class MainWindow : Window
         ws.RefreshSessionVisibility();
         SortSessions(ws);
         SortWorkspaces();
-        _blink.Refresh();
+        RefreshBlinkAndSummary();
         QueueSave();
     }
 
@@ -1017,7 +1019,7 @@ public partial class MainWindow : Window
         if (!session.Acknowledged)
         {
             session.Acknowledged = true;
-            _blink.Refresh();
+            RefreshBlinkAndSummary();
             QueueSave();
         }
         FocusWorkspace(ws);
@@ -1084,7 +1086,7 @@ public partial class MainWindow : Window
             }
             if (ackChanged)
             {
-                _blink.Refresh();
+                RefreshBlinkAndSummary();
                 QueueSave();
             }
 
@@ -1263,7 +1265,15 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Called by the CLI after changes that may start/stop blinking.</summary>
-    public void RefreshBlink() => _blink.Refresh();
+    public void RefreshBlink() => RefreshBlinkAndSummary();
+
+    /// <summary>Recompute the status-bar summary dots, then start/stop the blink timer
+    /// (the dots blink via the same engine as the session borders).</summary>
+    private void RefreshBlinkAndSummary()
+    {
+        Vm.RebuildStatusSummary();
+        _blink.Refresh();
+    }
 
     /// <summary>Stage definition from the CLI (SPEC §F3): monitor + full/half, or a custom rect.</summary>
     public void SetStage(int monitor, StageMode mode, RECT? rect)

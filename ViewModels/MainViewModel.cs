@@ -55,6 +55,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public IEnumerable<SessionViewModel> AllSessions()
         => Workspaces.SelectMany(w => w.Sessions);
 
+    /// <summary>Status-bar summary dots (feature 2026-07-19): open sessions in visible
+    /// workspaces, grouped by (status, blinking). Blinking (attention) groups first.</summary>
+    public ObservableCollection<StatusDotViewModel> StatusSummary { get; } = new();
+
+    // Attention-first display order; first item renders rightmost (RTL panel).
+    private static int Severity(SessionStatus s) => s switch
+    {
+        SessionStatus.Error => 0,
+        SessionStatus.Waiting => 1,
+        SessionStatus.Done => 2,
+        SessionStatus.Working => 3,
+        _ => 4,
+    };
+
+    public void RebuildStatusSummary()
+    {
+        var groups = Workspaces.Where(w => w.VisibleInDeck)
+            .SelectMany(w => w.Sessions)
+            .Where(s => !s.Closed && !s.Phantom)
+            .GroupBy(s => (s.Status, s.BlinkActive))
+            .Select(g => (g.Key.Status, Blinking: g.Key.BlinkActive, Count: g.Count()))
+            .OrderBy(g => g.Blinking ? 0 : 1)
+            .ThenBy(g => Severity(g.Status))
+            .ToList();
+
+        if (groups.SequenceEqual(StatusSummary.Select(d => (d.Status, d.Blinking, d.Count))))
+            return;
+
+        StatusSummary.Clear();
+        foreach (var g in groups)
+            StatusSummary.Add(new StatusDotViewModel { Status = g.Status, Blinking = g.Blinking, Count = g.Count });
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private void Raise([CallerMemberName] string? name = null)
