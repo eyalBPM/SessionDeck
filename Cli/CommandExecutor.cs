@@ -180,6 +180,15 @@ public sealed class CommandExecutor
                 var (msg, ok) = _window.EndSession(id, HookInfoFrom(a));
                 return ok ? Ok(msg) : Err(msg);
             }
+            case "open":
+            {
+                if (!a.Options.TryGetValue("id", out var id)) return Err("session open requires --id <session_id>");
+                if (Vm.FindSession(id) is not { } found) return Err($"unknown session id {id}");
+                var (ws, session) = found;
+                _window.FocusWorkspace(ws);
+                var (sent, msg) = _window.OpenSessionInVscode(ws, session);
+                return sent ? Ok($"opening session {id} in VSCode") : Err(msg);
+            }
             case "list":
             {
                 var wanted = a.Options.GetValueOrDefault("workspace");
@@ -194,7 +203,7 @@ public sealed class CommandExecutor
                 return Ok(sb.Length > 0 ? sb.ToString().TrimEnd() : "(no sessions)");
             }
             default:
-                return Err("session requires: start | status | end | list");
+                return Err("session requires: start | status | end | open | list");
         }
     }
 

@@ -1,0 +1,1 @@
+Private extension for personal use with SessionDeck. Not for redistribution.

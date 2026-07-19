@@ -50,8 +50,20 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
         set { if (_customTitle != value) { _customTitle = value; Raise(); Raise(nameof(DisplayTitle)); } }
     }
 
+    private string? _autoTitle;
+    /// <summary>Title derived from the transcript (summary / first prompt) — stage D.</summary>
+    public string? AutoTitle
+    {
+        get => _autoTitle;
+        set { if (_autoTitle != value) { _autoTitle = value; Raise(); Raise(nameof(DisplayTitle)); } }
+    }
+
+    /// <summary>Transcript mtime already scanned for AutoTitle (not persisted).</summary>
+    public DateTime TranscriptScannedAt { get; set; }
+
     public string DisplayTitle =>
         !string.IsNullOrEmpty(_customTitle) ? _customTitle
+        : !string.IsNullOrEmpty(_autoTitle) ? _autoTitle
         : SessionId.Length > 8 ? "session " + SessionId[..8] : "session " + SessionId;
 
     private string _description = "";
@@ -99,6 +111,15 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
 
     public DateTime? LastEventAt { get; set; }
 
+    private bool _openAsTab;
+    /// <summary>Best-effort: a Claude tab with a matching label is open in VSCode (stage D).
+    /// Matched by title, so it may lag until the transcript title is scanned.</summary>
+    public bool OpenAsTab
+    {
+        get => _openAsTab;
+        set { if (_openAsTab != value) { _openAsTab = value; Raise(); Raise(nameof(TooltipText)); } }
+    }
+
     public string TooltipText
     {
         get
@@ -108,6 +129,7 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
             if (_source != null) lines.Add($"source: {_source}");
             if (_permissionMode != null) lines.Add($"permission mode: {_permissionMode}");
             if (TranscriptPath != null) lines.Add($"transcript: {TranscriptPath}");
+            if (_openAsTab) lines.Add("open as a VSCode tab");
             lines.Add($"started: {StartedAt:HH:mm:ss}");
             if (LastEventAt is { } le) lines.Add($"last event: {le:HH:mm:ss}");
             if (EndedAt is { } ea) lines.Add($"ended: {ea:HH:mm:ss}" + (_endReason != null ? $" ({_endReason})" : ""));

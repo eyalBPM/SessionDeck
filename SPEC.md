@@ -1,7 +1,7 @@
 # SessionDeck (לשעבר WinGrid) — אפיון פיתוח (v0.6)
 
 > Last updated: 2026-07-17
-> Status: **שלבים א'–ג' ממומשים** (v0.4.0, 2026-07-17; ממתין לבדיקות ידניות — `MANUAL_TESTS.md`); rename ל-SessionDeck בוצע (v0.3.0); שלב ד' (VSCode extension) באפיון.
+> Status: **שלבים א'–ד' ממומשים** (v0.5.0, 2026-07-19; ממתין לבדיקות ידניות — `MANUAL_TESTS.md`); rename ל-SessionDeck בוצע (v0.3.0); auto-acknowledge מטאב (שלב ד', סעיף אחרון) — עדיין פתוח.
 > שם: **SessionDeck** (נבחר 2026-07-17 — החלטה 20). ה-rename הושלם במלואו: קוד 2026-07-17 (csproj/slnx, namespaces, pipe `sessiondeck`, mutex, ‏`%APPDATA%\SessionDeck` + מיגרציה, ערך Run + מיגרציה), ושם התיקייה `D:\Eyal\SessionDeck` ‏(2026-07-19, ע"י אייל).
 > מחבר האפיון: Claude Code בשיתוף אייל, סשנים 2026-07-16 – 2026-07-17.
 
@@ -46,7 +46,7 @@
 | `done` | ירוקה מהבהבת → קבועה | מהבהבת עד **acknowledge** (לחיצת המשתמש) → ירוקה קבועה |
 | `error` | אדומה מהבהבת → קבועה | כנ"ל — מהבהבת עד acknowledge → אדומה קבועה |
 
-- **לחיצה על Session Card** = Focus לחלון + acknowledge (עצירת הבהוב done/error). בשלב ד': גם הפעלת הטאב הספציפי, ו-auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode.
+- **לחיצה על Session Card** = Focus לחלון + acknowledge (עצירת הבהוב done/error) + הפעלת/פתיחת הטאב הספציפי ב-VSCode (שלב ד', v0.5.0). ‏auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode — עדיין פתוח (שאלה 3 ב-§9).
 - **מיפוי סטטוס→צבע/הבהוב יושב ב-config** — ניתן לשינוי בלי לגעת ב-hooks או בקוד.
 - הערה: ל-hooks של Claude Code אין אירוע error ייעודי; מצב `error` קיים במודל וב-CLI, והמיפוי מאירועים בפועל ייקבע בשלב ג' לפי מה שה-hooks מספקים.
 
@@ -220,12 +220,15 @@ sessiondeck session list   [--workspace <name>] [--all]     # --all כולל ס�
 **הערות מימוש (v0.4.0):** ה-Tile הגנרי הוחלף ב-WorkspaceCardView (המנוע — thumbnails, binding, zone/stage — נשמר); ה-crosshair picker הוסר מהסרגל לטובת בחירת תיקייה; נתוני ה-tiles משלבים א'-ב' נשמרים ב-config כשדה legacy ואינם מוצגים; רענון branch/Peacock כל ~10 שניות; סקריפט ה-hooks ב-`hooks/` עם הוראות התקנה.
 - מיפוי session→window לפי workspace name ב-title של VSCode
 
-### שלב ד' — VSCode Extension (נוסף v0.5)
-- **Spike ראשון**: קורלציה `session_id` ↔ טאב (tabGroups API) — הסיכון הטכני המרכזי
-- סנכרון רשימת טאבים מה-extension ל-SessionDeck (דרך ה-pipe הקיים)
-- לחיצה על Session Card → הפעלת הטאב הספציפי ב-VSCode
-- auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode (בלי לחיצה באפליקציה)
-- פתיחה מחדש (resume) של סשן סגור מהתצוגה המורחבת
+### שלב ד' — VSCode Extension (נוסף v0.5) — **ממומש v0.5.0 (2026-07-19)**
+- ~~**Spike ראשון**: קורלציה `session_id` ↔ טאב~~ — **התייתר**: ה-extension של Claude Code חושף command פנימי `claude-vscode.editor.open(sessionId)` שעושה reveal-or-resume בעצמו (מחזיק את מיפוי sessionPanels). ה-fallback אם החתימה תישבר בגרסה עתידית: terminal עם `claude --resume <id>`.
+- סנכרון מה-extension ל-SessionDeck (דרך ה-pipe הקיים): טאבי Claude פתוחים (label+active), branch נוכחי (event-driven, עדיף על ה-poll של 10 שניות), נתיב workspace — נשלח בהפעלה ועל כל שינוי טאב/branch
+- לחיצה על Session Card → ‏Focus לחלון + הפעלת/פתיחת הטאב הספציפי ב-VSCode (`openSession` בערוץ ההפוך של ה-pipe); כשאין connector (‏VSCode עוד עולה) הבקשה ממתינה ונשלחת ב-sync הראשון (TTL ‏90 שניות)
+- פתיחה מחדש (resume) של סשן סגור מהתצוגה המורחבת — אותו מסלול
+- פתיחה "ממוקסמת" (config ‏`OpenSessionMaximized`, ברירת מחדל true): צמצום sidebar/panel/auxiliary bar לפני פתיחת הטאב
+- auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode — **עדיין פתוח** (הקורלציה טאב→session חלשה; ראה הערות)
+
+**הערות מימוש (v0.5.0):** ה-extension‏ (`vscode-extension/`, ‏TypeScript, ‏VSIX מותקן ידנית) מחזיק connection מתמיד ל-pipe ‏(pipe server שודרג ל-multi-instance + מצב connector); שמות סשנים אוטומטיים נגזרים מה-transcript ‏(summary אחרון או prompt ראשון, ‏`TranscriptReader`) ומוצגים במקום "session xxxxxxxx"; סינון טאבי Claude ב-extension לפי viewType ‏`claudeVSCodePanel`; תג 📑 על סשן שפתוח כטאב הוא best-effort לפי השוואת label לכותרת; ‏CLI חדש: `session open --id <sid>`; סדר טאבים לא מסונכרן (הוחלט לוותר — הלוח ממיין לפי פעילות).
 
 ---
 
@@ -257,8 +260,9 @@ sessiondeck session list   [--workspace <name>] [--all]     # --all כולל ס�
 
 ## 9. שאלות פתוחות
 
-1. **קורלציה session↔טאב (שלב ד')** — איך מקשרים `session_id` מה-hook לטאב ספציפי ב-tabGroups API. ייבדק ב-spike בתחילת שלב ד'.
+1. ~~**קורלציה session↔טאב (שלב ד')**~~ — **הוכרע (2026-07-19)**: פתיחה/הפעלה של טאב נעשית דרך `claude-vscode.editor.open(sessionId)` של Claude Code עצמו, כך שהקורלציה לא נדרשת בצד שלנו. נותר פתוח רק בכיוון ההפוך (טאב→session ל-auto-acknowledge) — כיום best-effort לפי label.
 2. **מקור מצב error (שלב ג')** — אין hook ייעודי; ייבדק מול מה שה-hooks מספקים בפועל (למשל SessionEnd reason).
+3. **auto-acknowledge מפתיחת טאב ישירה ב-VSCode (שלב ד')** — דורש קורלציה טאב→session אמינה; אפשרות עתידית: השוואת label מול כותרת ה-transcript (קיימת כ-📑 best-effort) או API עתידי של Claude Code.
 
 **היקף ה-rename ל-SessionDeck** (החלטות 19–20): **בוצע 2026-07-17 (v0.3.0)** — שם קבצי csproj/slnx, ‏RootNamespace/AssemblyName, ‏namespaces בקוד, שם ה-pipe (`sessiondeck`), ה-mutex, תיקיית ה-config (‏`%APPDATA%\SessionDeck` + מיגרציה אוטומטית של config קיים), ערך ה-HKCU Run (+מיגרציה), ואזכורים ב-SPEC/MANUAL_TESTS. ההיסטוריה של git נשמרה. שם התיקייה שונה ל-`D:\Eyal\SessionDeck` ‏(2026-07-19) — ה-rename הושלם במלואו.
 

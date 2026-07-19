@@ -38,6 +38,14 @@ public partial class MainWindow : Window
 
     private Dictionary<string, StatusStyle> _statusStyles = AppConfig.DefaultStatusStyles();
 
+    // Live VSCode-extension connections (stage D). UI thread only (handlers are dispatched).
+    private readonly List<VscodeConnection> _connectors = new();
+    // A session click with no connector yet (VSCode still launching) parks here until the
+    // extension's first sync for that workspace, then the open command is flushed to it.
+    private readonly Dictionary<string, (string SessionId, DateTime At)> _pendingOpens = new();
+    private static readonly TimeSpan PendingOpenTtl = TimeSpan.FromSeconds(90);
+    private bool _titleScanRunning;
+
     public int MonitorCount => _monitors.Count;
 
     public MainWindow()
@@ -87,6 +95,7 @@ public partial class MainWindow : Window
 
         Vm.NextWorkspaceId = Math.Max(1, config.NextWorkspaceId);
         Vm.ClosedSessionRetention = Math.Max(0, config.ClosedSessionRetention);
+        Vm.OpenSessionMaximized = config.OpenSessionMaximized;
         Vm.ShowHidden = config.ShowHidden;
 
         foreach (var wc in config.Workspaces)
@@ -121,6 +130,7 @@ public partial class MainWindow : Window
                     PermissionMode = sc.PermissionMode,
                     EndReason = sc.EndReason,
                     LastEventAt = sc.LastEventAt,
+                    AutoTitle = sc.AutoTitle,
                 });
             }
             ws.RefreshSessionVisibility();
@@ -160,7 +170,10 @@ public partial class MainWindow : Window
             ApplyZone(Vm.ZoneMonitor, Vm.ZoneMode, save: false);
 
         _executor = new CommandExecutor(this);
-        _pipe = new PipeServer(argv => Dispatcher.Invoke(() => _executor.Execute(argv)));
+        _pipe = new PipeServer(
+            argv => Dispatcher.Invoke(() => _executor.Execute(argv)),
+            (sync, conn) => Dispatcher.BeginInvoke(() => OnVscodeSync(sync, conn)),
+            conn => Dispatcher.BeginInvoke(() => OnVscodeClosed(conn)));
         _pipe.Start();
     }
 
@@ -184,6 +197,7 @@ public partial class MainWindow : Window
             NextWorkspaceId = Vm.NextWorkspaceId,
             StatusStyles = _statusStyles,
             ClosedSessionRetention = Vm.ClosedSessionRetention,
+            OpenSessionMaximized = Vm.OpenSessionMaximized,
             ShowHidden = Vm.ShowHidden,
             Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode) },
             Stage = new StageConfig
@@ -223,6 +237,7 @@ public partial class MainWindow : Window
                     PermissionMode = s.PermissionMode,
                     EndReason = s.EndReason,
                     LastEventAt = s.LastEventAt,
+                    AutoTitle = s.AutoTitle,
                 });
             }
             cfg.Workspaces.Add(wc);
@@ -298,6 +313,47 @@ public partial class MainWindow : Window
     {
         foreach (var ws in Vm.Workspaces)
             RefreshMetadata(ws);
+        RefreshTranscriptTitles();
+    }
+
+    /// <summary>Background scan of session transcripts for auto titles (stage D).
+    /// Only files whose mtime changed since the last scan are re-read.</summary>
+    private void RefreshTranscriptTitles()
+    {
+        if (_titleScanRunning) return;
+        var stale = new List<(SessionViewModel Session, string Path, DateTime Mtime)>();
+        foreach (var s in Vm.AllSessions())
+        {
+            if (s.CustomTitle != null || s.TranscriptPath is not { Length: > 0 } path) continue;
+            try
+            {
+                DateTime mtime = File.GetLastWriteTimeUtc(path);
+                if (mtime != s.TranscriptScannedAt) stale.Add((s, path, mtime));
+            }
+            catch { }
+        }
+        if (stale.Count == 0) return;
+
+        _titleScanRunning = true;
+        Task.Run(() =>
+        {
+            var results = stale.Select(x => (x.Session, Title: TranscriptReader.ReadTitle(x.Path), x.Mtime)).ToList();
+            Dispatcher.BeginInvoke(() =>
+            {
+                _titleScanRunning = false;
+                bool changed = false;
+                foreach (var (session, title, mtime) in results)
+                {
+                    session.TranscriptScannedAt = mtime;
+                    if (title != null && session.AutoTitle != title)
+                    {
+                        session.AutoTitle = title;
+                        changed = true;
+                    }
+                }
+                if (changed) QueueSave();
+            });
+        });
     }
 
     /// <summary>Actives (bound window / live session) float to the top (SPEC decision 16).
@@ -616,7 +672,8 @@ public partial class MainWindow : Window
         QueueSave();
     }
 
-    /// <summary>Click on a session card = focus the window + acknowledge (SPEC §2ב).</summary>
+    /// <summary>Click on a session card = acknowledge + focus the window + open/resume the
+    /// session's tab in VSCode via the connector (stage D).</summary>
     public void HandleSessionClick(WorkspaceViewModel ws, SessionViewModel session)
     {
         if (!session.Acknowledged)
@@ -626,6 +683,75 @@ public partial class MainWindow : Window
             QueueSave();
         }
         FocusWorkspace(ws);
+        var (sent, _) = OpenSessionInVscode(ws, session);
+        if (sent) SetStatus($"פותח את הסשן ב-VSCode: {session.DisplayTitle}");
+    }
+
+    // ---- VSCode extension connector (stage D) ----
+
+    private void OnVscodeSync(VscodeSyncMessage sync, VscodeConnection conn)
+    {
+        if (!_connectors.Contains(conn)) _connectors.Add(conn);
+        conn.Pid = sync.Pid;
+        conn.WorkspacePath = sync.Workspace ?? "";
+        if (conn.WorkspacePath.Length == 0) return;
+
+        if (Vm.FindByPath(conn.WorkspacePath) is { } ws)
+        {
+            // The extension is the fresher branch source (event-driven vs our 10s poll).
+            if (!string.IsNullOrEmpty(sync.Branch)) ws.Branch = sync.Branch;
+            var labels = sync.Tabs.Select(t => t.Label).ToList();
+            ws.SetClaudeTabs(labels);
+            foreach (var s in ws.Sessions)
+                s.OpenAsTab = labels.Contains(s.DisplayTitle);
+        }
+
+        // A click that had to launch VSCode first parked its open request here.
+        string norm = WorkspaceMetadata.NormalizePath(conn.WorkspacePath);
+        if (_pendingOpens.TryGetValue(norm, out var pending))
+        {
+            _pendingOpens.Remove(norm);
+            if (DateTime.Now - pending.At < PendingOpenTtl)
+                conn.TrySend(new { Cmd = "openSession", SessionId = pending.SessionId, Maximize = Vm.OpenSessionMaximized });
+        }
+    }
+
+    private void OnVscodeClosed(VscodeConnection conn)
+    {
+        _connectors.Remove(conn);
+        if (conn.WorkspacePath.Length > 0 &&
+            Vm.FindByPath(conn.WorkspacePath) is { } ws && FindConnector(ws) == null)
+        {
+            ws.SetClaudeTabs(new List<string>());
+            foreach (var s in ws.Sessions) s.OpenAsTab = false;
+        }
+    }
+
+    private VscodeConnection? FindConnector(WorkspaceViewModel ws)
+    {
+        if (ws.Path.Length == 0) return null;
+        string norm = WorkspaceMetadata.NormalizePath(ws.Path);
+        return _connectors.LastOrDefault(c => c.WorkspacePath.Length > 0 &&
+            WorkspaceMetadata.NormalizePath(c.WorkspacePath) == norm);
+    }
+
+    /// <summary>Open/resume the session's tab in VSCode. Without a live connector the request
+    /// is parked; it's flushed when the extension connects (VSCode may still be launching).</summary>
+    public (bool, string) OpenSessionInVscode(WorkspaceViewModel ws, SessionViewModel session)
+    {
+        var conn = FindConnector(ws);
+        if (conn == null)
+        {
+            if (ws.Path.Length > 0)
+                _pendingOpens[WorkspaceMetadata.NormalizePath(ws.Path)] = (session.SessionId, DateTime.Now);
+            return (false, "no VSCode connector for this workspace yet — request queued");
+        }
+        if (!conn.TrySend(new { Cmd = "openSession", SessionId = session.SessionId, Maximize = Vm.OpenSessionMaximized }))
+        {
+            _connectors.Remove(conn);
+            return (false, "connector connection lost");
+        }
+        return (true, "");
     }
 
     // ---- focus / pin / stage (SPEC §F3) ----

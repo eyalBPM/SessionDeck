@@ -1,0 +1,37 @@
+{
+  "name": "sessiondeck-connector",
+  "displayName": "SessionDeck Connector",
+  "description": "Reports Claude Code tabs and the git branch to SessionDeck, and opens/resumes Claude sessions on request (SessionDeck stage D).",
+  "version": "0.5.0",
+  "publisher": "eyal-sinay",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sessiondeck.sync",
+        "title": "SessionDeck: Sync Now"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "package": "vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.94.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.5.0"
+  }
+}

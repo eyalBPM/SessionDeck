@@ -6,64 +6,179 @@ namespace SessionDeck.Services;
 
 public sealed record PipeResponse(int ExitCode, string Output);
 
+/// <summary>A state snapshot pushed by the VSCode extension (stage D): the workspace
+/// folder, current branch and the open Claude Code tabs. Sent on connect and on every
+/// tab/branch change.</summary>
+public sealed class VscodeSyncMessage
+{
+    public string? Type { get; set; }                // "vscode-sync"
+    public string? Workspace { get; set; }           // first workspace folder path
+    public string? Branch { get; set; }
+    public int Pid { get; set; }
+    public List<VscodeTab> Tabs { get; set; } = new();
+}
+
+public sealed class VscodeTab
+{
+    public string Label { get; set; } = "";
+    public bool Active { get; set; }
+}
+
 /// <summary>
-/// Named-pipe server for CLI commands (SPEC §4): one JSON request line per connection
-/// ({"argv":[...]}), one JSON response line ({"exitCode":n,"output":"..."}).
+/// A live VSCode-extension connection. The extension keeps its pipe connection open;
+/// SessionDeck pushes commands (e.g. openSession) down it as JSON lines.
+/// TrySend is safe from any thread.
+/// </summary>
+public sealed class VscodeConnection
+{
+    private readonly StreamWriter _writer;
+    private readonly object _gate = new();
+    private volatile bool _dead;
+
+    public string WorkspacePath { get; set; } = "";
+    public int Pid { get; set; }
+
+    internal VscodeConnection(StreamWriter writer) => _writer = writer;
+
+    /// <summary>Fire-and-forget: the write happens off-thread so a stalled client can
+    /// never block the UI (a pipe write blocks once the out-buffer fills). A failed
+    /// write marks the connection dead; the read loop also surfaces the disconnect.</summary>
+    public bool TrySend(object message)
+    {
+        if (_dead) return false;
+        string json = JsonSerializer.Serialize(message);
+        Task.Run(() =>
+        {
+            lock (_gate)
+            {
+                try { _writer.WriteLine(json); }
+                catch { _dead = true; }
+            }
+        });
+        return true;
+    }
+}
+
+/// <summary>
+/// Named-pipe server (SPEC §4). Two client kinds share the pipe, distinguished by the
+/// first line: CLI requests ({"Argv":[...]} → one response line, then close) and VSCode
+/// connectors ({"Type":"vscode-sync",...} → connection stays open; further syncs flow in,
+/// commands are pushed out). Multiple instances so a persistent connector never blocks CLI.
 /// </summary>
 public sealed class PipeServer : IDisposable
 {
     public const string PipeName = "sessiondeck";
 
-    private readonly Func<string[], PipeResponse> _handler;
+    private readonly Func<string[], PipeResponse> _cliHandler;
+    private readonly Action<VscodeSyncMessage, VscodeConnection> _syncHandler;
+    private readonly Action<VscodeConnection> _closedHandler;
     private readonly CancellationTokenSource _cts = new();
-    private Task? _loop;
 
-    public PipeServer(Func<string[], PipeResponse> handler)
+    public PipeServer(Func<string[], PipeResponse> cliHandler,
+                      Action<VscodeSyncMessage, VscodeConnection> syncHandler,
+                      Action<VscodeConnection> closedHandler)
     {
-        _handler = handler;
+        _cliHandler = cliHandler;
+        _syncHandler = syncHandler;
+        _closedHandler = closedHandler;
     }
 
-    public void Start() => _loop = Task.Run(LoopAsync);
+    public void Start() => _ = Task.Run(AcceptLoopAsync);
 
-    private async Task LoopAsync()
+    private async Task AcceptLoopAsync()
     {
         while (!_cts.IsCancellationRequested)
         {
+            NamedPipeServerStream? server = null;
             try
             {
-                await using var server = new NamedPipeServerStream(PipeName, PipeDirection.InOut, 1,
-                    PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                // Non-zero out-buffer so short pushes don't block even momentarily.
+                server = new NamedPipeServerStream(PipeName, PipeDirection.InOut,
+                    NamedPipeServerStream.MaxAllowedServerInstances,
+                    PipeTransmissionMode.Byte, PipeOptions.Asynchronous,
+                    inBufferSize: 16384, outBufferSize: 65536);
                 await server.WaitForConnectionAsync(_cts.Token);
-
-                using var reader = new StreamReader(server, leaveOpen: true);
-                await using var writer = new StreamWriter(server, leaveOpen: true) { AutoFlush = true };
-
-                string? line = await reader.ReadLineAsync(_cts.Token);
-                var response = Handle(line);
-                await writer.WriteLineAsync(JsonSerializer.Serialize(response));
-                server.WaitForPipeDrain();
+                var connected = server;
+                server = null;
+                _ = Task.Run(() => ServeAsync(connected));
             }
             catch (OperationCanceledException)
             {
+                server?.Dispose();
                 break;
             }
             catch
             {
-                // Broken client connection — keep serving.
+                server?.Dispose();
+                try { await Task.Delay(200, _cts.Token); } catch { break; }
             }
         }
     }
 
-    private PipeResponse Handle(string? line)
+    private async Task ServeAsync(NamedPipeServerStream server)
+    {
+        VscodeConnection? connector = null;
+        try
+        {
+            using var reader = new StreamReader(server, leaveOpen: true);
+            await using var writer = new StreamWriter(server, leaveOpen: true) { AutoFlush = true };
+
+            string? line = await reader.ReadLineAsync(_cts.Token);
+            if (line == null) return;
+
+            if (TryParseSync(line, out var sync))
+            {
+                connector = new VscodeConnection(writer);
+                while (sync != null)
+                {
+                    _syncHandler(sync, connector);
+                    line = await reader.ReadLineAsync(_cts.Token);
+                    if (line == null) break;
+                    TryParseSync(line, out sync);
+                }
+                return;
+            }
+
+            var response = HandleCli(line);
+            await writer.WriteLineAsync(JsonSerializer.Serialize(response));
+            server.WaitForPipeDrain();
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            // Broken client connection — nothing to do.
+        }
+        finally
+        {
+            if (connector != null) _closedHandler(connector);
+            try { server.Dispose(); } catch { }
+        }
+    }
+
+    private static bool TryParseSync(string line, out VscodeSyncMessage? sync)
+    {
+        sync = null;
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<VscodeSyncMessage>(line);
+            if (parsed?.Type != "vscode-sync") return false;
+            sync = parsed;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private PipeResponse HandleCli(string line)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(line))
-                return new PipeResponse(1, "empty request");
             var request = JsonSerializer.Deserialize<PipeRequest>(line);
             if (request?.Argv is not { Length: > 0 })
                 return new PipeResponse(1, "malformed request");
-            return _handler(request.Argv);
+            return _cliHandler(request.Argv);
         }
         catch (Exception ex)
         {

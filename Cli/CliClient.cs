@@ -81,6 +81,7 @@ public static class CliClient
         sessiondeck session start  --id <sid> --workspace <cwd path or name> [--title "..."] [--source <s>]
         sessiondeck session status --id <sid> --state working|waiting|done|error|idle [--detail "..."]
         sessiondeck session end    --id <sid> [--reason <r>]
+        sessiondeck session open   --id <sid>          focus VSCode + open/resume the session's tab
         sessiondeck session list   [--workspace <name>] [--all]
         all session commands also accept: --transcript <path> --mode <permission_mode>
 

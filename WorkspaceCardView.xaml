@@ -52,6 +52,22 @@
                                     <Run Text="&#x2387;"/> <Run Text="{Binding Branch}"/>
                                 </TextBlock>
                             </Border>
+                            <!-- open Claude Code tabs, reported by the VSCode extension (stage D) -->
+                            <Border Background="#33FFFFFF" CornerRadius="8" Padding="7,1" Margin="6,0,0,0"
+                                    VerticalAlignment="Center" ToolTip="{Binding ClaudeTabsTooltip}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasClaudeTabs}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Foreground="#FFDDDDDD" FontSize="11">
+                                    <Run Text="📑"/> <Run Text="{Binding ClaudeTabCount, Mode=OneWay}"/>
+                                </TextBlock>
+                            </Border>
                         </StackPanel>
                         <TextBlock Text="{Binding Description}" Foreground="#FFAAAAAA" FontSize="11"
                                    TextTrimming="CharacterEllipsis">
@@ -127,8 +143,22 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="#FFBBBBBB"
-                                           FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                                            Margin="8,0,0,0">
+                                    <TextBlock Text="📑" FontSize="11" Margin="0,0,6,0"
+                                               ToolTip="פתוח כטאב ב-VSCode">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding OpenAsTab}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding StatusText}" Foreground="#FFBBBBBB" FontSize="11"/>
+                                </StackPanel>
                             </Grid>
                         </Border>
                     </DataTemplate>

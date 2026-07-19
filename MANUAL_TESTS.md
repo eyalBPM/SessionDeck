@@ -1,4 +1,4 @@
-# SessionDeck — רשימת בדיקות ידניות (v0.4.0, שלב ג')
+# SessionDeck — רשימת בדיקות ידניות (v0.5.0, שלבים ג'–ד')
 
 > מטרה: לבדוק פיזית את מה שאי אפשר לבדוק מרחוק. סמן ✔ ליד מה שעבר.
 > **הרצה:** `bin\Debug\net10.0-windows\SessionDeck.exe` (או F5 מ-Visual Studio).
@@ -49,10 +49,26 @@
 - [ ] `%APPDATA%\SessionDeck\config.json` קריא; שינוי צבע ב-`StatusStyles` (למשל working→purple) נטען אחרי restart.
 - [ ] טוגל "עלייה אוטומטית עם Windows" ב-⚙ יוצר/מוחק ערך registry ‏(`HKCU\...\Run\SessionDeck`).
 
-## 6. ידוע / מגבלות
+## 6. שלב ד' — VSCode Extension ‏(SessionDeck Connector)
 
-- Session Card מזוהה לפי `session_id` מה-hook; קורלציה לטאב ספציפי ב-VSCode — שלב ד'.
-- לחיצה על Session Card ממקדת את החלון בלבד (לא את הטאב) — שלב ד'.
+דרישה מוקדמת: ה-VSIX מותקן (`code --install-extension vscode-extension\sessiondeck-connector-0.5.0.vsix`) **וכל חלונות ה-VSCode עברו Reload** ‏(Ctrl+Shift+P ‏→ "Developer: Reload Window") אחרי ההתקנה. לוג ה-extension: ‏Output ‏→ ערוץ "SessionDeck".
+
+- [ ] אחרי Reload — צ'יפ 📑 עם מספר טאבי ה-Claude הפתוחים מופיע בכותרת הכרטיס (tooltip מציג את שמותיהם); פתיחת/סגירת טאב Claude מעדכנת את המספר תוך ~שנייה.
+- [ ] החלפת branch ב-VSCode — ה-⎇ בכרטיס מתעדכן מיידית (לא רק אחרי ~10 שניות).
+- [ ] **לחיצה על Session Card עם טאב פתוח** — החלון מקבל פוקוס והטאב של אותו session נחשף.
+- [ ] **לחיצה על Session Card שהטאב שלו סגור** (אך ה-VSCode פתוח) — הטאב נפתח מחדש (resume) עם ההיסטוריה.
+- [ ] **לחיצה על סשן סגור** (תצוגה מורחבת ▼) — אותו דבר: הסשן קם לתחייה בטאב.
+- [ ] פתיחה "ממוקסמת": ה-sidebar, ה-panel התחתון וה-sidebar המשני נסגרים לפני פתיחת הטאב (כיבוי: `OpenSessionMaximized: false` ב-config).
+- [ ] **לחיצה על סשן כשה-VSCode סגור לגמרי** — ‏VSCode נפתח, ותוך ~שניות הטאב של הסשן נפתח מעצמו (pending open שממתין ל-connector).
+- [ ] סשנים מציגים שם אמיתי (מה-transcript) במקום "session xxxxxxxx" תוך ~10 שניות מהעדכון הראשון.
+- [ ] `SessionDeck.exe session open --id <sid>` — אותה התנהגות מה-CLI.
+- [ ] סגירת SessionDeck ופתיחתו מחדש — ה-extension מתחבר לבד תוך ~5 שניות (רואים בלוג "connected").
+
+## 7. ידוע / מגבלות
+
+- תג 📑 על כרטיס סשן בודד (פתוח כטאב) הוא best-effort — לפי השוואת שם הטאב לכותרת הסשן.
+- auto-acknowledge מפתיחת טאב ישירות ב-VSCode — לא ממומש (SPEC ‏§9.3).
+- `claude-vscode.editor.open` הוא command פנימי של Claude Code; אם ייעלם בגרסה עתידית — ה-extension נופל אוטומטית ל-terminal עם `claude --resume`.
 - `Notification` של Claude Code מכסה permission/אינפוט; אין אירוע error ייעודי (SPEC §9.2).
 
 *הפקודה הפנימית `SessionDeck.exe snapshot <path>.png` מרנדרת את ה-UI ל-PNG (בלי ה-thumbnails) — שימושית לדיבוג מרחוק.*

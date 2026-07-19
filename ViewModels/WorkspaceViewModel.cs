@@ -93,6 +93,25 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
 
     public bool HasBranch => _branch.Length > 0;
 
+    // ---- open Claude Code tabs, reported by the VSCode extension (stage D) ----
+
+    private List<string> _claudeTabLabels = new();
+    public IReadOnlyList<string> ClaudeTabLabels => _claudeTabLabels;
+    public int ClaudeTabCount => _claudeTabLabels.Count;
+    public bool HasClaudeTabs => _claudeTabLabels.Count > 0;
+    public string ClaudeTabsTooltip => "טאבים פתוחים של Claude Code:" + Environment.NewLine +
+                                       string.Join(Environment.NewLine, _claudeTabLabels);
+
+    public void SetClaudeTabs(List<string> labels)
+    {
+        if (_claudeTabLabels.SequenceEqual(labels)) return;
+        _claudeTabLabels = labels;
+        Raise(nameof(ClaudeTabLabels));
+        Raise(nameof(ClaudeTabCount));
+        Raise(nameof(HasClaudeTabs));
+        Raise(nameof(ClaudeTabsTooltip));
+    }
+
     // ---- live window binding (engine reuse from stage A/B) ----
 
     private IntPtr _hwnd;

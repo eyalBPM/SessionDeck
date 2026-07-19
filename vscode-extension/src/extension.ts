@@ -1,0 +1,210 @@
+// SessionDeck Connector (SPEC stage D).
+//
+// Outbound: keeps a persistent connection to SessionDeck's named pipe and pushes a
+// "vscode-sync" snapshot (workspace folder, git branch, open Claude Code tabs) on
+// activation and on every tab/branch change.
+//
+// Inbound: SessionDeck pushes commands down the same connection. "openSession"
+// delegates to Claude Code's own claude-vscode.editor.open, which reveals the tab
+// if the session is open and resumes it if not — the extension holds the
+// session_id↔tab map, so no correlation is needed on our side.
+
+import * as vscode from 'vscode';
+import * as net from 'net';
+
+const PIPE_PATH = '\\\\.\\pipe\\sessiondeck';
+const RECONNECT_MS = 5000;
+const SYNC_DEBOUNCE_MS = 300;
+const CLAUDE_VIEWTYPE = 'claudeVSCodePanel';   // actual viewType is prefixed (mainThreadWebview-...)
+
+let out: vscode.OutputChannel;
+let socket: net.Socket | undefined;
+let connected = false;
+let reconnectTimer: NodeJS.Timeout | undefined;
+let syncTimer: NodeJS.Timeout | undefined;
+let gitApi: any;
+const hookedRepos = new WeakSet<object>();
+
+function workspacePath(): string {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+}
+
+function claudeTabs(): { Label: string; Active: boolean }[] {
+    const tabs: { Label: string; Active: boolean }[] = [];
+    for (const group of vscode.window.tabGroups.all) {
+        for (const tab of group.tabs) {
+            const input = tab.input;
+            if (input instanceof vscode.TabInputWebview && input.viewType.includes(CLAUDE_VIEWTYPE)) {
+                tabs.push({ Label: tab.label, Active: tab.isActive });
+            }
+        }
+    }
+    return tabs;
+}
+
+function currentBranch(): string {
+    try {
+        const head = gitApi?.repositories?.[0]?.state?.HEAD;
+        return head?.name ?? (head?.commit ? head.commit.slice(0, 7) : '');
+    } catch {
+        return '';
+    }
+}
+
+function sendSync(): void {
+    if (!connected || !socket) {
+        return;
+    }
+    const msg = {
+        Type: 'vscode-sync',
+        Workspace: workspacePath(),
+        Branch: currentBranch(),
+        Pid: process.pid,
+        Tabs: claudeTabs(),
+    };
+    try {
+        socket.write(JSON.stringify(msg) + '\n');
+    } catch (e) {
+        out.appendLine(`send failed: ${e}`);
+    }
+}
+
+function queueSync(): void {
+    if (syncTimer) {
+        clearTimeout(syncTimer);
+    }
+    syncTimer = setTimeout(sendSync, SYNC_DEBOUNCE_MS);
+}
+
+async function handleCommand(raw: string): Promise<void> {
+    let cmd: any;
+    try {
+        cmd = JSON.parse(raw);
+    } catch {
+        out.appendLine(`bad command line: ${raw}`);
+        return;
+    }
+    const name = cmd.Cmd ?? cmd.cmd;
+    if (name !== 'openSession') {
+        out.appendLine(`unknown command: ${name}`);
+        return;
+    }
+    const sessionId = cmd.SessionId ?? cmd.sessionId;
+    if (!sessionId) {
+        return;
+    }
+    out.appendLine(`openSession ${sessionId} (maximize=${cmd.Maximize ?? cmd.maximize})`);
+
+    if (cmd.Maximize ?? cmd.maximize) {
+        // "Full tab area": collapse both side bars and the bottom panel first.
+        for (const c of ['workbench.action.closeSidebar', 'workbench.action.closePanel', 'workbench.action.closeAuxiliaryBar']) {
+            try {
+                await vscode.commands.executeCommand(c);
+            } catch { /* layout command unavailable — ignore */ }
+        }
+    }
+    try {
+        // Claude Code's reveal-or-resume. ViewColumn.Active keeps it in the current
+        // editor group (no Beside split) and doesn't touch the user's location preference.
+        await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId, undefined, vscode.ViewColumn.Active);
+    } catch (e) {
+        // Internal command signature changed / Claude extension missing — guaranteed fallback.
+        out.appendLine(`claude-vscode.editor.open failed (${e}) — falling back to terminal resume`);
+        const term = vscode.window.createTerminal({ name: 'Claude Code' });
+        term.show();
+        term.sendText(`claude --resume ${sessionId}`);
+    }
+}
+
+function connect(): void {
+    const s = net.connect(PIPE_PATH);
+    socket = s;
+    let buffer = '';
+
+    s.on('connect', () => {
+        connected = true;
+        out.appendLine('connected to SessionDeck');
+        sendSync();
+    });
+    s.on('data', (chunk) => {
+        buffer += chunk.toString('utf8');
+        let idx;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, idx).trim();
+            buffer = buffer.slice(idx + 1);
+            if (line) {
+                void handleCommand(line);
+            }
+        }
+    });
+    const retry = () => {
+        if (socket !== s) {
+            return;                      // stale socket ('close' after 'error', or replaced)
+        }
+        if (connected) {
+            out.appendLine('disconnected from SessionDeck — retrying');
+        }
+        connected = false;
+        socket = undefined;
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+        }
+        reconnectTimer = setTimeout(connect, RECONNECT_MS);
+    };
+    s.on('error', retry);
+    s.on('close', retry);
+}
+
+async function initGit(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        const ext = vscode.extensions.getExtension('vscode.git');
+        if (!ext) {
+            return;
+        }
+        const exports = ext.isActive ? ext.exports : await ext.activate();
+        gitApi = exports.getAPI(1);
+        const hook = (repo: any) => {
+            if (hookedRepos.has(repo)) {
+                return;
+            }
+            hookedRepos.add(repo);
+            context.subscriptions.push(repo.state.onDidChange(queueSync));
+        };
+        gitApi.repositories.forEach(hook);
+        context.subscriptions.push(gitApi.onDidOpenRepository((repo: any) => {
+            hook(repo);
+            queueSync();
+        }));
+        queueSync();                     // branch is known now
+    } catch (e) {
+        out.appendLine(`git API unavailable: ${e}`);
+    }
+}
+
+export function activate(context: vscode.ExtensionContext): void {
+    out = vscode.window.createOutputChannel('SessionDeck');
+    context.subscriptions.push(out);
+    out.appendLine(`SessionDeck Connector activated for: ${workspacePath() || '(no folder)'}`);
+
+    context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(queueSync));
+    context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabGroups(queueSync));
+    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(queueSync));
+    context.subscriptions.push(vscode.commands.registerCommand('sessiondeck.sync', () => {
+        out.appendLine('manual sync');
+        sendSync();
+    }));
+
+    void initGit(context);
+    connect();
+}
+
+export function deactivate(): void {
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+    }
+    if (syncTimer) {
+        clearTimeout(syncTimer);
+    }
+    socket?.destroy();
+    socket = undefined;
+}

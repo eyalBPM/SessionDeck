@@ -97,6 +97,7 @@ public class SessionConfig
     public string? PermissionMode { get; set; }
     public string? EndReason { get; set; }
     public DateTime? LastEventAt { get; set; }
+    public string? AutoTitle { get; set; }           // derived from the transcript (stage D)
 }
 
 /// <summary>Session status → border style. Lives in config so the mapping can change
@@ -139,6 +140,7 @@ public class AppConfig
     public List<WorkspaceConfig> Workspaces { get; set; } = new();
     public Dictionary<string, StatusStyle> StatusStyles { get; set; } = new();
     public int ClosedSessionRetention { get; set; } = 20;     // per workspace (SPEC decision 12)
+    public bool OpenSessionMaximized { get; set; } = true;    // stage D: collapse VSCode panels on session open
     public bool ShowHidden { get; set; }
     public ZoneConfig Zone { get; set; } = new();
     public StageConfig Stage { get; set; } = new();
