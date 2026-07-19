@@ -82,6 +82,7 @@ public static class CliClient
         sessiondeck session status --id <sid> --state working|waiting|done|error|idle [--detail "..."]
         sessiondeck session end    --id <sid> [--reason <r>]
         sessiondeck session open   --id <sid>          focus VSCode + open/resume the session's tab
+        sessiondeck session new    <target>            open a NEW Claude conversation tab in the workspace
         sessiondeck session list   [--workspace <name>] [--all]
         all session commands also accept: --transcript <path> --mode <permission_mode>
 

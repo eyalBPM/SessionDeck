@@ -2,7 +2,7 @@
   "name": "sessiondeck-connector",
   "displayName": "SessionDeck Connector",
   "description": "Reports Claude Code tabs and the git branch to SessionDeck, and opens/resumes Claude sessions on request (SessionDeck stage D).",
-  "version": "0.6.0",
+  "version": "0.6.5",
   "publisher": "eyal-sinay",
   "private": true,
   "license": "UNLICENSED",

@@ -86,17 +86,22 @@ async function handleCommand(raw: string): Promise<void> {
         return;
     }
     const name = cmd.Cmd ?? cmd.cmd;
-    if (name !== 'openSession') {
+    if (name === 'openSession') {
+        const sessionId = cmd.SessionId ?? cmd.sessionId;
+        if (sessionId) {
+            await openClaudePanel(sessionId, cmd.Maximize ?? cmd.maximize);
+        }
+    } else if (name === 'newSession') {
+        // claude-vscode.editor.open without a session id opens a fresh conversation tab.
+        await openClaudePanel(undefined, cmd.Maximize ?? cmd.maximize);
+    } else {
         out.appendLine(`unknown command: ${name}`);
-        return;
     }
-    const sessionId = cmd.SessionId ?? cmd.sessionId;
-    if (!sessionId) {
-        return;
-    }
-    out.appendLine(`openSession ${sessionId} (maximize=${cmd.Maximize ?? cmd.maximize})`);
+}
 
-    if (cmd.Maximize ?? cmd.maximize) {
+async function openClaudePanel(sessionId: string | undefined, maximize: boolean): Promise<void> {
+    out.appendLine(`${sessionId ? `openSession ${sessionId}` : 'newSession'} (maximize=${maximize})`);
+    if (maximize) {
         // "Full tab area": collapse both side bars and the bottom panel first.
         for (const c of ['workbench.action.closeSidebar', 'workbench.action.closePanel', 'workbench.action.closeAuxiliaryBar']) {
             try {
@@ -105,19 +110,19 @@ async function handleCommand(raw: string): Promise<void> {
         }
     }
     try {
-        // Claude Code's reveal-or-resume. ViewColumn.Active keeps it in the current
-        // editor group (no Beside split) and doesn't touch the user's location preference.
+        // Claude Code's reveal-or-resume (or new conversation when no id). ViewColumn.Active
+        // keeps it in the current editor group and doesn't touch the location preference.
         await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId, undefined, vscode.ViewColumn.Active);
     } catch (e) {
         // Internal command signature changed / Claude extension missing — guaranteed fallback.
-        out.appendLine(`claude-vscode.editor.open failed (${e}) — falling back to terminal resume`);
+        out.appendLine(`claude-vscode.editor.open failed (${e}) — falling back to terminal`);
         try {
             const term = vscode.window.createTerminal({ name: 'Claude Code' });
             term.show();
-            term.sendText(`claude --resume ${sessionId}`);
+            term.sendText(sessionId ? `claude --resume ${sessionId}` : 'claude');
             void vscode.window.showWarningMessage(
                 'SessionDeck: פתיחת הסשן דרך Claude Code נכשלה — ייתכן שה-API הפנימי השתנה בעדכון. ' +
-                'בוצע fallback לטרמינל (claude --resume). פרטים: Output ← SessionDeck.');
+                'בוצע fallback לטרמינל. פרטים: Output ← SessionDeck.');
         } catch (e2) {
             out.appendLine(`terminal fallback failed too: ${e2}`);
             void vscode.window.showErrorMessage(

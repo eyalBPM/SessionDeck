@@ -42,7 +42,8 @@ public partial class MainWindow : Window
     private readonly List<VscodeConnection> _connectors = new();
     // A session click with no connector yet (VSCode still launching) parks here until the
     // extension's first sync for that workspace, then the open command is flushed to it.
-    private readonly Dictionary<string, (string SessionId, DateTime At)> _pendingOpens = new();
+    // SessionId == null means "open a NEW session" (the + New Session button).
+    private readonly Dictionary<string, (string? SessionId, DateTime At)> _pendingOpens = new();
     private static readonly TimeSpan PendingOpenTtl = TimeSpan.FromSeconds(90);
     private bool _titleScanRunning;
 
@@ -955,7 +956,9 @@ public partial class MainWindow : Window
         {
             _pendingOpens.Remove(norm);
             if (DateTime.Now - pending.At < PendingOpenTtl)
-                conn.TrySend(new { Cmd = "openSession", SessionId = pending.SessionId, Maximize = Vm.OpenSessionMaximized });
+                conn.TrySend(pending.SessionId is { } sid
+                    ? new { Cmd = "openSession", SessionId = (string?)sid, Maximize = Vm.OpenSessionMaximized }
+                    : new { Cmd = "newSession", SessionId = (string?)null, Maximize = Vm.OpenSessionMaximized });
         }
     }
 
@@ -1004,6 +1007,28 @@ public partial class MainWindow : Window
             _connectors.Remove(conn);
             return (false, "connector connection lost");
         }
+        return (true, "");
+    }
+
+    /// <summary>+ New Session (feedback 2026-07-19): open a fresh Claude conversation tab
+    /// in the workspace's VSCode window; parks like openSession when VSCode is launching.</summary>
+    public (bool, string) NewSessionInVscode(WorkspaceViewModel ws)
+    {
+        FocusWorkspace(ws);
+        var conn = FindConnector(ws);
+        if (conn == null)
+        {
+            if (ws.Path.Length > 0)
+                _pendingOpens[WorkspaceMetadata.NormalizePath(ws.Path)] = (null, DateTime.Now);
+            SetStatus($"‏VSCode נפתח — סשן חדש ייפתח כשהחיבור יעלה");
+            return (false, "no VSCode connector yet — request queued");
+        }
+        if (!conn.TrySend(new { Cmd = "newSession", Maximize = Vm.OpenSessionMaximized }))
+        {
+            _connectors.Remove(conn);
+            return (false, "connector connection lost");
+        }
+        SetStatus($"פותח סשן חדש ב-\"{ws.DisplayTitle}\"");
         return (true, "");
     }
 

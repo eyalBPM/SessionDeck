@@ -186,6 +186,17 @@ public sealed class CommandExecutor
                 var (msg, ok) = _window.EndSession(id, HookInfoFrom(a));
                 return ok ? Ok(msg) : Err(msg);
             }
+            case "new":
+            {
+                // Target parsing shares the workspace resolver: sessiondeck session new <ws id | --match ...>
+                var rest = new ParsedArgs { Command = "session" };
+                foreach (var p in a.Positionals.Skip(1)) rest.Positionals.Add(p);
+                foreach (var (k, v) in a.Options) rest.Options[k] = v;
+                var (wsNew, errNew) = ResolveTarget(rest);
+                if (wsNew == null) return Err(errNew!);
+                var (okNew, msgNew) = _window.NewSessionInVscode(wsNew);
+                return okNew ? Ok($"opening a new session in workspace {wsNew.Id}") : Err(msgNew);
+            }
             case "open":
             {
                 if (!a.Options.TryGetValue("id", out var id)) return Err("session open requires --id <session_id>");
@@ -209,7 +220,7 @@ public sealed class CommandExecutor
                 return Ok(sb.Length > 0 ? sb.ToString().TrimEnd() : "(no sessions)");
             }
             default:
-                return Err("session requires: start | status | end | open | list");
+                return Err("session requires: start | status | end | open | new | list");
         }
     }
 

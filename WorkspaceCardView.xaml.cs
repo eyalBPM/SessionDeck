@@ -169,6 +169,11 @@ public partial class WorkspaceCardView : UserControl
         if (Vm != null) Owner?.ToggleHideWorkspace(Vm);
     }
 
+    private void NewSession_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm != null) Owner?.NewSessionInVscode(Vm);
+    }
+
     private void CloseWindow_Click(object sender, RoutedEventArgs e)
     {
         if (Vm != null) Owner?.CloseWorkspaceWindow(Vm);
