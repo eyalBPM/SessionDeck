@@ -9,6 +9,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     public ObservableCollection<WorkspaceViewModel> Workspaces { get; } = new();
 
+    /// <summary>User-defined toolbar toggles (config: customToggles); empty = no UI.</summary>
+    public ObservableCollection<CustomToggleViewModel> CustomToggles { get; } = new();
+
     public int NextWorkspaceId { get; set; } = 1;
 
     private bool _showHidden;

@@ -49,6 +49,30 @@
 }
 ```
 
+## מתגים מותאמים (Custom Toggles) — שליטה ב-hooks אישיים מה-toolbar
+
+SessionDeck יכול להציג כפתורי toggle שאתה מגדיר, והמצב שלהם נכתב ל**קובץ דגל** שסקריפטים חיצוניים קוראים. כך אפשר להדליק/לכבות hook אישי (למשל התראות ntfy לטלפון) בלי שום קוד ייעודי בתוסף.
+
+1. הגדר מתג דרך ⚙ ← **"עריכת מתגים אישיים..."** (אייקון, מזהה, תיאור, ברירת מחדל). לחלופין, ידנית ב-`%APPDATA%\SessionDeck\config.json`:
+
+```json
+"CustomToggles": [
+  { "Id": "ntfy", "Icon": "🔔", "Tooltip": "התראות לטלפון", "DefaultOn": true }
+]
+```
+
+2. יופיע כפתור 🔔 ב-toolbar (ליד ה-📌). כל לחיצה כותבת `1`/`0` ל-`%APPDATA%\SessionDeck\toggles\ntfy`. הקובץ שורד הפעלות מחדש ונקרא גם כשהאפליקציה סגורה (המצב האחרון).
+
+3. בסקריפט ה-hook האישי שלך, בדוק את הדגל לפני הפעולה:
+
+```powershell
+$flag = "$env:APPDATA\SessionDeck\toggles\ntfy"
+if ((Test-Path $flag) -and ((Get-Content $flag -Raw).Trim() -eq '0')) { exit 0 }
+```
+
+- שליטה גם מ-CLI: ‏`sessiondeck toggle list` / `toggle get ntfy` / `toggle set ntfy off`.
+- ‏`DefaultOn` נקבע רק בפעם הראשונה (כשאין עדיין קובץ דגל).
+
 ## הערות
 
 - הסקריפט הוא fire-and-forget: כל כשל נבלע (`exit 0`) כדי לא להפריע ל-session; תואם PowerShell 5.1.

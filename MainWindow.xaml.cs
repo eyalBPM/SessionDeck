@@ -37,6 +37,8 @@ public partial class MainWindow : Window
     private bool _legacyAutoRemove;
 
     private Dictionary<string, StatusStyle> _statusStyles = AppConfig.DefaultStatusStyles();
+    // Custom-toggle definitions are config-only (no UI editor) — round-tripped on save.
+    private List<CustomToggleConfig> _customToggleConfigs = new();
 
     // Live VSCode-extension connections (stage D). UI thread only (handlers are dispatched).
     private readonly List<VscodeConnection> _connectors = new();
@@ -100,6 +102,9 @@ public partial class MainWindow : Window
         Vm.ShowHidden = config.ShowHidden;
         Vm.AlwaysOnTop = config.AlwaysOnTop;
         Topmost = config.AlwaysOnTop;
+
+        _customToggleConfigs = config.CustomToggles;
+        LoadCustomToggles();
 
         foreach (var wc in config.Workspaces)
         {
@@ -207,6 +212,7 @@ public partial class MainWindow : Window
             OpenSessionMaximized = Vm.OpenSessionMaximized,
             ShowHidden = Vm.ShowHidden,
             AlwaysOnTop = Vm.AlwaysOnTop,
+            CustomToggles = _customToggleConfigs,
             Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode) },
             Stage = new StageConfig
             {
@@ -1371,6 +1377,37 @@ public partial class MainWindow : Window
     {
         SettingsButton.ContextMenu.PlacementTarget = SettingsButton;
         SettingsButton.ContextMenu.IsOpen = true;
+    }
+
+    /// <summary>Custom toggles (feature 2026-07-19): rebuild the toolbar buttons from the
+    /// definitions; current state comes from the flag files (they survive restarts and
+    /// are what the hook scripts read).</summary>
+    private void LoadCustomToggles()
+    {
+        Vm.CustomToggles.Clear();
+        foreach (var t in _customToggleConfigs.Where(t => t.Id.Length > 0))
+        {
+            var toggle = new CustomToggleViewModel
+            {
+                Id = t.Id,
+                Icon = t.Icon,
+                Tooltip = t.Tooltip ?? t.Id,
+                Enabled = ToggleStore.Read(t.Id, t.DefaultOn),
+            };
+            ToggleStore.Write(toggle.Id, toggle.Enabled);   // ensure the flag file exists
+            toggle.Changed += tv => ToggleStore.Write(tv.Id, tv.Enabled);
+            Vm.CustomToggles.Add(toggle);
+        }
+    }
+
+    private void TogglesMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new TogglesEditorDialog(_customToggleConfigs) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        _customToggleConfigs = dialog.Result;
+        LoadCustomToggles();
+        QueueSave();
+        SetStatus($"מתגים אישיים עודכנו ({_customToggleConfigs.Count})");
     }
 
     private void MaximizeSessionMenuItem_Click(object sender, RoutedEventArgs e)

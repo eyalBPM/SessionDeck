@@ -112,6 +112,18 @@ public class StatusStyle
     public bool UntilAcknowledge { get; set; }       // blink stops (solid Color) after user click
 }
 
+/// <summary>A user-defined toolbar toggle (feature 2026-07-19). SessionDeck knows nothing
+/// about what the toggle controls — external hook scripts read the current state from a
+/// flag file (%APPDATA%\SessionDeck\toggles\&lt;id&gt; containing "1"/"0"). Defined by
+/// hand-editing config.json; no toggles defined = no UI.</summary>
+public class CustomToggleConfig
+{
+    public string Id { get; set; } = "";             // flag file name; keep it filename-safe
+    public string Icon { get; set; } = "🔘";         // toolbar button content (emoji)
+    public string? Tooltip { get; set; }
+    public bool DefaultOn { get; set; } = true;      // initial state when no flag file exists yet
+}
+
 public class ZoneConfig
 {
     public int Monitor { get; set; }          // 0-based
@@ -145,6 +157,7 @@ public class AppConfig
     public bool OpenSessionMaximized { get; set; } = true;    // stage D: collapse VSCode panels on session open
     public bool ShowHidden { get; set; }
     public bool AlwaysOnTop { get; set; }                     // 📌 pin toggle (feature 2026-07-19)
+    public List<CustomToggleConfig> CustomToggles { get; set; } = new();
     public ZoneConfig Zone { get; set; } = new();
     public StageConfig Stage { get; set; } = new();
     public WindowBounds? Window { get; set; }

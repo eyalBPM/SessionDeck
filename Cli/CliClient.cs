@@ -75,6 +75,8 @@ public static class CliClient
         sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
         sessiondeck zone --monitor <n> --half left|right | --full | --off
         sessiondeck status                        app state: version, zone, stage, counts
+        sessiondeck toggle list | get <id> | set <id> on|off    custom toggles (config: CustomToggles);
+                                                  state is mirrored to %APPDATA%\SessionDeck\toggles\<id>
         sessiondeck help
 
         session commands (called by the Claude Code hooks — SPEC §4ב):

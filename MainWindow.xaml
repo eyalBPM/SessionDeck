@@ -57,6 +57,23 @@
                     </ToggleButton>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <!-- user-defined toggles (config: customToggles) — state exported to
+                         flag files for external hook scripts -->
+                    <ItemsControl ItemsSource="{Binding CustomToggles}" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ToggleButton Content="{Binding Icon}" FontSize="13"
+                                              ToolTip="{Binding Tooltip}"
+                                              Style="{StaticResource IconToggle}"
+                                              IsChecked="{Binding Enabled, Mode=TwoWay}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <ToggleButton x:Name="PinTopToggle" Content="📌" FontSize="13"
                                   ToolTip="נעץ: החלון תמיד עליון (Always on Top)"
                                   Style="{StaticResource IconToggle}"
@@ -75,6 +92,9 @@
                                 <MenuItem x:Name="MaximizeSessionMenuItem" Header="צמצום הפנלים ב-VSCode בפתיחת session"
                                           IsCheckable="True" Click="MaximizeSessionMenuItem_Click"
                                           ToolTip="בלחיצה על session מהלוח: סגור את הפנלים הצדדיים והתחתון כך שהטאב יתפוס את כל האזור"/>
+                                <Separator/>
+                                <MenuItem Header="עריכת מתגים אישיים..." Click="TogglesMenuItem_Click"
+                                          ToolTip="כפתורי toggle ב-toolbar שמצבם נכתב לקובץ דגל — לשליטה ב-hooks אישיים"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>

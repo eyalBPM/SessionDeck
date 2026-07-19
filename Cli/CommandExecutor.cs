@@ -44,10 +44,11 @@ public sealed class CommandExecutor
                 "zone" => Zone(args),
                 "stage" => Stage(args),
                 "session" => Session(args),
+                "toggle" => Toggle(args),
                 "status" => Status(),
                 "activate" => Activate(),
                 "snapshot" => Snapshot(args),   // internal: render the WPF tree to PNG (debug aid)
-                _ => Err($"unknown command '{args.Command}'. Available: list, add, remove, set, focus, pin, zone, stage, session, status"),
+                _ => Err($"unknown command '{args.Command}'. Available: list, add, remove, set, focus, pin, zone, stage, session, toggle, status"),
             };
         }
         catch (Exception ex)
@@ -221,6 +222,46 @@ public sealed class CommandExecutor
             }
             default:
                 return Err("session requires: start | status | end | open | new | list");
+        }
+    }
+
+    // ---- custom toggles (feature 2026-07-19) ----
+
+    private PipeResponse Toggle(ParsedArgs a)
+    {
+        string sub = a.Positionals.Count > 0 ? a.Positionals[0].ToLowerInvariant() : "list";
+        if (sub == "list")
+        {
+            if (Vm.CustomToggles.Count == 0)
+                return Ok("(no custom toggles — define them in config.json under \"CustomToggles\")");
+            return Ok(string.Join(Environment.NewLine,
+                Vm.CustomToggles.Select(t => $"{t.Id}  {(t.Enabled ? "on " : "off")}  {t.Tooltip}")));
+        }
+
+        if (a.Positionals.Count < 2) return Err($"toggle {sub} requires a toggle id");
+        var toggle = Vm.CustomToggles.FirstOrDefault(
+            t => string.Equals(t.Id, a.Positionals[1], StringComparison.OrdinalIgnoreCase));
+        if (toggle == null) return Err($"unknown toggle '{a.Positionals[1]}'");
+
+        switch (sub)
+        {
+            case "get":
+                return Ok(toggle.Enabled ? "on" : "off");
+            case "set":
+            {
+                string value = a.Positionals.Count > 2 ? a.Positionals[2].ToLowerInvariant() : "";
+                bool? enabled = value switch
+                {
+                    "on" or "1" or "true" => true,
+                    "off" or "0" or "false" => false,
+                    _ => null,
+                };
+                if (enabled == null) return Err("toggle set requires: <id> on|off");
+                toggle.Enabled = enabled.Value;    // Changed handler writes the flag file
+                return Ok($"toggle {toggle.Id}: {(toggle.Enabled ? "on" : "off")}");
+            }
+            default:
+                return Err("toggle requires: list | get <id> | set <id> on|off");
         }
     }
 
