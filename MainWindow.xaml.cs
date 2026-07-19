@@ -135,6 +135,7 @@ public partial class MainWindow : Window
                     TabTitle = sc.TabTitle,
                 });
             }
+            foreach (var s in ws.Sessions) RefreshPhantom(s);
             ws.RefreshSessionVisibility();
             SortSessions(ws);
             RefreshMetadata(ws);
@@ -321,6 +322,61 @@ public partial class MainWindow : Window
         foreach (var ws in Vm.Workspaces)
             RefreshMetadata(ws);
         RefreshTranscriptTitles();
+        RefreshPhantomSessions();
+    }
+
+    // ---- phantom sessions (issue 2026-07-19) ----
+
+    /// <summary>Auto-close a phantom that never came to life within this window.</summary>
+    private static readonly TimeSpan PhantomSessionTtl = TimeSpan.FromMinutes(30);
+
+    /// <summary>Phantom = open idle session whose declared transcript file was never
+    /// written — an empty conversation VSCode starts eagerly on window load.</summary>
+    private static void RefreshPhantom(SessionViewModel s)
+    {
+        bool phantom = false;
+        if (!s.Closed && s.Status == SessionStatus.Idle && s.TranscriptPath is { Length: > 0 } path)
+        {
+            try { phantom = !File.Exists(path); } catch { }
+        }
+        s.Phantom = phantom;
+    }
+
+    private void RefreshPhantomSessions()
+    {
+        bool anyChanged = false;
+        foreach (var ws in Vm.Workspaces)
+        {
+            bool changed = false;
+            foreach (var s in ws.Sessions.Where(s => s.Phantom).ToList())
+            {
+                RefreshPhantom(s);
+                if (!s.Phantom)
+                {
+                    changed = true;   // came to life — show it
+                    continue;
+                }
+                if (DateTime.Now - s.StartedAt > PhantomSessionTtl)
+                {
+                    s.Closed = true;
+                    s.EndedAt = DateTime.Now;
+                    s.EndReason = "stale";
+                    s.Phantom = false;
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                ws.RefreshSessionVisibility();
+                SortSessions(ws);
+                anyChanged = true;
+            }
+        }
+        if (anyChanged)
+        {
+            SortWorkspaces();
+            QueueSave();
+        }
     }
 
     /// <summary>Background scan of session transcripts for titles (stage D): the tab title
@@ -627,6 +683,7 @@ public partial class MainWindow : Window
             if (!string.IsNullOrEmpty(title)) fs.CustomTitle = title;
             ApplyHookInfo(fs, info);
             LearnTranscriptDir(fw, info);
+            RefreshPhantom(fs);
             fw.RefreshSessionVisibility();
             AfterSessionChange(fw);
             return ($"session {sessionId} restarted in \"{fw.DisplayTitle}\"", true);
@@ -644,6 +701,7 @@ public partial class MainWindow : Window
         };
         ApplyHookInfo(session, info);
         LearnTranscriptDir(ws, info);
+        RefreshPhantom(session);
         ws.Sessions.Insert(0, session);
         ws.RefreshSessionVisibility();
         AfterSessionChange(ws);
@@ -746,6 +804,7 @@ public partial class MainWindow : Window
         session.Status = status;
         ApplyHookInfo(session, info);
         LearnTranscriptDir(ws, info);
+        RefreshPhantom(session);
         // The user is already looking at this session's tab — don't start blinking at them.
         if (ws.ActiveClaudeTabLabel is { } activeTab && TabLabelMatches(activeTab, session.TabTitle ?? session.DisplayTitle))
             session.Acknowledged = true;

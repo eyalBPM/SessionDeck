@@ -73,6 +73,16 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     /// <summary>Discovered from the transcripts folder (expanded view) — not persisted.</summary>
     public bool Historical { get; init; }
 
+    private bool _phantom;
+    /// <summary>An idle session whose transcript file was never created — an empty
+    /// conversation VSCode spins up on window load (SessionStart source=startup). Hidden
+    /// until it shows real life; auto-closed after a while (issue 2026-07-19).</summary>
+    public bool Phantom
+    {
+        get => _phantom;
+        set { if (_phantom != value) { _phantom = value; Raise(); } }
+    }
+
     public string DisplayTitle =>
         !string.IsNullOrEmpty(_customTitle) ? _customTitle
         : !string.IsNullOrEmpty(_tabTitle) ? _tabTitle

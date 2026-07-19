@@ -190,7 +190,8 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
 
     public ObservableCollection<SessionViewModel> Sessions { get; } = new();
 
-    public bool HasOpenSessions => Sessions.Any(s => !s.Closed);
+    /// <summary>Phantom sessions don't count — they must not float the workspace up.</summary>
+    public bool HasOpenSessions => Sessions.Any(s => !s.Closed && !s.Phantom);
 
     /// <summary>Active = bound window or a live session; actives sort to the top.</summary>
     public bool IsActive => _state == BindState.Connected || HasOpenSessions;
@@ -198,7 +199,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
     public void RefreshSessionVisibility()
     {
         foreach (var s in Sessions)
-            s.Visible = !s.Closed || _expanded;
+            s.Visible = (!s.Closed || _expanded) && !s.Phantom;
         Raise(nameof(HasOpenSessions));
         Raise(nameof(IsActive));
     }

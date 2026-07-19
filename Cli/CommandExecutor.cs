@@ -74,7 +74,7 @@ public sealed class CommandExecutor
                     sb.AppendLine($"     tab: \"{label}\"{(label == w.ActiveClaudeTabLabel ? "  [active+focused]" : "")}");
                 if (w.ClaudeTabLabels.Count == 0) sb.AppendLine("     tab: (none reported)");
             }
-            foreach (var s in w.Sessions.Where(s => !s.Closed || a.Flags.Contains("all")))
+            foreach (var s in w.Sessions.Where(s => (!s.Closed && !s.Phantom) || a.Flags.Contains("all")))
             {
                 string ack = s.Acknowledged ? " ack" : "";
                 sb.AppendLine($"     {s.SessionId}  {s.StatusText}{ack}  {s.DisplayTitle}" +
@@ -203,7 +203,7 @@ public sealed class CommandExecutor
                 foreach (var w in Vm.Workspaces)
                 {
                     if (wanted != null && !string.Equals(w.Name, wanted, StringComparison.OrdinalIgnoreCase)) continue;
-                    foreach (var s in w.Sessions.Where(s => all || !s.Closed))
+                    foreach (var s in w.Sessions.Where(s => all || (!s.Closed && !s.Phantom)))
                         sb.AppendLine($"{s.SessionId}  {s.StatusText,-8} {w.DisplayTitle}  {s.DisplayTitle}");
                 }
                 return Ok(sb.Length > 0 ? sb.ToString().TrimEnd() : "(no sessions)");
