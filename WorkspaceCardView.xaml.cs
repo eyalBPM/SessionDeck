@@ -28,7 +28,7 @@ public partial class WorkspaceCardView : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
-        Loaded += (_, _) => { LayoutUpdated += OnLayoutUpdated; RefreshThumbnail(); SyncExpandGlyph(); SyncHideGlyph(); };
+        Loaded += (_, _) => { LayoutUpdated += OnLayoutUpdated; RefreshThumbnail(); SyncExpandGlyph(); };
         Unloaded += (_, _) => { LayoutUpdated -= OnLayoutUpdated; UnregisterThumbnail(); };
     }
 
@@ -47,8 +47,6 @@ public partial class WorkspaceCardView : UserControl
             RefreshThumbnail();
         else if (e.PropertyName is nameof(WorkspaceViewModel.Expanded))
             SyncExpandGlyph();
-        else if (e.PropertyName is nameof(WorkspaceViewModel.Hidden))
-            SyncHideGlyph();
     }
 
     private void OnLayoutUpdated(object? sender, EventArgs e) => RefreshThumbnail();
@@ -171,23 +169,30 @@ public partial class WorkspaceCardView : UserControl
         if (Vm != null) Owner?.ToggleHideWorkspace(Vm);
     }
 
+    private void CloseWindow_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm != null) Owner?.CloseWorkspaceWindow(Vm);
+    }
+
     private void Remove_Click(object sender, RoutedEventArgs e)
     {
         if (Vm != null) Owner?.RemoveWorkspace(Vm);
+    }
+
+    /// <summary>The ⋯ actions menu (feedback 2026-07-19): sync dynamic items, then open.</summary>
+    private void Menu_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm) return;
+        HideMenuItem.Header = vm.Hidden ? "הצג חזרה בלוח" : "הסתרה";
+        CloseWindowMenuItem.IsEnabled = vm.State == BindState.Connected;
+        MenuButton.ContextMenu.PlacementTarget = MenuButton;
+        MenuButton.ContextMenu.IsOpen = true;
     }
 
     private void SyncExpandGlyph()
     {
         if (Vm is { } vm)
             ExpandButton.Content = vm.Expanded ? "▲" : "▼";
-    }
-
-    /// <summary>Hidden card (visible via the show-hidden toggle) must read as "unhide" (feedback 2026-07-19).</summary>
-    private void SyncHideGlyph()
-    {
-        if (Vm is not { } vm) return;
-        HideButton.Content = vm.Hidden ? "👁" : "🗕";
-        HideButton.ToolTip = vm.Hidden ? "הצג חזרה בלוח" : "הסתר מהלוח";
     }
 
     private static Button? FindAncestorButton(DependencyObject? d)

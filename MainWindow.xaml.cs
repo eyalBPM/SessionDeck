@@ -1031,6 +1031,19 @@ public partial class MainWindow : Window
         return (true, "");
     }
 
+    /// <summary>⋯ menu action (feedback 2026-07-19): close the workspace's VSCode window
+    /// itself (graceful WM_CLOSE). The card stays on the deck as disconnected.</summary>
+    public void CloseWorkspaceWindow(WorkspaceViewModel ws)
+    {
+        if (ws.State != BindState.Connected || !NativeMethods.IsWindow(ws.Hwnd))
+        {
+            SetStatus($"‏\"{ws.DisplayTitle}\" — אין חלון פתוח לסגירה");
+            return;
+        }
+        WindowActions.Close(ws.Hwnd);
+        SetStatus($"סוגר את חלון ה-VSCode של \"{ws.DisplayTitle}\"...");
+    }
+
     public (bool, string) PinWorkspace(WorkspaceViewModel ws)
     {
         if (ws.State != BindState.Connected || !NativeMethods.IsWindow(ws.Hwnd))

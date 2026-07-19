@@ -99,13 +99,25 @@
                                 <Setter Property="Cursor" Value="Hand"/>
                             </Style>
                         </StackPanel.Resources>
-                        <Button Content="✏" Click="Edit_Click" ToolTip="ערוך כרטיס"/>
                         <Button Content="▶" Click="Pin_Click" ToolTip="פתח את החלון באזור הפתיחה המוגדר"/>
                         <Button x:Name="ExpandButton" Content="▼" Click="Expand_Click"
                                 ToolTip="הצג גם סשנים סגורים"/>
-                        <Button x:Name="HideButton" Content="🗕" Click="Hide_Click"/>
-                        <Button Content="✕" Click="Remove_Click" Foreground="#FFCC7777"
-                                ToolTip="הסר workspace מהלוח"/>
+                        <!-- all card actions live in one ⋯ menu (feedback 2026-07-19) -->
+                        <Button x:Name="MenuButton" Content="⋯" FontWeight="Bold" Click="Menu_Click"
+                                ToolTip="פעולות">
+                            <Button.ContextMenu>
+                                <ContextMenu FlowDirection="RightToLeft">
+                                    <MenuItem Header="עריכה" Click="Edit_Click"/>
+                                    <MenuItem x:Name="HideMenuItem" Header="הסתרה" Click="Hide_Click"/>
+                                    <MenuItem x:Name="CloseWindowMenuItem" Header="סגירת חלון"
+                                              Click="CloseWindow_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="סגירת כרטיס" Click="Remove_Click"
+                                              Foreground="#FFCC7777"
+                                              ToolTip="הסרת ה-workspace מהלוח (לא סוגר את החלון)"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Grid>

@@ -43,6 +43,11 @@ public static class WindowActions
         NativeMethods.SetForegroundWindow(hwnd);
     }
 
+    /// <summary>Graceful close (WM_CLOSE) — same as clicking the window's X, so VSCode
+    /// gets to run its normal shutdown (save prompts etc.).</summary>
+    public static void Close(IntPtr hwnd)
+        => NativeMethods.PostMessage(hwnd, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+
     /// <summary>Pin: move the real window to the stage rect and activate it (SPEC §F3).</summary>
     public static void MoveTo(IntPtr hwnd, RECT rect)
     {
