@@ -84,6 +84,7 @@ public static class NativeMethods
 
     // ---- Windows / focus / move ----
     public const int SW_RESTORE = 9;
+    public const int SW_MAXIMIZE = 3;
     public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
     public const uint SWP_SHOWWINDOW = 0x0040;

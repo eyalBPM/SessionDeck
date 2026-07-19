@@ -57,4 +57,18 @@ public static class WindowActions
             NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
         NativeMethods.SetForegroundWindow(hwnd);
     }
+
+    /// <summary>Stage "full" = a REAL maximize (feedback 2026-07-19): sizing a normal
+    /// window to the work area leaves it in Normal state — Win11 border gaps, resizable
+    /// edges, wrong maximize-button state. Park on the target monitor first so the
+    /// maximize lands there.</summary>
+    public static void MaximizeOn(IntPtr hwnd, RECT work)
+    {
+        if (NativeMethods.IsIconic(hwnd) || NativeMethods.IsZoomed(hwnd))
+            NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+        NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, work.Left, work.Top, work.Width, work.Height,
+            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
+        NativeMethods.ShowWindow(hwnd, NativeMethods.SW_MAXIMIZE);
+        NativeMethods.SetForegroundWindow(hwnd);
+    }
 }

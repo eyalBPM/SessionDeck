@@ -1076,7 +1076,10 @@ public partial class MainWindow : Window
             // No bound window — same launch fallback as Focus; the user can pin once it binds.
             return FocusWorkspace(ws);
         }
-        WindowActions.MoveTo(ws.Hwnd, GetStageRect());
+        if (Vm.StageMode == StageMode.Full)
+            WindowActions.MaximizeOn(ws.Hwnd, GetStageRect());
+        else
+            WindowActions.MoveTo(ws.Hwnd, GetStageRect());
         return (true, "");
     }
 
