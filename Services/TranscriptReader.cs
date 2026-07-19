@@ -51,6 +51,22 @@ public static class TranscriptReader
         }
     }
 
+    /// <summary>Case-insensitive text search over the raw transcript lines (search
+    /// feature 2026-07-19). Best-effort: unreadable file = no match.</summary>
+    public static bool ContainsText(string path, string needle)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream);
+            while (reader.ReadLine() is { } line)
+                if (line.Contains(needle, StringComparison.OrdinalIgnoreCase))
+                    return true;
+        }
+        catch { }
+        return false;
+    }
+
     private static string? TryGetString(string line, string expectedType, string property)
     {
         try

@@ -35,6 +35,9 @@
                     </ToggleButton>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Button x:Name="SearchToggleButton" Content="🔍" FontSize="13" ToolTip="חיפוש וסינון"
+                            Background="Transparent" Foreground="White" BorderThickness="0"
+                            Padding="8,2" Cursor="Hand" Click="SearchToggle_Click"/>
                     <Button x:Name="SettingsButton" Content="⚙" FontSize="15" ToolTip="הגדרות"
                             Background="Transparent" Foreground="White" BorderThickness="0"
                             Padding="8,2" Cursor="Hand" Click="Settings_Click">
@@ -46,6 +49,26 @@
                         </Button.ContextMenu>
                     </Button>
                 </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- search / filter row (feature 2026-07-19): toggled by the 🔍 button; filters
+             workspaces + sessions by title/detail, optionally also by transcript content -->
+        <Border x:Name="SearchRow" DockPanel.Dock="Top" Background="#FF1B1B1B" Padding="8,5"
+                Visibility="Collapsed">
+            <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="✕" ToolTip="סגור את שורת החיפוש"
+                        Background="Transparent" Foreground="#FFAAAAAA" BorderThickness="0"
+                        Padding="8,2" Cursor="Hand" Click="SearchClose_Click"/>
+                <CheckBox x:Name="SearchContentCheck" DockPanel.Dock="Right" Content="חפש גם בתוכן"
+                          Foreground="#FFCCCCCC" VerticalAlignment="Center" Margin="14,0,6,0"
+                          FlowDirection="RightToLeft"
+                          Checked="SearchContent_Changed" Unchecked="SearchContent_Changed"
+                          ToolTip="חפש גם בתוך קבצי ה-transcript של הסשנים (jsonl)"/>
+                <TextBox x:Name="SearchBox" VerticalContentAlignment="Center" FontSize="13"
+                         Background="#FF2A2A2A" Foreground="White" BorderBrush="#FF444444"
+                         CaretBrush="White" Padding="6,3"
+                         TextChanged="Search_Changed" KeyDown="SearchBox_KeyDown"/>
             </DockPanel>
         </Border>
 

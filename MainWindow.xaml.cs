@@ -519,9 +519,145 @@ public partial class MainWindow : Window
 
     private void ApplyDeckVisibility()
     {
+        bool searching = _searchQuery.Length > 0;
         foreach (var ws in Vm.Workspaces)
-            ws.VisibleInDeck = !ws.Hidden || Vm.ShowHidden;
+            ws.VisibleInDeck = (!ws.Hidden || Vm.ShowHidden)
+                && (!searching || ws.SelfMatchesSearch || ws.Sessions.Any(SessionMatchesSearch));
         UpdateEmptyHint();
+    }
+
+    // ---- search / filter (feature 2026-07-19) ----
+
+    private string _searchQuery = "";
+    private bool _searchInContent;
+    // Session ids whose transcript file contains the query (content search results).
+    private readonly HashSet<string> _contentMatches = new();
+    private CancellationTokenSource? _contentSearchCts;
+    private DispatcherTimer? _searchDebounce;
+
+    private void SearchToggle_Click(object sender, RoutedEventArgs e)
+        => SetSearchRowVisible(SearchRow.Visibility != Visibility.Visible);
+
+    private void SearchClose_Click(object sender, RoutedEventArgs e)
+        => SetSearchRowVisible(false);
+
+    private void SearchBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Escape) SetSearchRowVisible(false);
+    }
+
+    private void SetSearchRowVisible(bool visible)
+    {
+        SearchRow.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (visible)
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+        }
+        ApplySearch();                       // hidden row = filter off (query kept for reopen)
+    }
+
+    private void Search_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (_initializing) return;
+        _searchDebounce ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _searchDebounce.Stop();
+        _searchDebounce.Tick -= SearchDebounce_Tick;
+        _searchDebounce.Tick += SearchDebounce_Tick;
+        _searchDebounce.Start();
+    }
+
+    private void SearchDebounce_Tick(object? sender, EventArgs e)
+    {
+        _searchDebounce!.Stop();
+        ApplySearch();
+    }
+
+    private void SearchContent_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_initializing) return;
+        ApplySearch();
+    }
+
+    private void ApplySearch()
+    {
+        _searchQuery = SearchRow.Visibility == Visibility.Visible ? SearchBox.Text.Trim() : "";
+        _searchInContent = SearchContentCheck.IsChecked == true;
+        if (_searchQuery.Length > 0 && _searchInContent)
+        {
+            StartContentSearch();            // async; re-applies visibility when done
+        }
+        else
+        {
+            _contentSearchCts?.Cancel();
+            _contentMatches.Clear();
+        }
+        ApplySearchVisibility();
+    }
+
+    private void ApplySearchVisibility()
+    {
+        bool searching = _searchQuery.Length > 0;
+        foreach (var ws in Vm.Workspaces)
+        {
+            ws.SearchPredicate = searching ? SessionMatchesSearch : null;
+            ws.SelfMatchesSearch = !searching || WorkspaceMatchesSearch(ws);
+            ws.RefreshSessionVisibility();
+        }
+        ApplyDeckVisibility();
+    }
+
+    private bool SessionMatchesSearch(SessionViewModel s)
+        => Matches(s.DisplayTitle) || Matches(s.AutoTitle) || Matches(s.SubText)
+           || Matches(s.SessionId) || _contentMatches.Contains(s.SessionId);
+
+    private bool WorkspaceMatchesSearch(WorkspaceViewModel ws)
+        => Matches(ws.DisplayTitle) || Matches(ws.Name) || Matches(ws.Path)
+           || Matches(ws.Branch) || Matches(ws.Description);
+
+    private bool Matches(string? text)
+        => text != null && text.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Content search: scans every known session's transcript file for the query
+    /// on a background thread; cancelled and restarted on each query change.</summary>
+    private void StartContentSearch()
+    {
+        _contentSearchCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _contentSearchCts = cts;
+        string query = _searchQuery;
+
+        // Snapshot (id, transcript path) on the UI thread.
+        var targets = new List<(string Id, string Path)>();
+        foreach (var ws in Vm.Workspaces)
+        {
+            string? dir = ws.TranscriptDir ?? DefaultTranscriptDir(ws.Path);
+            foreach (var s in ws.Sessions)
+            {
+                string? p = s.TranscriptPath;
+                if ((p == null || !File.Exists(p)) && dir != null)
+                    p = Path.Combine(dir, s.SessionId + ".jsonl");
+                if (p != null) targets.Add((s.SessionId, p));
+            }
+        }
+
+        Task.Run(() =>
+        {
+            var matches = new HashSet<string>();
+            foreach (var (id, path) in targets)
+            {
+                if (cts.Token.IsCancellationRequested) return;
+                if (TranscriptReader.ContainsText(path, query)) matches.Add(id);
+            }
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (cts != _contentSearchCts || _searchQuery != query) return;
+                _contentMatches.Clear();
+                foreach (var m in matches) _contentMatches.Add(m);
+                ApplySearchVisibility();
+                SetStatus($"חיפוש בתוכן: {matches.Count} sessions מכילים \"{query}\"");
+            });
+        }, cts.Token);
     }
 
     // ---- window binding (engine reuse; VSCode-only per SPEC decision 13) ----

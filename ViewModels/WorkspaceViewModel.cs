@@ -196,10 +196,24 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
     /// <summary>Active = bound window or a live session; actives sort to the top.</summary>
     public bool IsActive => _state == BindState.Connected || HasOpenSessions;
 
+    // ---- search filter (feature 2026-07-19), set by the controller; runtime only ----
+
+    /// <summary>Active search predicate for sessions; null = no search.</summary>
+    public Func<SessionViewModel, bool>? SearchPredicate { get; set; }
+
+    /// <summary>The workspace's own fields match the active search (true when no search).</summary>
+    public bool SelfMatchesSearch { get; set; } = true;
+
     public void RefreshSessionVisibility()
     {
         foreach (var s in Sessions)
-            s.Visible = (!s.Closed || _expanded) && !s.Phantom;
+        {
+            bool normal = (!s.Closed || _expanded) && !s.Phantom;
+            // A matching session is surfaced even if closed; a matching workspace keeps
+            // its normal view; otherwise the session is filtered out.
+            s.Visible = SearchPredicate == null ? normal
+                : !s.Phantom && (SearchPredicate(s) || (SelfMatchesSearch && normal));
+        }
         Raise(nameof(HasOpenSessions));
         Raise(nameof(IsActive));
     }
