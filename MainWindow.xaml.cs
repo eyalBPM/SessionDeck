@@ -875,6 +875,19 @@ public partial class MainWindow : Window
                 _blink.Refresh();
                 QueueSave();
             }
+
+            // Extreme activity sort (request 2026-07-19): switching to a session's tab in
+            // VSCode counts as activity — the session jumps to the top of its card.
+            var activeSession = ws.ActiveClaudeTabLabel is { } activeLabel
+                ? ws.Sessions.FirstOrDefault(s => TabLabelMatches(activeLabel, s.TabTitle ?? s.DisplayTitle))
+                : null;
+            if (activeSession != null && ws.LastActiveSessionId != activeSession.SessionId)
+            {
+                ws.LastActiveSessionId = activeSession.SessionId;
+                activeSession.LastEventAt = DateTime.Now;
+                SortSessions(ws);
+                QueueSave();
+            }
         }
 
         // A click that had to launch VSCode first parked its open request here.

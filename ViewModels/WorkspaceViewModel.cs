@@ -116,6 +116,10 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
     /// otherwise. Runtime only — drives auto-acknowledge (issue 2026-07-19).</summary>
     public string? ActiveClaudeTabLabel { get; set; }
 
+    /// <summary>Session whose tab was last active — a CHANGE of active tab bumps the new
+    /// session to the top (activity sort, extreme mode — request 2026-07-19).</summary>
+    public string? LastActiveSessionId { get; set; }
+
     /// <summary>The workspace's Claude Code transcripts folder, learned from the first hook
     /// that reports transcript_path. Used to list historical sessions (expanded view).</summary>
     public string? TranscriptDir { get; set; }
