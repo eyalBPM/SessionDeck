@@ -5,8 +5,9 @@ using System.Text.RegularExpressions;
 namespace SessionDeck.Services;
 
 /// <summary>Titles derived from a Claude Code transcript (.jsonl).</summary>
-/// <param name="TabTitle">The last "ai-title" entry — the exact label VSCode shows on the
-/// session's tab. Primary display title and the session↔tab correlation key.</param>
+/// <param name="TabTitle">The exact label VSCode shows on the session's tab: the last
+/// "custom-title" entry (/rename) when present, else the last "ai-title" entry.
+/// Primary display title and the session↔tab correlation key.</param>
 /// <param name="AutoTitle">Heuristic session title: last summary entry, else the first
 /// real user prompt. Secondary display title.</param>
 public sealed record TranscriptInfo(string? TabTitle, string? AutoTitle);
@@ -23,20 +24,26 @@ public static class TranscriptReader
     {
         try
         {
-            string? aiTitle = null, summary = null, firstUserText = null;
+            string? customTitle = null, aiTitle = null, summary = null, firstUserText = null;
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var reader = new StreamReader(stream);
             while (reader.ReadLine() is { } line)
             {
                 if (line.Length == 0) continue;
-                if (line.Contains("\"ai-title\""))
+                if (line.Contains("\"custom-title\""))
+                {
+                    // /rename. An empty value (rename cleared) falls back to the ai-title.
+                    string? t = TryGetString(line, "custom-title", "customTitle");
+                    if (t != null) customTitle = t.Length > 0 ? t : null;
+                }
+                else if (line.Contains("\"ai-title\""))
                     aiTitle = TryGetString(line, "ai-title", "aiTitle") ?? aiTitle;
                 else if (line.Contains("\"summary\""))
                     summary = TryGetString(line, "summary", "summary") ?? summary;
                 else if (firstUserText == null && line.Contains("\"user\""))
                     firstUserText = TryReadUserText(line);
             }
-            return new TranscriptInfo(Shorten(aiTitle), Shorten(summary ?? firstUserText));
+            return new TranscriptInfo(Shorten(customTitle ?? aiTitle), Shorten(summary ?? firstUserText));
         }
         catch
         {

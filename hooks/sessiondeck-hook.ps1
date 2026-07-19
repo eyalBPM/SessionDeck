@@ -1,4 +1,4 @@
-# SessionDeck hook bridge for Claude Code (SPEC stage C).
+﻿# SessionDeck hook bridge for Claude Code (SPEC stage C).
 # Called by Claude Code hooks with the event name as argument; the hook payload
 # (session_id, cwd, transcript_path, permission_mode + event-specific fields)
 # arrives as JSON on stdin. Everything the payload provides is forwarded to
@@ -51,6 +51,22 @@ switch ($HookEvent) {
     }
     'Stop' {
         $cliArgs = @('session', 'status', '--id', $sid, '--state', 'done')
+    }
+    # Question forms (AskUserQuestion) and plan approvals (ExitPlanMode) don't fire
+    # Notification — without these the deck keeps showing "working" while Claude is
+    # actually waiting for the user (issue 2026-07-19). Registered with a matcher so
+    # the script only runs for these tools.
+    'PreToolUse' {
+        if ($payload.tool_name -notin @('AskUserQuestion', 'ExitPlanMode')) { exit 0 }
+        $cliArgs = @('session', 'status', '--id', $sid, '--state', 'waiting')
+        $detail = if ($payload.tool_name -eq 'ExitPlanMode') { 'ממתין לאישור התוכנית' }
+                  else { Get-Trimmed $payload.tool_input.questions[0].question }
+        if (-not $detail)             { $detail = 'ממתין לתשובה על שאלה' }
+        $cliArgs += @('--detail', $detail)
+    }
+    'PostToolUse' {
+        if ($payload.tool_name -notin @('AskUserQuestion', 'ExitPlanMode')) { exit 0 }
+        $cliArgs = @('session', 'status', '--id', $sid, '--state', 'working')
     }
     'SessionEnd' {
         $cliArgs = @('session', 'end', '--id', $sid)

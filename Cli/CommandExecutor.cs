@@ -68,6 +68,12 @@ public sealed class CommandExecutor
             string flags = w.Hidden ? " [hidden]" : "";
             string branch = w.HasBranch ? $" ({w.Branch})" : "";
             sb.AppendLine($"[{w.Id}] {w.DisplayTitle}{branch} — {bind}{flags}  {w.Path}");
+            if (a.Flags.Contains("tabs"))
+            {
+                foreach (var label in w.ClaudeTabLabels)
+                    sb.AppendLine($"     tab: \"{label}\"{(label == w.ActiveClaudeTabLabel ? "  [active+focused]" : "")}");
+                if (w.ClaudeTabLabels.Count == 0) sb.AppendLine("     tab: (none reported)");
+            }
             foreach (var s in w.Sessions.Where(s => !s.Closed || a.Flags.Contains("all")))
             {
                 string ack = s.Acknowledged ? " ack" : "";

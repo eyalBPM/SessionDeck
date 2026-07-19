@@ -747,7 +747,7 @@ public partial class MainWindow : Window
         ApplyHookInfo(session, info);
         LearnTranscriptDir(ws, info);
         // The user is already looking at this session's tab — don't start blinking at them.
-        if (ws.ActiveClaudeTabLabel != null && ws.ActiveClaudeTabLabel == (session.TabTitle ?? session.DisplayTitle))
+        if (ws.ActiveClaudeTabLabel is { } activeTab && TabLabelMatches(activeTab, session.TabTitle ?? session.DisplayTitle))
             session.Acknowledged = true;
         AfterSessionChange(ws);
         return ($"session {sessionId} → {SessionStatusNames.ToName(status)}", true);
@@ -859,12 +859,12 @@ public partial class MainWindow : Window
             bool ackChanged = false;
             foreach (var s in ws.Sessions)
             {
-                // TabTitle (the ai-title from the transcript) IS the VSCode tab label —
-                // reliable correlation (issue 2026-07-19).
+                // TabTitle (custom-title/ai-title from the transcript) IS the VSCode tab
+                // label — reliable correlation (issue 2026-07-19).
                 string key = s.TabTitle ?? s.DisplayTitle;
-                s.OpenAsTab = labels.Contains(key);
+                s.OpenAsTab = labels.Any(l => TabLabelMatches(l, key));
                 // Auto-acknowledge: the user is looking at this session's tab right now.
-                if (!s.Acknowledged && ws.ActiveClaudeTabLabel != null && ws.ActiveClaudeTabLabel == key)
+                if (!s.Acknowledged && ws.ActiveClaudeTabLabel is { } active && TabLabelMatches(active, key))
                 {
                     s.Acknowledged = true;
                     ackChanged = true;
@@ -897,6 +897,15 @@ public partial class MainWindow : Window
             ws.ActiveClaudeTabLabel = null;
             foreach (var s in ws.Sessions) s.OpenAsTab = false;
         }
+    }
+
+    /// <summary>VSCode truncates long tab labels with a trailing '…' (bug 2026-07-19) —
+    /// a truncated label matches any title it prefixes.</summary>
+    private static bool TabLabelMatches(string label, string title)
+    {
+        if (label == title) return true;
+        return label.EndsWith('…') && label.Length > 1 &&
+               title.StartsWith(label[..^1], StringComparison.Ordinal);
     }
 
     private VscodeConnection? FindConnector(WorkspaceViewModel ws)
