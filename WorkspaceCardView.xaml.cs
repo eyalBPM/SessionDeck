@@ -161,7 +161,9 @@ public partial class WorkspaceCardView : UserControl
 
     private void Expand_Click(object sender, RoutedEventArgs e)
     {
-        if (Vm != null) Vm.Expanded = !Vm.Expanded;
+        if (Vm is not { } vm) return;
+        vm.Expanded = !vm.Expanded;
+        if (vm.Expanded) Owner?.DiscoverHistoricalSessions(vm);
     }
 
     private void Hide_Click(object sender, RoutedEventArgs e)

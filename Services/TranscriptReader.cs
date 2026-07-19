@@ -4,48 +4,55 @@ using System.Text.RegularExpressions;
 
 namespace SessionDeck.Services;
 
+/// <summary>Titles derived from a Claude Code transcript (.jsonl).</summary>
+/// <param name="TabTitle">The last "ai-title" entry — the exact label VSCode shows on the
+/// session's tab. Primary display title and the session↔tab correlation key.</param>
+/// <param name="AutoTitle">Heuristic session title: last summary entry, else the first
+/// real user prompt. Secondary display title.</param>
+public sealed record TranscriptInfo(string? TabTitle, string? AutoTitle);
+
 /// <summary>
-/// Derives a display title for a session from its Claude Code transcript (.jsonl):
-/// the last summary entry wins (that's also what VSCode shows as the tab label);
-/// fallback — the first real user prompt. Best-effort heuristic: any parse failure
-/// yields null and the card keeps its "session xxxxxxxx" title.
+/// Single-pass transcript scanner. Best-effort: any parse failure yields nulls and the
+/// card keeps its "session xxxxxxxx" title.
 /// </summary>
 public static class TranscriptReader
 {
-    private const int MaxTitleLength = 60;
+    private const int MaxTitleLength = 80;
 
-    public static string? ReadTitle(string path)
+    public static TranscriptInfo ReadInfo(string path)
     {
         try
         {
-            string? summary = null, firstUserText = null;
+            string? aiTitle = null, summary = null, firstUserText = null;
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var reader = new StreamReader(stream);
             while (reader.ReadLine() is { } line)
             {
                 if (line.Length == 0) continue;
-                if (line.Contains("\"summary\""))
-                    summary = TryReadSummary(line) ?? summary;
+                if (line.Contains("\"ai-title\""))
+                    aiTitle = TryGetString(line, "ai-title", "aiTitle") ?? aiTitle;
+                else if (line.Contains("\"summary\""))
+                    summary = TryGetString(line, "summary", "summary") ?? summary;
                 else if (firstUserText == null && line.Contains("\"user\""))
                     firstUserText = TryReadUserText(line);
             }
-            return Shorten(summary ?? firstUserText);
+            return new TranscriptInfo(Shorten(aiTitle), Shorten(summary ?? firstUserText));
         }
         catch
         {
-            return null;
+            return new TranscriptInfo(null, null);
         }
     }
 
-    private static string? TryReadSummary(string line)
+    private static string? TryGetString(string line, string expectedType, string property)
     {
         try
         {
             using var doc = JsonDocument.Parse(line);
             var root = doc.RootElement;
-            if (root.TryGetProperty("type", out var type) && type.GetString() == "summary" &&
-                root.TryGetProperty("summary", out var summary))
-                return summary.GetString();
+            if (root.TryGetProperty("type", out var type) && type.GetString() == expectedType &&
+                root.TryGetProperty(property, out var value))
+                return value.GetString();
         }
         catch { }
         return null;

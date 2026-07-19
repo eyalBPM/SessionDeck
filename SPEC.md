@@ -226,7 +226,7 @@ sessiondeck session list   [--workspace <name>] [--all]     # --all כולל ס�
 - לחיצה על Session Card → ‏Focus לחלון + הפעלת/פתיחת הטאב הספציפי ב-VSCode (`openSession` בערוץ ההפוך של ה-pipe); כשאין connector (‏VSCode עוד עולה) הבקשה ממתינה ונשלחת ב-sync הראשון (TTL ‏90 שניות)
 - פתיחה מחדש (resume) של סשן סגור מהתצוגה המורחבת — אותו מסלול
 - פתיחה "ממוקסמת" (config ‏`OpenSessionMaximized`, ברירת מחדל true): צמצום sidebar/panel/auxiliary bar לפני פתיחת הטאב
-- auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode — **עדיין פתוח** (הקורלציה טאב→session חלשה; ראה הערות)
+- auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode — **ממומש (v0.6.0)**: כותרת הטאב = רשומת `ai-title` האחרונה ב-transcript, ולכן הקורלציה session↔tab אמינה; כשהטאב התואם פעיל והחלון בפוקוס — ‏acknowledge אוטומטי (גם כשהסטטוס משתנה בזמן שהטאב כבר פתוח)
 
 **הערות מימוש (v0.5.0):** ה-extension‏ (`vscode-extension/`, ‏TypeScript, ‏VSIX מותקן ידנית) מחזיק connection מתמיד ל-pipe ‏(pipe server שודרג ל-multi-instance + מצב connector); שמות סשנים אוטומטיים נגזרים מה-transcript ‏(summary אחרון או prompt ראשון, ‏`TranscriptReader`) ומוצגים במקום "session xxxxxxxx"; סינון טאבי Claude ב-extension לפי viewType ‏`claudeVSCodePanel`; תג 📑 על סשן שפתוח כטאב הוא best-effort לפי השוואת label לכותרת; ‏CLI חדש: `session open --id <sid>`; סדר טאבים לא מסונכרן (הוחלט לוותר — הלוח ממיין לפי פעילות).
 
@@ -262,7 +262,7 @@ sessiondeck session list   [--workspace <name>] [--all]     # --all כולל ס�
 
 1. ~~**קורלציה session↔טאב (שלב ד')**~~ — **הוכרע (2026-07-19)**: פתיחה/הפעלה של טאב נעשית דרך `claude-vscode.editor.open(sessionId)` של Claude Code עצמו, כך שהקורלציה לא נדרשת בצד שלנו. נותר פתוח רק בכיוון ההפוך (טאב→session ל-auto-acknowledge) — כיום best-effort לפי label.
 2. **מקור מצב error (שלב ג')** — אין hook ייעודי; ייבדק מול מה שה-hooks מספקים בפועל (למשל SessionEnd reason).
-3. **auto-acknowledge מפתיחת טאב ישירה ב-VSCode (שלב ד')** — דורש קורלציה טאב→session אמינה; אפשרות עתידית: השוואת label מול כותרת ה-transcript (קיימת כ-📑 best-effort) או API עתידי של Claude Code.
+3. ~~**auto-acknowledge מפתיחת טאב ישירה ב-VSCode (שלב ד')**~~ — **הוכרע וממומש (2026-07-19, v0.6.0)**: התגלה שכותרת הטאב נשמרת ב-transcript כרשומת `ai-title` — קורלציה אמינה לפי session_id. ‏v0.6.0 מוסיף גם: כותרת טאב ככותרת ראשית (כותרת הסשן משנית), רשימת סשנים היסטוריים מתיקיית ה-transcripts בתצוגה מורחבת (עד 15, לא נשמרים ב-config), חסימת resume לסשן שה-transcript שלו לא קיים תחת ה-slug הנוכחי (מונע פתיחת שיחה חדשה בטעות אחרי שינוי שם תיקייה), מיון סשנים לפי פעילות, ‏RTL לטקסט שמתחיל בעברית, ‏hover על כרטיסי סשן.
 
 **היקף ה-rename ל-SessionDeck** (החלטות 19–20): **בוצע 2026-07-17 (v0.3.0)** — שם קבצי csproj/slnx, ‏RootNamespace/AssemblyName, ‏namespaces בקוד, שם ה-pipe (`sessiondeck`), ה-mutex, תיקיית ה-config (‏`%APPDATA%\SessionDeck` + מיגרציה אוטומטית של config קיים), ערך ה-HKCU Run (+מיגרציה), ואזכורים ב-SPEC/MANUAL_TESTS. ההיסטוריה של git נשמרה. שם התיקייה שונה ל-`D:\Eyal\SessionDeck` ‏(2026-07-19) — ה-rename הושלם במלואו.
 

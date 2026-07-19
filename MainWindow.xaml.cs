@@ -109,6 +109,7 @@ public partial class MainWindow : Window
                 Description = wc.Description,
                 CustomColor = wc.CustomColor,
                 Hidden = wc.Hidden,
+                TranscriptDir = wc.TranscriptDir,
                 State = BindState.Disconnected,
             };
             foreach (var sc in wc.Sessions)
@@ -131,9 +132,11 @@ public partial class MainWindow : Window
                     EndReason = sc.EndReason,
                     LastEventAt = sc.LastEventAt,
                     AutoTitle = sc.AutoTitle,
+                    TabTitle = sc.TabTitle,
                 });
             }
             ws.RefreshSessionVisibility();
+            SortSessions(ws);
             RefreshMetadata(ws);
             Vm.Workspaces.Add(ws);
         }
@@ -218,8 +221,11 @@ public partial class MainWindow : Window
                 Description = w.Description,
                 CustomColor = w.CustomColor,
                 Hidden = w.Hidden,
+                TranscriptDir = w.TranscriptDir,
             };
-            foreach (var s in w.Sessions)
+            // Historical sessions (discovered from the transcripts folder) are re-discovered
+            // on expand — persisting them would bloat the config.
+            foreach (var s in w.Sessions.Where(s => !s.Historical))
             {
                 wc.Sessions.Add(new SessionConfig
                 {
@@ -238,6 +244,7 @@ public partial class MainWindow : Window
                     EndReason = s.EndReason,
                     LastEventAt = s.LastEventAt,
                     AutoTitle = s.AutoTitle,
+                    TabTitle = s.TabTitle,
                 });
             }
             cfg.Workspaces.Add(wc);
@@ -316,15 +323,15 @@ public partial class MainWindow : Window
         RefreshTranscriptTitles();
     }
 
-    /// <summary>Background scan of session transcripts for auto titles (stage D).
-    /// Only files whose mtime changed since the last scan are re-read.</summary>
+    /// <summary>Background scan of session transcripts for titles (stage D): the tab title
+    /// (ai-title) + the heuristic session title. Only files whose mtime changed are re-read.</summary>
     private void RefreshTranscriptTitles()
     {
         if (_titleScanRunning) return;
         var stale = new List<(SessionViewModel Session, string Path, DateTime Mtime)>();
         foreach (var s in Vm.AllSessions())
         {
-            if (s.CustomTitle != null || s.TranscriptPath is not { Length: > 0 } path) continue;
+            if (s.TranscriptPath is not { Length: > 0 } path) continue;
             try
             {
                 DateTime mtime = File.GetLastWriteTimeUtc(path);
@@ -337,23 +344,104 @@ public partial class MainWindow : Window
         _titleScanRunning = true;
         Task.Run(() =>
         {
-            var results = stale.Select(x => (x.Session, Title: TranscriptReader.ReadTitle(x.Path), x.Mtime)).ToList();
+            var results = stale.Select(x => (x.Session, Info: TranscriptReader.ReadInfo(x.Path), x.Mtime)).ToList();
             Dispatcher.BeginInvoke(() =>
             {
                 _titleScanRunning = false;
                 bool changed = false;
-                foreach (var (session, title, mtime) in results)
+                foreach (var (session, tInfo, mtime) in results)
                 {
                     session.TranscriptScannedAt = mtime;
-                    if (title != null && session.AutoTitle != title)
+                    if (tInfo.TabTitle != null && session.TabTitle != tInfo.TabTitle)
                     {
-                        session.AutoTitle = title;
+                        session.TabTitle = tInfo.TabTitle;
+                        changed = true;
+                    }
+                    if (tInfo.AutoTitle != null && session.AutoTitle != tInfo.AutoTitle)
+                    {
+                        session.AutoTitle = tInfo.AutoTitle;
                         changed = true;
                     }
                 }
                 if (changed) QueueSave();
             });
         });
+    }
+
+    // ---- historical sessions (expanded view; issue 2026-07-19) ----
+
+    private const int HistoricalSessionLimit = 15;
+
+    /// <summary>Expanded view lists past sessions straight from the workspace's Claude Code
+    /// transcripts folder — including ones SessionDeck never witnessed. Not persisted.</summary>
+    public void DiscoverHistoricalSessions(WorkspaceViewModel ws)
+    {
+        string? dir = ws.TranscriptDir ?? DefaultTranscriptDir(ws.Path);
+        if (dir == null || !Directory.Exists(dir)) return;
+        var known = new HashSet<string>(ws.Sessions.Select(s => s.SessionId));
+
+        Task.Run(() =>
+        {
+            var found = new List<(string Id, string Path, DateTime Created, DateTime Modified, TranscriptInfo Info)>();
+            try
+            {
+                var files = new DirectoryInfo(dir).GetFiles("*.jsonl")
+                    .OrderByDescending(f => f.LastWriteTime)
+                    .Take(HistoricalSessionLimit);
+                foreach (var f in files)
+                {
+                    string id = Path.GetFileNameWithoutExtension(f.Name);
+                    if (known.Contains(id)) continue;
+                    found.Add((id, f.FullName, f.CreationTime, f.LastWriteTime, TranscriptReader.ReadInfo(f.FullName)));
+                }
+            }
+            catch { }
+            if (found.Count == 0) return;
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                foreach (var h in found)
+                {
+                    if (ws.FindSession(h.Id) != null) continue;
+                    ws.Sessions.Add(new SessionViewModel
+                    {
+                        SessionId = h.Id,
+                        Historical = true,
+                        Closed = true,
+                        StartedAt = h.Created,
+                        EndedAt = h.Modified,
+                        LastEventAt = h.Modified,
+                        TranscriptPath = h.Path,
+                        TabTitle = h.Info.TabTitle,
+                        AutoTitle = h.Info.AutoTitle,
+                        TranscriptScannedAt = File.GetLastWriteTimeUtc(h.Path),
+                        Acknowledged = true,
+                    });
+                }
+                ws.RefreshSessionVisibility();
+                SortSessions(ws);
+            });
+        });
+    }
+
+    /// <summary>Claude Code's project-folder slug: non-ASCII-alphanumeric chars → '-'.
+    /// The drive letter's case varies across versions — try both.</summary>
+    private static string? DefaultTranscriptDir(string wsPath)
+    {
+        if (wsPath.Length == 0) return null;
+        try
+        {
+            string full = Path.GetFullPath(wsPath).TrimEnd('\\');
+            string slug = string.Concat(full.Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-'));
+            string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects");
+            foreach (var variant in new[] { slug, char.ToLowerInvariant(slug[0]) + slug[1..], char.ToUpperInvariant(slug[0]) + slug[1..] })
+            {
+                string candidate = Path.Combine(root, variant);
+                if (Directory.Exists(candidate)) return candidate;
+            }
+        }
+        catch { }
+        return null;
     }
 
     /// <summary>Actives (bound window / live session) float to the top (SPEC decision 16).
@@ -538,6 +626,7 @@ public partial class MainWindow : Window
             fs.EndedAt = null;
             if (!string.IsNullOrEmpty(title)) fs.CustomTitle = title;
             ApplyHookInfo(fs, info);
+            LearnTranscriptDir(fw, info);
             fw.RefreshSessionVisibility();
             AfterSessionChange(fw);
             return ($"session {sessionId} restarted in \"{fw.DisplayTitle}\"", true);
@@ -554,6 +643,7 @@ public partial class MainWindow : Window
             StartedAt = DateTime.Now,
         };
         ApplyHookInfo(session, info);
+        LearnTranscriptDir(ws, info);
         ws.Sessions.Insert(0, session);
         ws.RefreshSessionVisibility();
         AfterSessionChange(ws);
@@ -568,6 +658,19 @@ public partial class MainWindow : Window
         if (info.Source != null) session.Source = info.Source;
         if (info.Mode != null) session.PermissionMode = info.Mode;
         if (info.Reason != null) session.EndReason = info.Reason;
+    }
+
+    /// <summary>The workspace's transcripts folder, learned from any hook event that
+    /// carries transcript_path — used to list historical sessions (stage D).</summary>
+    private void LearnTranscriptDir(WorkspaceViewModel ws, HookInfo info)
+    {
+        if (info.Transcript is not { Length: > 0 } t) return;
+        string? dir = Path.GetDirectoryName(t);
+        if (dir != null && ws.TranscriptDir != dir)
+        {
+            ws.TranscriptDir = dir;
+            QueueSave();
+        }
     }
 
     /// <summary>Hook details (prompts, messages) become one bounded display line.</summary>
@@ -632,6 +735,7 @@ public partial class MainWindow : Window
                 StartedAt = DateTime.Now,
             };
             ApplyHookInfo(recreated, info);
+            LearnTranscriptDir(host, info);
             host.Sessions.Insert(0, recreated);
             AfterSessionChange(host);
             return ($"session {sessionId} recreated in \"{host.DisplayTitle}\" [{SessionStatusNames.ToName(status)}]", true);
@@ -641,6 +745,10 @@ public partial class MainWindow : Window
             return ($"session {sessionId} is closed — status not changed", false);
         session.Status = status;
         ApplyHookInfo(session, info);
+        LearnTranscriptDir(ws, info);
+        // The user is already looking at this session's tab — don't start blinking at them.
+        if (ws.ActiveClaudeTabLabel != null && ws.ActiveClaudeTabLabel == (session.TabTitle ?? session.DisplayTitle))
+            session.Acknowledged = true;
         AfterSessionChange(ws);
         return ($"session {sessionId} → {SessionStatusNames.ToName(status)}", true);
     }
@@ -653,6 +761,7 @@ public partial class MainWindow : Window
         session.Closed = true;
         session.EndedAt = DateTime.Now;
         ApplyHookInfo(session, info);
+        LearnTranscriptDir(ws, info);
 
         // Retention (SPEC decision 12): keep only the last N closed sessions per workspace.
         var closed = ws.Sessions.Where(s => s.Closed).OrderByDescending(s => s.EndedAt ?? DateTime.MinValue).ToList();
@@ -664,9 +773,26 @@ public partial class MainWindow : Window
         return ($"session {sessionId} ended", true);
     }
 
+    /// <summary>Sessions order like workspaces: open before closed, most recent activity
+    /// first within each group. Stable in-place sort via Move.</summary>
+    private static void SortSessions(WorkspaceViewModel ws)
+    {
+        var desired = ws.Sessions
+            .OrderBy(s => s.Closed ? 1 : 0)
+            .ThenByDescending(s => s.LastEventAt ?? s.EndedAt ?? s.StartedAt)
+            .ToList();
+        for (int target = 0; target < desired.Count; target++)
+        {
+            int current = ws.Sessions.IndexOf(desired[target]);
+            if (current != target)
+                ws.Sessions.Move(current, target);
+        }
+    }
+
     private void AfterSessionChange(WorkspaceViewModel ws)
     {
         ws.RefreshSessionVisibility();
+        SortSessions(ws);
         SortWorkspaces();
         _blink.Refresh();
         QueueSave();
@@ -683,8 +809,34 @@ public partial class MainWindow : Window
             QueueSave();
         }
         FocusWorkspace(ws);
+
+        // Resume-by-id only works when the transcript still exists under the workspace's
+        // current project slug; otherwise Claude Code silently opens a NEW conversation
+        // (issue 2026-07-19 — e.g. sessions from before a folder rename). Don't send.
+        if (!CanResume(ws, session))
+        {
+            SetStatus($"‏\"{session.DisplayTitle}\" — קובץ הסשן לא נמצא (הפרויקט שינה שם/מיקום?); פתיחה תיצור שיחה חדשה, לכן בוטלה");
+            return;
+        }
         var (sent, _) = OpenSessionInVscode(ws, session);
         if (sent) SetStatus($"פותח את הסשן ב-VSCode: {session.DisplayTitle}");
+    }
+
+    /// <summary>Resume looks the id up in the workspace's CURRENT transcripts folder — a
+    /// transcript that only exists under an old slug (pre-rename) can't be resumed.</summary>
+    private static bool CanResume(WorkspaceViewModel ws, SessionViewModel session)
+    {
+        try
+        {
+            string? dir = ws.TranscriptDir ?? DefaultTranscriptDir(ws.Path);
+            if (dir == null)
+                return session.TranscriptPath == null || File.Exists(session.TranscriptPath);
+            return File.Exists(Path.Combine(dir, session.SessionId + ".jsonl"));
+        }
+        catch
+        {
+            return true;   // can't verify — best effort
+        }
     }
 
     // ---- VSCode extension connector (stage D) ----
@@ -702,8 +854,27 @@ public partial class MainWindow : Window
             if (!string.IsNullOrEmpty(sync.Branch)) ws.Branch = sync.Branch;
             var labels = sync.Tabs.Select(t => t.Label).ToList();
             ws.SetClaudeTabs(labels);
+            ws.ActiveClaudeTabLabel = sync.Focused ? sync.Tabs.FirstOrDefault(t => t.Active)?.Label : null;
+
+            bool ackChanged = false;
             foreach (var s in ws.Sessions)
-                s.OpenAsTab = labels.Contains(s.DisplayTitle);
+            {
+                // TabTitle (the ai-title from the transcript) IS the VSCode tab label —
+                // reliable correlation (issue 2026-07-19).
+                string key = s.TabTitle ?? s.DisplayTitle;
+                s.OpenAsTab = labels.Contains(key);
+                // Auto-acknowledge: the user is looking at this session's tab right now.
+                if (!s.Acknowledged && ws.ActiveClaudeTabLabel != null && ws.ActiveClaudeTabLabel == key)
+                {
+                    s.Acknowledged = true;
+                    ackChanged = true;
+                }
+            }
+            if (ackChanged)
+            {
+                _blink.Refresh();
+                QueueSave();
+            }
         }
 
         // A click that had to launch VSCode first parked its open request here.
@@ -723,6 +894,7 @@ public partial class MainWindow : Window
             Vm.FindByPath(conn.WorkspacePath) is { } ws && FindConnector(ws) == null)
         {
             ws.SetClaudeTabs(new List<string>());
+            ws.ActiveClaudeTabLabel = null;
             foreach (var s in ws.Sessions) s.OpenAsTab = false;
         }
     }

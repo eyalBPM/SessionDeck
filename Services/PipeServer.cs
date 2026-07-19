@@ -15,6 +15,7 @@ public sealed class VscodeSyncMessage
     public string? Workspace { get; set; }           // first workspace folder path
     public string? Branch { get; set; }
     public int Pid { get; set; }
+    public bool Focused { get; set; }                // VSCode window has OS focus
     public List<VscodeTab> Tabs { get; set; } = new();
 }
 

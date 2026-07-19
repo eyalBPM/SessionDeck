@@ -76,6 +76,7 @@ public class WorkspaceConfig
     public string Description { get; set; } = "";
     public string? CustomColor { get; set; }         // null = auto (Peacock / default)
     public bool Hidden { get; set; }
+    public string? TranscriptDir { get; set; }       // learned from hooks (stage D)
     public List<SessionConfig> Sessions { get; set; } = new();
 }
 
@@ -98,6 +99,7 @@ public class SessionConfig
     public string? EndReason { get; set; }
     public DateTime? LastEventAt { get; set; }
     public string? AutoTitle { get; set; }           // derived from the transcript (stage D)
+    public string? TabTitle { get; set; }            // VSCode tab label (last ai-title entry)
 }
 
 /// <summary>Session status → border style. Lives in config so the mapping can change

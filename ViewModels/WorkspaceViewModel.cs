@@ -112,6 +112,14 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
         Raise(nameof(ClaudeTabsTooltip));
     }
 
+    /// <summary>Label of the active Claude tab while the VSCode window is focused; null
+    /// otherwise. Runtime only — drives auto-acknowledge (issue 2026-07-19).</summary>
+    public string? ActiveClaudeTabLabel { get; set; }
+
+    /// <summary>The workspace's Claude Code transcripts folder, learned from the first hook
+    /// that reports transcript_path. Used to list historical sessions (expanded view).</summary>
+    public string? TranscriptDir { get; set; }
+
     // ---- live window binding (engine reuse from stage A/B) ----
 
     private IntPtr _hwnd;

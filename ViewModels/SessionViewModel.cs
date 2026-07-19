@@ -50,21 +50,40 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
         set { if (_customTitle != value) { _customTitle = value; Raise(); Raise(nameof(DisplayTitle)); } }
     }
 
+    private string? _tabTitle;
+    /// <summary>The VSCode tab label (last "ai-title" transcript entry). Primary title and
+    /// the session↔tab correlation key (issues 2026-07-19).</summary>
+    public string? TabTitle
+    {
+        get => _tabTitle;
+        set { if (_tabTitle != value) { _tabTitle = value; Raise(); Raise(nameof(DisplayTitle)); Raise(nameof(SubTitle)); } }
+    }
+
     private string? _autoTitle;
-    /// <summary>Title derived from the transcript (summary / first prompt) — stage D.</summary>
+    /// <summary>Heuristic session title from the transcript (summary / first prompt).</summary>
     public string? AutoTitle
     {
         get => _autoTitle;
-        set { if (_autoTitle != value) { _autoTitle = value; Raise(); Raise(nameof(DisplayTitle)); } }
+        set { if (_autoTitle != value) { _autoTitle = value; Raise(); Raise(nameof(DisplayTitle)); Raise(nameof(SubTitle)); } }
     }
 
-    /// <summary>Transcript mtime already scanned for AutoTitle (not persisted).</summary>
+    /// <summary>Transcript mtime already scanned for titles (not persisted).</summary>
     public DateTime TranscriptScannedAt { get; set; }
+
+    /// <summary>Discovered from the transcripts folder (expanded view) — not persisted.</summary>
+    public bool Historical { get; init; }
 
     public string DisplayTitle =>
         !string.IsNullOrEmpty(_customTitle) ? _customTitle
+        : !string.IsNullOrEmpty(_tabTitle) ? _tabTitle
         : !string.IsNullOrEmpty(_autoTitle) ? _autoTitle
         : SessionId.Length > 8 ? "session " + SessionId[..8] : "session " + SessionId;
+
+    /// <summary>Secondary title: the session title, shown when the tab title is primary.</summary>
+    public string SubTitle =>
+        !string.IsNullOrEmpty(_tabTitle) && !string.IsNullOrEmpty(_autoTitle) && _autoTitle != _tabTitle
+        && string.IsNullOrEmpty(_customTitle)
+            ? _autoTitle : "";
 
     private string _description = "";
     public string Description

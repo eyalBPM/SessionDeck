@@ -60,6 +60,7 @@ function sendSync(): void {
         Workspace: workspacePath(),
         Branch: currentBranch(),
         Pid: process.pid,
+        Focused: vscode.window.state.focused,
         Tabs: claudeTabs(),
     };
     try {
@@ -110,9 +111,18 @@ async function handleCommand(raw: string): Promise<void> {
     } catch (e) {
         // Internal command signature changed / Claude extension missing — guaranteed fallback.
         out.appendLine(`claude-vscode.editor.open failed (${e}) — falling back to terminal resume`);
-        const term = vscode.window.createTerminal({ name: 'Claude Code' });
-        term.show();
-        term.sendText(`claude --resume ${sessionId}`);
+        try {
+            const term = vscode.window.createTerminal({ name: 'Claude Code' });
+            term.show();
+            term.sendText(`claude --resume ${sessionId}`);
+            void vscode.window.showWarningMessage(
+                'SessionDeck: פתיחת הסשן דרך Claude Code נכשלה — ייתכן שה-API הפנימי השתנה בעדכון. ' +
+                'בוצע fallback לטרמינל (claude --resume). פרטים: Output ← SessionDeck.');
+        } catch (e2) {
+            out.appendLine(`terminal fallback failed too: ${e2}`);
+            void vscode.window.showErrorMessage(
+                'SessionDeck: פתיחת הסשן נכשלה לחלוטין (גם ה-fallback לטרמינל). פרטים: Output ← SessionDeck.');
+        }
     }
 }
 
@@ -189,6 +199,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(queueSync));
     context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabGroups(queueSync));
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(queueSync));
+    context.subscriptions.push(vscode.window.onDidChangeWindowState(queueSync));
     context.subscriptions.push(vscode.commands.registerCommand('sessiondeck.sync', () => {
         out.appendLine('manual sync');
         sendSync();
