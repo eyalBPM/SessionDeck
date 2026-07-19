@@ -215,7 +215,7 @@
             <!-- live DWM thumbnail of the bound VSCode window -->
             <Grid Height="170">
                 <Border x:Name="ThumbArea" Background="#FF0D0D0D" Margin="8,6,8,2" CornerRadius="4"/>
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" FlowDirection="RightToLeft">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed"/>
