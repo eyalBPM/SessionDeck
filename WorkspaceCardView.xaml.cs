@@ -30,6 +30,9 @@ public partial class WorkspaceCardView : UserControl
         DataContextChanged += OnDataContextChanged;
         Loaded += (_, _) => { LayoutUpdated += OnLayoutUpdated; RefreshThumbnail(); SyncExpandGlyph(); };
         Unloaded += (_, _) => { LayoutUpdated -= OnLayoutUpdated; UnregisterThumbnail(); };
+        // Collapsing the card (search filter / hide) doesn't unload it — without this the
+        // DWM thumbnail keeps compositing at its old rect over the deck (bug 2026-07-19).
+        IsVisibleChanged += (_, _) => RefreshThumbnail();
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -56,7 +59,7 @@ public partial class WorkspaceCardView : UserControl
     private void RefreshThumbnail()
     {
         var vm = Vm;
-        if (!IsLoaded || vm == null || vm.State != BindState.Connected ||
+        if (!IsLoaded || !IsVisible || vm == null || vm.State != BindState.Connected ||
             vm.Hwnd == IntPtr.Zero || !NativeMethods.IsWindow(vm.Hwnd))
         {
             UnregisterThumbnail();
