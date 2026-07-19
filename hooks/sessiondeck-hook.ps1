@@ -1,0 +1,70 @@
+# SessionDeck hook bridge for Claude Code (SPEC stage C).
+# Called by Claude Code hooks with the event name as argument; the hook payload
+# (session_id, cwd, transcript_path, permission_mode + event-specific fields)
+# arrives as JSON on stdin. Everything the payload provides is forwarded to
+# SessionDeck. Fire-and-forget: never blocks or fails the Claude Code session.
+# PowerShell 5.1 compatible.
+param(
+    [Parameter(Mandatory = $true)][string]$HookEvent
+)
+
+$ErrorActionPreference = 'SilentlyContinue'
+
+# Resolve sessiondeck.exe: PATH first, then the default dev build location.
+$exe = (Get-Command 'SessionDeck.exe' -ErrorAction SilentlyContinue).Source
+if (-not $exe) {
+    $devBuild = 'D:\Eyal\SessionDeck\bin\Debug\net10.0-windows\SessionDeck.exe'
+    if (Test-Path $devBuild) { $exe = $devBuild }
+}
+if (-not $exe) { exit 0 }
+
+# Read stdin as UTF-8 explicitly — PowerShell 5.1 defaults to the OEM codepage for
+# piped input, which garbles the Hebrew in Claude Code's UTF-8 payload (bug 2026-07-19).
+$stdinReader = New-Object System.IO.StreamReader([Console]::OpenStandardInput(), [System.Text.Encoding]::UTF8)
+$payload = $stdinReader.ReadToEnd() | ConvertFrom-Json
+$sid = $payload.session_id
+if (-not $sid) { exit 0 }
+
+# Bound free-text fields so the command line stays well under the 32K limit.
+function Get-Trimmed([string]$s, [int]$max = 400) {
+    if (-not $s) { return $null }
+    $s = ($s -replace '\s+', ' ').Trim()
+    if ($s.Length -gt $max) { return $s.Substring(0, $max) }
+    return $s
+}
+
+$cliArgs = $null
+switch ($HookEvent) {
+    'SessionStart' {
+        $cliArgs = @('session', 'start', '--id', $sid, '--workspace', $payload.cwd)
+        if ($payload.source)          { $cliArgs += @('--source', $payload.source) }
+    }
+    'UserPromptSubmit' {
+        $cliArgs = @('session', 'status', '--id', $sid, '--state', 'working')
+        $prompt = Get-Trimmed $payload.prompt
+        if ($prompt)                  { $cliArgs += @('--detail', $prompt) }
+    }
+    'Notification' {
+        $cliArgs = @('session', 'status', '--id', $sid, '--state', 'waiting')
+        $message = Get-Trimmed $payload.message
+        if ($message)                 { $cliArgs += @('--detail', $message) }
+    }
+    'Stop' {
+        $cliArgs = @('session', 'status', '--id', $sid, '--state', 'done')
+    }
+    'SessionEnd' {
+        $cliArgs = @('session', 'end', '--id', $sid)
+        if ($payload.reason)          { $cliArgs += @('--reason', $payload.reason) }
+    }
+}
+if (-not $cliArgs) { exit 0 }
+
+# Common payload fields, forwarded on every event that carries them.
+# cwd goes on EVERY event so SessionDeck can recreate a session it no longer knows
+# (e.g. after its workspace was removed from the deck) — self-healing safety net.
+if ($payload.cwd -and $HookEvent -ne 'SessionStart') { $cliArgs += @('--workspace', $payload.cwd) }
+if ($payload.transcript_path)  { $cliArgs += @('--transcript', $payload.transcript_path) }
+if ($payload.permission_mode)  { $cliArgs += @('--mode', $payload.permission_mode) }
+
+& $exe @cliArgs | Out-Null
+exit 0

@@ -1,48 +1,59 @@
-using System.Collections.ObjectModel;
 using System.Windows.Threading;
-using SessionDeck.ViewModels;
 
 namespace SessionDeck.Services;
 
+/// <summary>Anything with a status-driven blinking border (session cards today).</summary>
+public interface IBlinkable
+{
+    bool BlinkActive { get; }
+    int BlinkIntervalMs { get; }
+    bool AltPhase { get; set; }
+}
+
 /// <summary>
-/// One shared DispatcherTimer for all blinking borders (SPEC §5 — never a timer per tile).
-/// Each tile's phase is derived from the wall clock and its own interval, so tiles with
-/// different intervals coexist on the same tick.
+/// One shared DispatcherTimer for all blinking borders (SPEC §5 — never a timer per card).
+/// Each target's phase is derived from the wall clock and its own interval, so different
+/// intervals coexist on the same tick.
 /// </summary>
 public sealed class BlinkEngine
 {
-    private readonly ObservableCollection<TileViewModel> _tiles;
+    private readonly Func<IEnumerable<IBlinkable>> _targets;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
 
-    public BlinkEngine(ObservableCollection<TileViewModel> tiles)
+    public BlinkEngine(Func<IEnumerable<IBlinkable>> targets)
     {
-        _tiles = tiles;
+        _targets = targets;
         _timer.Tick += (_, _) => Tick();
     }
 
-    /// <summary>Call after any change that can start/stop blinking (border edits, add/remove).</summary>
+    /// <summary>Call after any change that can start/stop blinking (status changes, acknowledge, add/remove).</summary>
     public void Refresh()
     {
-        bool any = _tiles.Any(t => t.AltColorName != null);
-        if (any && !_timer.IsEnabled) _timer.Start();
-        else if (!any && _timer.IsEnabled)
+        bool any = false;
+        foreach (var t in _targets())
         {
-            _timer.Stop();
-            foreach (var t in _tiles) t.AltPhase = false;
+            if (t.BlinkActive) any = true;
+            else t.AltPhase = false;
         }
+        if (any && !_timer.IsEnabled) _timer.Start();
+        else if (!any && _timer.IsEnabled) _timer.Stop();
     }
 
     private void Tick()
     {
         long now = Environment.TickCount64;
         bool any = false;
-        foreach (var t in _tiles)
+        foreach (var t in _targets())
         {
-            if (t.AltColorName == null) continue;
+            if (!t.BlinkActive)
+            {
+                t.AltPhase = false;
+                continue;
+            }
             any = true;
             int interval = Math.Max(100, t.BlinkIntervalMs);
             t.AltPhase = now / interval % 2 == 1;
         }
-        if (!any) Refresh();
+        if (!any) _timer.Stop();
     }
 }

@@ -1,8 +1,8 @@
 # SessionDeck (לשעבר WinGrid) — אפיון פיתוח (v0.6)
 
 > Last updated: 2026-07-17
-> Status: **שלבים א'+ב' ממומשים** (ממתין לבדיקות ידניות — `MANUAL_TESTS.md`); **rename ל-SessionDeck בוצע** (v0.3.0, 2026-07-17); שלבים ג'–ד' באפיון לפי האג'נדה החדשה (§1, §2ב).
-> שם: **SessionDeck** (נבחר 2026-07-17 — החלטה 20). ה-rename בקוד בוצע 2026-07-17 (csproj/slnx, namespaces, pipe `sessiondeck`, mutex, ‏`%APPDATA%\SessionDeck` + מיגרציה, ערך Run + מיגרציה). נותר: שינוי שם התיקייה `D:\Eyal\WinGrid` → `D:\Eyal\SessionDeck` (ידני, כשה-IDE סגור).
+> Status: **שלבים א'–ג' ממומשים** (v0.4.0, 2026-07-17; ממתין לבדיקות ידניות — `MANUAL_TESTS.md`); rename ל-SessionDeck בוצע (v0.3.0); שלב ד' (VSCode extension) באפיון.
+> שם: **SessionDeck** (נבחר 2026-07-17 — החלטה 20). ה-rename הושלם במלואו: קוד 2026-07-17 (csproj/slnx, namespaces, pipe `sessiondeck`, mutex, ‏`%APPDATA%\SessionDeck` + מיגרציה, ערך Run + מיגרציה), ושם התיקייה `D:\Eyal\SessionDeck` ‏(2026-07-19, ע"י אייל).
 > מחבר האפיון: Claude Code בשיתוף אייל, סשנים 2026-07-16 – 2026-07-17.
 
 ---
@@ -125,28 +125,25 @@
 - הרצה חוזרת עם ארגומנטים = CLI client: מעביר את הפקודה ל-pipe, מדפיס תשובה, מחזיר exit code (0 = הצלחה, ≠0 = שגיאה + הודעה ל-stderr). זמן ריצה יעד: <100ms (קריטי ל-hooks).
 - אם אין instance רץ: פקודות CLI נכשלות עם הודעה ברורה (אופציה עתידית: `--start` שמרים את ה-UI).
 
-### פקודות (טיוטה)
+### פקודות (עודכן v0.4.0 — מודל workspaces; פקודות ה-tiles הישנות `border`/`add --match` הוסרו)
 
 ```
-sessiondeck list                          # טבלת tiles: id, title, desc, process, color, state
-sessiondeck add --pick                    # פותח picker אינטראקטיבי
-sessiondeck add --match "<title regex>" [--process code] [--desc "..."] [--color <c>]
+sessiondeck list [--all]                  # workspaces + sessions (--all כולל סגורים)
+sessiondeck add <folder path>             # הוספת workspace לפי תיקייה (המקביל ל-picker ב-UI)
 sessiondeck remove <target>
-sessiondeck set <target> [--title "..."] [--desc "..."]
-sessiondeck border <target> --color <c>                        # צבע סטטי
-sessiondeck border <target> --color <c> --alt <c2> [--interval <ms>]   # מהבהב (ברירת מחדל 500ms)
-sessiondeck focus <target>                # הפעלה במקום הנוכחי
+sessiondeck set <target> [--title "..."] [--desc "..."] [--color <c>]   # ערך ריק = auto
+sessiondeck focus <target>                # הפעלת חלון ה-workspace במקומו
 sessiondeck pin <target>                  # הקפצה ל-Stage + הפעלה
 sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
 sessiondeck zone --monitor <n> --half left|right | --full | --off
-sessiondeck status                        # מצב האפליקציה: zone, stage, מספר tiles
+sessiondeck status                        # מצב: version, zone, stage, מוני workspaces/sessions
 ```
 
-- **`<target>`**: id מספרי יציב של tile, או `--match "<regex>"` על הכותרת (שימושי ל-hooks: לפי שם ה-workspace).
+- **`<target>`**: id מספרי יציב של workspace, או `--match "<regex>"` על השם/כותרת.
 - **צבעים**: שמות (`red`, `green`, `orange`, `blue`, `gray`, ...) או hex `#RRGGBB`.
-- `sessiondeck border --match "..."` על חלון שעדיין לא ב-grid: שגיאה, עם דגל אופציונלי `--auto-add` (שלב 2 — נוח ל-hooks).
+- צבעי המסגרות של הסשנים נגזרים מהסטטוס (מיפוי `StatusStyles` ב-config) — אין יותר פקודת `border`.
 
-### 4ב. CLI לסשנים (v0.5 — טיוטה לשלב ג')
+### 4ב. CLI לסשנים (ממומש v0.4.0 — שלב ג')
 
 ```
 sessiondeck session start  --id <session_id> --workspace <name> [--title "..."]
@@ -208,7 +205,7 @@ sessiondeck session list   [--workspace <name>] [--all]     # --all כולל ס�
 - עלייה אוטומטית עם Windows + שחזור מצב מלא (F9 — תלוי ב-re-bind)
 - `stage` / `set` / `status` ב-CLI
 
-### שלב ג' — Cards UI + אינטגרציית hooks (עודכן v0.5; ללא extension)
+### שלב ג' — Cards UI + אינטגרציית hooks (עודכן v0.5; ללא extension) — **ממומש v0.4.0 (2026-07-17)**
 - מבנה UI חדש: Window Cards + Session Cards לפי §2ב; סינון התצוגה ל-VSCode בלבד (המנוע נשאר גנרי)
 - CLI סשנים לפי §4ב; הסשנים נוצרים ומתעדכנים **מה-hooks בלבד**
 - מנוע סטטוסים + acknowledge בלחיצה; מיפוי סטטוס→צבע ב-config
@@ -219,6 +216,8 @@ sessiondeck session list   [--workspace <name>] [--all]     # --all כולל ס�
   - `Stop` (סיים turn) → done
   - `SessionEnd` → `session end`
 - לחיצה על Session Card בשלב זה: Focus לחלון בלבד (הפעלת הטאב הספציפי — שלב ד')
+
+**הערות מימוש (v0.4.0):** ה-Tile הגנרי הוחלף ב-WorkspaceCardView (המנוע — thumbnails, binding, zone/stage — נשמר); ה-crosshair picker הוסר מהסרגל לטובת בחירת תיקייה; נתוני ה-tiles משלבים א'-ב' נשמרים ב-config כשדה legacy ואינם מוצגים; רענון branch/Peacock כל ~10 שניות; סקריפט ה-hooks ב-`hooks/` עם הוראות התקנה.
 - מיפוי session→window לפי workspace name ב-title של VSCode
 
 ### שלב ד' — VSCode Extension (נוסף v0.5)
@@ -242,7 +241,7 @@ sessiondeck session list   [--workspace <name>] [--all]     # --all כולל ס�
 | 6 | Auto-save | תמידי, ללא כפתור שמירה (F7) |
 | 7 | Startup | עלייה אוטומטית עם Windows + שחזור מצב מלא דרך re-bind (F9) |
 | 8 | חלון שנסגר | tile נשאר עם title/desc/color ללא שינוי; נוסף שדה **state** (connected/disconnected) + re-bind אוטומטי |
-| 9 | מיקום ה-repo | **`D:\Eyal\WinGrid`** (עודכן 2026-07-16 — אייל יצר שם את הפרויקט בפועל; יעד אחרי ה-rename: `D:\Eyal\SessionDeck`, שינוי ידני כשה-IDE סגור) — repo git עצמאי, מחוץ לעץ ה-OneDrive. הערה: תחת `D:\Eyal\` חל סיווג "פרויקט אישי" בהגדרות של אייל — פרוטוקולי BPM לא חלים, כללי Git/safety כלליים כן |
+| 9 | מיקום ה-repo | **`D:\Eyal\SessionDeck`** (במקור `D:\Eyal\WinGrid`; שם התיקייה שונה 2026-07-19 עם ה-rename) — repo git עצמאי, מחוץ לעץ ה-OneDrive. הערה: תחת `D:\Eyal\` חל סיווג "פרויקט אישי" בהגדרות של אייל — פרוטוקולי BPM לא חלים, כללי Git/safety כלליים כן |
 | 10 | Reserved Zone | **בשלב א' (MVP)** — חלק מהותי מהאפליקציה (החלטת אייל 2026-07-16) |
 | 11 | סכמת סטטוסים (2026-07-17, עודכן) | **working=כחול קבוע** (הוכרע — כתום שמור בלעדית ל-waiting), waiting=כתום מהבהב, done=ירוק מהבהב→קבוע ב-acknowledge, error=אדום מהבהב→קבוע, idle=אפור; המיפוי ב-config |
 | 12 | סשן שנסגר (2026-07-17) | ה-Session Card נעלם; זמין בתצוגה מורחבת של ה-Window Card עם אפשרות resume (שלב ד'); retention ~20 |
@@ -261,7 +260,7 @@ sessiondeck session list   [--workspace <name>] [--all]     # --all כולל ס�
 1. **קורלציה session↔טאב (שלב ד')** — איך מקשרים `session_id` מה-hook לטאב ספציפי ב-tabGroups API. ייבדק ב-spike בתחילת שלב ד'.
 2. **מקור מצב error (שלב ג')** — אין hook ייעודי; ייבדק מול מה שה-hooks מספקים בפועל (למשל SessionEnd reason).
 
-**היקף ה-rename ל-SessionDeck** (החלטות 19–20): **בוצע 2026-07-17 (v0.3.0)** — שם קבצי csproj/slnx, ‏RootNamespace/AssemblyName, ‏namespaces בקוד, שם ה-pipe (`sessiondeck`), ה-mutex, תיקיית ה-config (‏`%APPDATA%\SessionDeck` + מיגרציה אוטומטית של config קיים), ערך ה-HKCU Run (+מיגרציה), ואזכורים ב-SPEC/MANUAL_TESTS. ההיסטוריה של git נשמרה. **נותר ידני:** שינוי שם התיקייה `D:\Eyal\WinGrid` → `D:\Eyal\SessionDeck` (לבצע כשה-IDE וה-session סגורים).
+**היקף ה-rename ל-SessionDeck** (החלטות 19–20): **בוצע 2026-07-17 (v0.3.0)** — שם קבצי csproj/slnx, ‏RootNamespace/AssemblyName, ‏namespaces בקוד, שם ה-pipe (`sessiondeck`), ה-mutex, תיקיית ה-config (‏`%APPDATA%\SessionDeck` + מיגרציה אוטומטית של config קיים), ערך ה-HKCU Run (+מיגרציה), ואזכורים ב-SPEC/MANUAL_TESTS. ההיסטוריה של git נשמרה. שם התיקייה שונה ל-`D:\Eyal\SessionDeck` ‏(2026-07-19) — ה-rename הושלם במלואו.
 
 שאר שאלות האפיון הוכרעו (ראה §8); שאלות מימוש יוכרעו תוך כדי הפיתוח.
 

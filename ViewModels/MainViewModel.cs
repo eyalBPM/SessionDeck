@@ -7,15 +7,15 @@ namespace SessionDeck.ViewModels;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
-    public ObservableCollection<TileViewModel> Tiles { get; } = new();
+    public ObservableCollection<WorkspaceViewModel> Workspaces { get; } = new();
 
-    public int NextTileId { get; set; } = 1;
+    public int NextWorkspaceId { get; set; } = 1;
 
-    private int _gridColumns = 1;
-    public int GridColumns
+    private bool _showHidden;
+    public bool ShowHidden
     {
-        get => _gridColumns;
-        set { if (_gridColumns != value) { _gridColumns = value; Raise(); } }
+        get => _showHidden;
+        set { if (_showHidden != value) { _showHidden = value; Raise(); } }
     }
 
     public ZoneMode ZoneMode { get; set; } = ZoneMode.Off;
@@ -23,21 +23,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public StageMode StageMode { get; set; } = StageMode.HalfRight;
     public int StageMonitor { get; set; }
     public Interop.RECT? StageRect { get; set; }       // used when StageMode == Rect
-    public bool AutoRemoveDisconnected { get; set; }   // F6 option, off by default
+    public int ClosedSessionRetention { get; set; } = 20;
 
-    public TileViewModel? FindById(int id)
+    public WorkspaceViewModel? FindById(int id)
+        => Workspaces.FirstOrDefault(w => w.Id == id);
+
+    public WorkspaceViewModel? FindByHwnd(IntPtr hwnd)
+        => hwnd == IntPtr.Zero ? null : Workspaces.FirstOrDefault(w => w.Hwnd == hwnd);
+
+    public WorkspaceViewModel? FindByPath(string path)
     {
-        foreach (var t in Tiles)
-            if (t.Id == id) return t;
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        string norm = Services.WorkspaceMetadata.NormalizePath(path);
+        return Workspaces.FirstOrDefault(w =>
+            w.Path.Length > 0 && Services.WorkspaceMetadata.NormalizePath(w.Path) == norm);
+    }
+
+    public (WorkspaceViewModel, SessionViewModel)? FindSession(string sessionId)
+    {
+        foreach (var w in Workspaces)
+            if (w.FindSession(sessionId) is { } s)
+                return (w, s);
         return null;
     }
 
-    public TileViewModel? FindByHwnd(IntPtr hwnd)
-    {
-        foreach (var t in Tiles)
-            if (t.Hwnd == hwnd) return t;
-        return null;
-    }
+    public IEnumerable<SessionViewModel> AllSessions()
+        => Workspaces.SelectMany(w => w.Sessions);
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

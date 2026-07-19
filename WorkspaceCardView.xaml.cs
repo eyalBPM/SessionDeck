@@ -10,26 +10,25 @@ using SessionDeck.ViewModels;
 namespace SessionDeck;
 
 /// <summary>
-/// One grid tile: chrome (colored border + title bar) drawn by WPF, live preview drawn by
-/// the DWM compositor into ThumbArea's client rect (SPEC §F1 — zero-CPU, no injection).
+/// One workspace card: chrome (Peacock-colored border, header, session cards) drawn by WPF;
+/// the live preview of the bound VSCode window is drawn by the DWM compositor into
+/// ThumbArea's client rect (SPEC §F1 — zero-CPU, no injection).
 /// </summary>
-public partial class TileView : UserControl
+public partial class WorkspaceCardView : UserControl
 {
     private IntPtr _thumb;
     private IntPtr _thumbSource;
     private RECT _lastDest;
-    private TileViewModel? _vm;
+    private WorkspaceViewModel? _vm;
 
-    private bool _mouseDown;
-
-    private TileViewModel? Vm => DataContext as TileViewModel;
+    private WorkspaceViewModel? Vm => DataContext as WorkspaceViewModel;
     private MainWindow? Owner => Window.GetWindow(this) as MainWindow;
 
-    public TileView()
+    public WorkspaceCardView()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
-        Loaded += (_, _) => { LayoutUpdated += OnLayoutUpdated; RefreshThumbnail(); };
+        Loaded += (_, _) => { LayoutUpdated += OnLayoutUpdated; RefreshThumbnail(); SyncExpandGlyph(); SyncHideGlyph(); };
         Unloaded += (_, _) => { LayoutUpdated -= OnLayoutUpdated; UnregisterThumbnail(); };
     }
 
@@ -39,22 +38,27 @@ public partial class TileView : UserControl
         _vm = Vm;
         if (_vm != null) _vm.PropertyChanged += OnVmChanged;
         RefreshThumbnail();
+        SyncExpandGlyph();
     }
 
     private void OnVmChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(TileViewModel.Hwnd) or nameof(TileViewModel.State))
+        if (e.PropertyName is nameof(WorkspaceViewModel.Hwnd) or nameof(WorkspaceViewModel.State))
             RefreshThumbnail();
+        else if (e.PropertyName is nameof(WorkspaceViewModel.Expanded))
+            SyncExpandGlyph();
+        else if (e.PropertyName is nameof(WorkspaceViewModel.Hidden))
+            SyncHideGlyph();
     }
 
     private void OnLayoutUpdated(object? sender, EventArgs e) => RefreshThumbnail();
 
-    // ---- DWM thumbnail ----
+    // ---- DWM thumbnail (same approach as stage A/B tiles) ----
 
     private void RefreshThumbnail()
     {
         var vm = Vm;
-        if (!IsLoaded || vm == null || vm.State != TileState.Connected ||
+        if (!IsLoaded || vm == null || vm.State != BindState.Connected ||
             vm.Hwnd == IntPtr.Zero || !NativeMethods.IsWindow(vm.Hwnd))
         {
             UnregisterThumbnail();
@@ -128,42 +132,60 @@ public partial class TileView : UserControl
         }
     }
 
-    // ---- mouse: click = Focus, double-click = Pin (drag-reorder removed 2026-07-17) ----
+    // ---- interactions ----
 
-    private void Root_MouseDown(object sender, MouseButtonEventArgs e)
+    private void Card_MouseUp(object sender, MouseButtonEventArgs e)
     {
-        if (e.OriginalSource is DependencyObject d && FindAncestorButton(d) != null)
-            return;
-        if (e.ClickCount == 2)
+        if (e.OriginalSource is DependencyObject d && FindAncestorButton(d) != null) return;
+        if (Vm != null) Owner?.FocusWorkspace(Vm);
+    }
+
+    private void Session_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: SessionViewModel session } && Vm != null)
         {
-            // Double-click = Pin to Stage (SPEC §F3).
-            _mouseDown = false;
-            if (Vm != null) Owner?.PinTile(Vm);
-            return;
+            Owner?.HandleSessionClick(Vm, session);
+            e.Handled = true;
         }
-        _mouseDown = true;
-    }
-
-    private void Root_MouseUp(object sender, MouseButtonEventArgs e)
-    {
-        if (!_mouseDown) return;
-        _mouseDown = false;
-        if (Vm != null) Owner?.HandleTileClick(Vm);
-    }
-
-    private void Pin_Click(object sender, RoutedEventArgs e)
-    {
-        if (Vm != null) Owner?.PinTile(Vm);
     }
 
     private void Edit_Click(object sender, RoutedEventArgs e)
     {
-        if (Vm != null) Owner?.EditTile(Vm);
+        if (Vm != null) Owner?.EditWorkspace(Vm);
+    }
+
+    private void Pin_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm != null) Owner?.PinWorkspace(Vm);
+    }
+
+    private void Expand_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm != null) Vm.Expanded = !Vm.Expanded;
+    }
+
+    private void Hide_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm != null) Owner?.ToggleHideWorkspace(Vm);
     }
 
     private void Remove_Click(object sender, RoutedEventArgs e)
     {
-        if (Vm != null) Owner?.RemoveTile(Vm);
+        if (Vm != null) Owner?.RemoveWorkspace(Vm);
+    }
+
+    private void SyncExpandGlyph()
+    {
+        if (Vm is { } vm)
+            ExpandButton.Content = vm.Expanded ? "▲" : "▼";
+    }
+
+    /// <summary>Hidden card (visible via the show-hidden toggle) must read as "unhide" (feedback 2026-07-19).</summary>
+    private void SyncHideGlyph()
+    {
+        if (Vm is not { } vm) return;
+        HideButton.Content = vm.Hidden ? "👁" : "🗕";
+        HideButton.ToolTip = vm.Hidden ? "הצג חזרה בלוח" : "הסתר מהלוח";
     }
 
     private static Button? FindAncestorButton(DependencyObject? d)

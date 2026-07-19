@@ -1,8 +1,9 @@
+using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using SessionDeck.Cli;
 using SessionDeck.Interop;
 using SessionDeck.Models;
@@ -12,8 +13,8 @@ using SessionDeck.ViewModels;
 namespace SessionDeck;
 
 /// <summary>
-/// Main controller: owns the view-model, services, zone/stage orchestration
-/// and the operations shared by UI and CLI.
+/// Main controller: owns the view-model, services, workspace/session engine,
+/// zone/stage orchestration and the operations shared by UI and CLI.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -23,12 +24,19 @@ public partial class MainWindow : Window
     private readonly WindowTracker _tracker = new();
     private readonly AppBarService _appBar = new();
     private readonly BlinkEngine _blink;
+    private readonly DispatcherTimer _metadataTimer = new() { Interval = TimeSpan.FromSeconds(10) };
     private PipeServer? _pipe;
     private CommandExecutor? _executor;
     private List<MonitorEntry> _monitors;
     private bool _initializing = true;
     private bool _syncingUi;
-    private bool _picking;
+
+    // Legacy stage A/B tile data — round-tripped so nothing is lost (SPEC decision 15).
+    private List<TileConfig> _legacyTiles = new();
+    private int _legacyNextTileId = 1;
+    private bool _legacyAutoRemove;
+
+    private Dictionary<string, StatusStyle> _statusStyles = AppConfig.DefaultStatusStyles();
 
     public int MonitorCount => _monitors.Count;
 
@@ -38,25 +46,26 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = Vm;
         _configStore = new ConfigStore(BuildConfig);
-        _blink = new BlinkEngine(Vm.Tiles);
+        _blink = new BlinkEngine(() => Vm.AllSessions());
         _monitors = MonitorService.GetMonitors();
 
         LoadFromConfig(config);
         PopulateCombos();
         _blink.Refresh();
 
-        Vm.Tiles.CollectionChanged += (_, _) =>
+        Vm.Workspaces.CollectionChanged += (_, _) =>
         {
-            UpdateGridColumns();
             UpdateEmptyHint();
             _blink.Refresh();
             QueueSave();
         };
         SourceInitialized += OnSourceInitialized;
-        Loaded += (_, _) => { UpdateGridColumns(); UpdateEmptyHint(); };
+        Loaded += (_, _) => UpdateEmptyHint();
         Closing += OnClosing;
         LocationChanged += (_, _) => { if (Vm.ZoneMode == ZoneMode.Off) QueueSave(); };
         SizeChanged += (_, _) => { if (Vm.ZoneMode == ZoneMode.Off) QueueSave(); };
+        _metadataTimer.Tick += (_, _) => RefreshAllMetadata();
+        _metadataTimer.Start();
 
         _initializing = false;
     }
@@ -65,23 +74,61 @@ public partial class MainWindow : Window
 
     private void LoadFromConfig(AppConfig config)
     {
-        Vm.NextTileId = Math.Max(1, config.NextTileId);
-        foreach (var tc in config.Tiles)
+        _legacyTiles = config.Tiles;
+        _legacyNextTileId = config.NextTileId;
+        _legacyAutoRemove = config.AutoRemoveDisconnected;
+
+        // Status→style mapping (SPEC decision 11): config overrides on top of defaults.
+        _statusStyles = AppConfig.DefaultStatusStyles();
+        foreach (var (key, style) in config.StatusStyles)
+            _statusStyles[key.ToLowerInvariant()] = style;
+        SessionViewModel.ResolveStyle = status =>
+            _statusStyles.GetValueOrDefault(SessionStatusNames.ToName(status)) ?? new StatusStyle();
+
+        Vm.NextWorkspaceId = Math.Max(1, config.NextWorkspaceId);
+        Vm.ClosedSessionRetention = Math.Max(0, config.ClosedSessionRetention);
+        Vm.ShowHidden = config.ShowHidden;
+
+        foreach (var wc in config.Workspaces)
         {
-            Vm.Tiles.Add(new TileViewModel
+            var ws = new WorkspaceViewModel
             {
-                Id = tc.Id,
-                Title = tc.Title,
-                ManualTitle = tc.ManualTitle,
-                Description = tc.Description,
-                ColorName = tc.Color,
-                AltColorName = tc.AltColor,
-                BlinkIntervalMs = tc.BlinkIntervalMs,
-                ProcessName = tc.ProcessName,
-                TitlePattern = tc.TitlePattern,
-                State = TileState.Disconnected,
-            });
+                Id = wc.Id,
+                Path = wc.Path,
+                Name = wc.Name,
+                CustomTitle = wc.CustomTitle,
+                Description = wc.Description,
+                CustomColor = wc.CustomColor,
+                Hidden = wc.Hidden,
+                State = BindState.Disconnected,
+            };
+            foreach (var sc in wc.Sessions)
+            {
+                if (!SessionStatusNames.TryParse(sc.Status, out var status)) status = SessionStatus.Idle;
+                ws.Sessions.Add(new SessionViewModel
+                {
+                    SessionId = sc.SessionId,
+                    CustomTitle = sc.CustomTitle,
+                    Description = sc.Description,
+                    Status = status,
+                    Acknowledged = sc.Acknowledged,
+                    Closed = sc.Closed,
+                    StartedAt = sc.StartedAt,
+                    EndedAt = sc.EndedAt,
+                    Detail = sc.Detail,
+                    TranscriptPath = sc.TranscriptPath,
+                    Source = sc.Source,
+                    PermissionMode = sc.PermissionMode,
+                    EndReason = sc.EndReason,
+                    LastEventAt = sc.LastEventAt,
+                });
+            }
+            ws.RefreshSessionVisibility();
+            RefreshMetadata(ws);
+            Vm.Workspaces.Add(ws);
         }
+        ApplyDeckVisibility();
+        SortWorkspaces();
 
         if (ModeNames.TryParseZone(config.Zone.Mode, out var zm)) Vm.ZoneMode = zm;
         Vm.ZoneMonitor = Math.Clamp(config.Zone.Monitor, 0, _monitors.Count - 1);
@@ -89,7 +136,6 @@ public partial class MainWindow : Window
         Vm.StageMonitor = Math.Clamp(config.Stage.Monitor, 0, _monitors.Count - 1);
         Vm.StageRect = ParseRect(config.Stage.Rect);
         if (Vm.StageMode == StageMode.Rect && Vm.StageRect == null) Vm.StageMode = StageMode.HalfRight;
-        Vm.AutoRemoveDisconnected = config.AutoRemoveDisconnected;
 
         if (config.Window is { } wb && wb.W > 100 && wb.H > 100)
         {
@@ -132,7 +178,13 @@ public partial class MainWindow : Window
     {
         var cfg = new AppConfig
         {
-            NextTileId = Vm.NextTileId,
+            NextTileId = _legacyNextTileId,
+            Tiles = _legacyTiles,
+            AutoRemoveDisconnected = _legacyAutoRemove,
+            NextWorkspaceId = Vm.NextWorkspaceId,
+            StatusStyles = _statusStyles,
+            ClosedSessionRetention = Vm.ClosedSessionRetention,
+            ShowHidden = Vm.ShowHidden,
             Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode) },
             Stage = new StageConfig
             {
@@ -140,22 +192,40 @@ public partial class MainWindow : Window
                 Mode = ModeNames.ToName(Vm.StageMode),
                 Rect = Vm.StageRect is { } r ? $"{r.Left},{r.Top},{r.Width},{r.Height}" : null,
             },
-            AutoRemoveDisconnected = Vm.AutoRemoveDisconnected,
         };
-        foreach (var t in Vm.Tiles)
+        foreach (var w in Vm.Workspaces)
         {
-            cfg.Tiles.Add(new TileConfig
+            var wc = new WorkspaceConfig
             {
-                Id = t.Id,
-                ProcessName = t.ProcessName,
-                TitlePattern = t.TitlePattern,
-                Title = t.Title,
-                ManualTitle = t.ManualTitle,
-                Description = t.Description,
-                Color = t.ColorName,
-                AltColor = t.AltColorName,
-                BlinkIntervalMs = t.BlinkIntervalMs,
-            });
+                Id = w.Id,
+                Path = w.Path,
+                Name = w.Name,
+                CustomTitle = w.CustomTitle,
+                Description = w.Description,
+                CustomColor = w.CustomColor,
+                Hidden = w.Hidden,
+            };
+            foreach (var s in w.Sessions)
+            {
+                wc.Sessions.Add(new SessionConfig
+                {
+                    SessionId = s.SessionId,
+                    CustomTitle = s.CustomTitle,
+                    Description = s.Description,
+                    Status = SessionStatusNames.ToName(s.Status),
+                    Acknowledged = s.Acknowledged,
+                    Closed = s.Closed,
+                    StartedAt = s.StartedAt,
+                    EndedAt = s.EndedAt,
+                    Detail = s.Detail,
+                    TranscriptPath = s.TranscriptPath,
+                    Source = s.Source,
+                    PermissionMode = s.PermissionMode,
+                    EndReason = s.EndReason,
+                    LastEventAt = s.LastEventAt,
+                });
+            }
+            cfg.Workspaces.Add(wc);
         }
         if (Vm.ZoneMode == ZoneMode.Off && WindowState == WindowState.Normal)
             cfg.Window = new WindowBounds { X = Left, Y = Top, W = Width, H = Height };
@@ -167,124 +237,177 @@ public partial class MainWindow : Window
         if (!_initializing) _configStore.QueueSave();
     }
 
-    // ---- tiles: add / remove / bind ----
+    // ---- workspaces: add / remove / metadata (SPEC §2ב) ----
 
-    public TileViewModel AddTile(string pattern, string process, string desc, string color, CandidateWindow? window)
+    /// <summary>Primary add flow (SPEC decision 21.1): pick a project folder.</summary>
+    public (WorkspaceViewModel?, string?) AddWorkspaceFromPath(string path)
     {
-        var tile = new TileViewModel
+        if (!Directory.Exists(path))
+            return (null, $"folder not found: {path}");
+        if (Vm.FindByPath(path) is { } existing)
+            return (null, $"workspace \"{existing.DisplayTitle}\" already on the deck (id {existing.Id})");
+
+        var ws = new WorkspaceViewModel
         {
-            Id = Vm.NextTileId++,
-            TitlePattern = pattern,
-            ProcessName = process,
-            Description = desc,
-            ColorName = color,
-            Title = window?.Title ?? pattern,
-            Hwnd = window?.Hwnd ?? IntPtr.Zero,
-            State = window != null ? TileState.Connected : TileState.Disconnected,
+            Id = Vm.NextWorkspaceId++,
+            Path = Path.GetFullPath(path),
+            Name = WorkspaceMetadata.NameFromPath(path),
         };
-        Vm.Tiles.Add(tile);
-        return tile;
+        RefreshMetadata(ws);
+        Vm.Workspaces.Add(ws);
+        TryBindWorkspace(ws);
+        ApplyDeckVisibility();
+        SortWorkspaces();
+        return (ws, null);
     }
 
-    public void RemoveTile(TileViewModel tile) => Vm.Tiles.Remove(tile);
-
-    /// <summary>Re-bind loaded tiles to existing windows by Matcher (SPEC §F7).</summary>
-    private void RebindAll()
+    public void RemoveWorkspace(WorkspaceViewModel ws)
     {
-        var candidates = WindowEnumerator.GetCandidates();
-        var used = new HashSet<IntPtr>(Vm.Tiles.Where(t => t.Hwnd != IntPtr.Zero).Select(t => t.Hwnd));
+        Vm.Workspaces.Remove(ws);
+        UpdateEmptyHint();
+    }
 
-        foreach (var tile in Vm.Tiles.Where(t => t.State == TileState.Disconnected))
+    public void ToggleHideWorkspace(WorkspaceViewModel ws)
+    {
+        ws.Hidden = !ws.Hidden;
+        ApplyDeckVisibility();
+        SortWorkspaces();
+        QueueSave();
+        SetStatus(ws.Hidden ? $"‏\"{ws.DisplayTitle}\" הוסתר (👁 מוסתרים כדי להציג)" : $"‏\"{ws.DisplayTitle}\" מוצג שוב");
+    }
+
+    public void EditWorkspace(WorkspaceViewModel ws)
+    {
+        var dialog = new EditCardDialog(ws) { Owner = this };
+        if (dialog.ShowDialog() == true)
         {
-            CandidateWindow? match = null;
-            foreach (var c in candidates)
-            {
-                if (used.Contains(c.Hwnd)) continue;
-                if (tile.ProcessName.Length > 0 &&
-                    !string.Equals(c.ProcessName, tile.ProcessName, StringComparison.OrdinalIgnoreCase)) continue;
-                bool titleOk;
-                try { titleOk = Regex.IsMatch(c.Title, tile.TitlePattern); }
-                catch { titleOk = false; }
-                if (!titleOk) continue;
-                match = c;
-                break;
-            }
-            if (match == null) continue;
-
-            used.Add(match.Hwnd);
-            tile.Hwnd = match.Hwnd;
-            tile.ProcessName = match.ProcessName;
-            if (!tile.ManualTitle) tile.Title = match.Title;
-            tile.State = TileState.Connected;
+            RefreshMetadata(ws);
+            QueueSave();
         }
     }
 
-    // ---- window tracking (SPEC §F2/§F6) ----
+    /// <summary>Branch + Peacock color straight from the folder (SPEC decisions 17-18).</summary>
+    private static void RefreshMetadata(WorkspaceViewModel ws)
+    {
+        if (ws.Path.Length == 0) return;
+        ws.Branch = WorkspaceMetadata.ReadBranch(ws.Path);
+        ws.PeacockColor = WorkspaceMetadata.ReadPeacockColor(ws.Path);
+    }
+
+    private void RefreshAllMetadata()
+    {
+        foreach (var ws in Vm.Workspaces)
+            RefreshMetadata(ws);
+    }
+
+    /// <summary>Actives (bound window / live session) float to the top (SPEC decision 16).
+    /// Stable in-place sort via Move so DWM thumbnails survive.</summary>
+    public void SortWorkspaces()
+    {
+        var desired = Vm.Workspaces
+            .OrderByDescending(w => w.IsActive)
+            .ThenBy(w => w.DisplayTitle, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        for (int target = 0; target < desired.Count; target++)
+        {
+            int current = Vm.Workspaces.IndexOf(desired[target]);
+            if (current != target)
+                Vm.Workspaces.Move(current, target);
+        }
+    }
+
+    private void ApplyDeckVisibility()
+    {
+        foreach (var ws in Vm.Workspaces)
+            ws.VisibleInDeck = !ws.Hidden || Vm.ShowHidden;
+        UpdateEmptyHint();
+    }
+
+    // ---- window binding (engine reuse; VSCode-only per SPEC decision 13) ----
+
+    private void RebindAll()
+    {
+        var candidates = WindowEnumerator.GetCandidates()
+            .Where(c => WorkspaceMetadata.IsVsCodeProcess(c.ProcessName)).ToList();
+        var used = new HashSet<IntPtr>(Vm.Workspaces.Where(w => w.Hwnd != IntPtr.Zero).Select(w => w.Hwnd));
+
+        // ToList: Bind() re-sorts the collection, which must not happen mid-enumeration.
+        foreach (var ws in Vm.Workspaces.Where(w => w.State == BindState.Disconnected).ToList())
+        {
+            var match = candidates.FirstOrDefault(c =>
+                !used.Contains(c.Hwnd) && SafeIsMatch(c.Title, ws.TitlePattern));
+            if (match == null) continue;
+            used.Add(match.Hwnd);
+            Bind(ws, match.Hwnd, match.Title, match.ProcessName);
+        }
+    }
+
+    private void TryBindWorkspace(WorkspaceViewModel ws)
+    {
+        if (ws.State == BindState.Connected) return;
+        var bound = new HashSet<IntPtr>(Vm.Workspaces.Where(w => w.Hwnd != IntPtr.Zero).Select(w => w.Hwnd));
+        var match = WindowEnumerator.GetCandidates().FirstOrDefault(c =>
+            !bound.Contains(c.Hwnd) &&
+            WorkspaceMetadata.IsVsCodeProcess(c.ProcessName) &&
+            SafeIsMatch(c.Title, ws.TitlePattern));
+        if (match != null)
+            Bind(ws, match.Hwnd, match.Title, match.ProcessName);
+    }
+
+    private void Bind(WorkspaceViewModel ws, IntPtr hwnd, string title, string process)
+    {
+        ws.Hwnd = hwnd;
+        ws.WindowTitle = title;
+        ws.ProcessName = process;
+        ws.State = BindState.Connected;
+        SortWorkspaces();
+        QueueSave();
+    }
 
     private void OnWindowTitleChanged(IntPtr hwnd, string newTitle)
     {
-        var tile = Vm.FindByHwnd(hwnd);
-        if (tile == null)
+        var ws = Vm.FindByHwnd(hwnd);
+        if (ws == null)
         {
-            // A title change can make an unbound window match a disconnected tile's Matcher.
+            // A title change can make an unbound VSCode window match a workspace.
             if (newTitle.Length > 0) TryRebindWindow(hwnd);
             return;
         }
-        if (newTitle.Length == 0) return;
-        if (!tile.ManualTitle && tile.Title != newTitle)
-        {
-            tile.Title = newTitle;
-            QueueSave();
-        }
+        if (newTitle.Length > 0) ws.WindowTitle = newTitle;
     }
 
     private void OnWindowDestroyed(IntPtr hwnd)
     {
-        var tile = Vm.FindByHwnd(hwnd);
-        if (tile == null) return;
-        if (Vm.AutoRemoveDisconnected)
-        {
-            RemoveTile(tile);   // F6 option (off by default); CollectionChanged persists
-            return;
-        }
-        tile.Hwnd = IntPtr.Zero;
-        tile.State = TileState.Disconnected;
+        var ws = Vm.FindByHwnd(hwnd);
+        if (ws == null) return;
+        ws.Hwnd = IntPtr.Zero;
+        ws.State = BindState.Disconnected;
+        SortWorkspaces();
         QueueSave();
     }
 
-    /// <summary>Automatic re-bind (SPEC §F6): a new/renamed window that matches a
-    /// disconnected tile's Matcher reconnects that tile.</summary>
+    /// <summary>Automatic re-bind: a new/renamed VSCode window that matches an unbound
+    /// workspace's title pattern connects to it.</summary>
     private void TryRebindWindow(IntPtr hwnd)
     {
         if (Vm.FindByHwnd(hwnd) != null) return;
-        if (!Vm.Tiles.Any(t => t.State == TileState.Disconnected)) return;
+        if (!Vm.Workspaces.Any(w => w.State == BindState.Disconnected)) return;
         if (NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT) != hwnd) return;
         if (!WindowEnumerator.IsEligible(hwnd, Environment.ProcessId)) return;
 
-        string title = NativeMethods.GetWindowTextSafe(hwnd);
         string process = WindowEnumerator.GetProcessName(hwnd);
+        if (!WorkspaceMetadata.IsVsCodeProcess(process)) return;
+        string title = NativeMethods.GetWindowTextSafe(hwnd);
 
-        foreach (var tile in Vm.Tiles.Where(t => t.State == TileState.Disconnected))
-        {
-            if (tile.ProcessName.Length > 0 &&
-                !string.Equals(process, tile.ProcessName, StringComparison.OrdinalIgnoreCase)) continue;
-            bool titleOk;
-            try { titleOk = Regex.IsMatch(title, tile.TitlePattern); }
-            catch { titleOk = false; }
-            if (!titleOk) continue;
-
-            tile.Hwnd = hwnd;
-            tile.ProcessName = process;
-            if (!tile.ManualTitle) tile.Title = title;
-            tile.State = TileState.Connected;
-            SetStatus($"אריח {tile.Id} התחבר מחדש: {title}");
-            QueueSave();
-            return;
-        }
+        var ws = Vm.Workspaces.FirstOrDefault(w =>
+            w.State == BindState.Disconnected && SafeIsMatch(title, w.TitlePattern));
+        if (ws == null) return;
+        Bind(ws, hwnd, title, process);
+        SetStatus($"‏\"{ws.DisplayTitle}\" התחבר לחלון: {title}");
     }
 
-    /// <summary>Drag-in (SPEC §F5 stage B): a foreign window whose move-drag ended with the
-    /// cursor over SessionDeck gets added as a tile (or reconnects a matching disconnected tile).</summary>
+    /// <summary>Drag-in (SPEC decision 21.3, secondary channel): only VSCode windows,
+    /// blocked when the workspace is already on the deck.</summary>
     private void HandleDragIn(IntPtr hwnd)
     {
         if (!IsVisible || !NativeMethods.GetCursorPos(out POINT pt)) return;
@@ -293,33 +416,250 @@ public partial class MainWindow : Window
         if (pt.X < self.Left || pt.X >= self.Right || pt.Y < self.Top || pt.Y >= self.Bottom) return;
 
         IntPtr root = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
-        if (Vm.FindByHwnd(root) != null) return;
+        if (Vm.FindByHwnd(root) != null)
+        {
+            SetStatus("החלון הזה כבר קשור ל-workspace בלוח");
+            return;
+        }
         if (!WindowEnumerator.IsEligible(root, Environment.ProcessId)) return;
 
+        string process = WindowEnumerator.GetProcessName(root);
+        if (!WorkspaceMetadata.IsVsCodeProcess(process))
+        {
+            SetStatus("רק חלונות VSCode נתמכים בלוח (החלטה 13)");
+            return;
+        }
+
         TryRebindWindow(root);
-        if (Vm.FindByHwnd(root) != null) return;   // reconnected an existing tile
+        if (Vm.FindByHwnd(root) != null) return;   // connected to an existing workspace
 
         string title = NativeMethods.GetWindowTextSafe(root);
-        var candidate = new CandidateWindow(root, title, WindowEnumerator.GetProcessName(root));
-        var tile = AddTile("^" + Regex.Escape(title) + "$", candidate.ProcessName, "", "gray", candidate);
-        SetStatus($"נוסף אריח {tile.Id} (גרירה): {title}");
+        string name = WorkspaceNameFromTitle(title);
+        if (name.Length == 0)
+        {
+            SetStatus("לא זוהה שם workspace בכותרת החלון");
+            return;
+        }
+        var ws = new WorkspaceViewModel { Id = Vm.NextWorkspaceId++, Name = name };
+        Vm.Workspaces.Add(ws);
+        Bind(ws, root, title, process);
+        ApplyDeckVisibility();
+        SetStatus($"נוסף workspace ‏\"{name}\" (גרירה; הנתיב יתמלא מה-hook הראשון)");
+    }
+
+    /// <summary>"file - {workspace} - Visual Studio Code" → workspace segment (SPEC §6.6).</summary>
+    private static string WorkspaceNameFromTitle(string title)
+    {
+        var parts = title.Split(" - ");
+        int vsIdx = Array.FindIndex(parts, p => p.StartsWith("Visual Studio Code"));
+        if (vsIdx > 0) return parts[vsIdx - 1].Trim();
+        return parts.Length >= 2 ? parts[^2].Trim() : "";
+    }
+
+    private static bool SafeIsMatch(string input, string pattern)
+    {
+        try { return Regex.IsMatch(input, pattern); }
+        catch { return false; }
+    }
+
+    // ---- sessions engine (SPEC §4ב — driven by the hooks only) ----
+
+    /// <summary>Extra hook-payload data attached to any session command (all optional).</summary>
+    public sealed record HookInfo(string? Detail = null, string? Transcript = null, string? Source = null,
+                                  string? Mode = null, string? Reason = null)
+    {
+        public static readonly HookInfo Empty = new();
+    }
+
+    public (string, bool) StartSession(string sessionId, string workspaceArg, string? title, HookInfo info)
+    {
+        if (Vm.FindSession(sessionId) is { } found)
+        {
+            var (fw, fs) = found;
+            fs.Closed = false;
+            fs.Status = SessionStatus.Idle;
+            fs.StartedAt = DateTime.Now;
+            fs.EndedAt = null;
+            if (!string.IsNullOrEmpty(title)) fs.CustomTitle = title;
+            ApplyHookInfo(fs, info);
+            fw.RefreshSessionVisibility();
+            AfterSessionChange(fw);
+            return ($"session {sessionId} restarted in \"{fw.DisplayTitle}\"", true);
+        }
+
+        var ws = ResolveOrCreateWorkspace(workspaceArg, out string? err);
+        if (ws == null) return (err!, false);
+
+        var session = new SessionViewModel
+        {
+            SessionId = sessionId,
+            CustomTitle = string.IsNullOrEmpty(title) ? null : title,
+            Status = SessionStatus.Idle,
+            StartedAt = DateTime.Now,
+        };
+        ApplyHookInfo(session, info);
+        ws.Sessions.Insert(0, session);
+        ws.RefreshSessionVisibility();
+        AfterSessionChange(ws);
+        return ($"session {sessionId} started in \"{ws.DisplayTitle}\" [idle]", true);
+    }
+
+    private static void ApplyHookInfo(SessionViewModel session, HookInfo info)
+    {
+        session.LastEventAt = DateTime.Now;
+        if (info.Detail != null) session.Detail = Sanitize(info.Detail);
+        if (info.Transcript != null) session.TranscriptPath = info.Transcript;
+        if (info.Source != null) session.Source = info.Source;
+        if (info.Mode != null) session.PermissionMode = info.Mode;
+        if (info.Reason != null) session.EndReason = info.Reason;
+    }
+
+    /// <summary>Hook details (prompts, messages) become one bounded display line.</summary>
+    private static string Sanitize(string s)
+    {
+        string oneLine = Regex.Replace(s, @"\s+", " ").Trim();
+        return oneLine.Length <= 300 ? oneLine : oneLine[..299] + "…";
+    }
+
+    /// <summary>Workspace resolution for hooks (SPEC decision 21.4 — cwd is the safety net):
+    /// by path → by name (adopting the path into a pathless workspace) → auto-create.</summary>
+    private WorkspaceViewModel? ResolveOrCreateWorkspace(string workspaceArg, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(workspaceArg))
+        {
+            error = "session start requires --workspace <path or name>";
+            return null;
+        }
+
+        bool isPath = workspaceArg.Contains('\\') || workspaceArg.Contains('/');
+        if (isPath)
+        {
+            if (Vm.FindByPath(workspaceArg) is { } byPath) return byPath;
+            string leaf = WorkspaceMetadata.NameFromPath(workspaceArg);
+            var byName = Vm.Workspaces.FirstOrDefault(w =>
+                w.Path.Length == 0 && string.Equals(w.Name, leaf, StringComparison.OrdinalIgnoreCase));
+            if (byName != null)
+            {
+                // A drag-in workspace learns its path from the first hook that reports cwd.
+                byName.Path = workspaceArg;
+                RefreshMetadata(byName);
+                QueueSave();
+                return byName;
+            }
+            var (created, err) = AddWorkspaceFromPath(workspaceArg);
+            if (created == null) error = err;
+            else SetStatus($"נוצר workspace ‏\"{created.DisplayTitle}\" מ-hook (cwd)");
+            return created;
+        }
+
+        var named = Vm.Workspaces.FirstOrDefault(w =>
+            string.Equals(w.Name, workspaceArg, StringComparison.OrdinalIgnoreCase));
+        if (named == null) error = $"no workspace named \"{workspaceArg}\" (pass the folder path to auto-create)";
+        return named;
+    }
+
+    public (string, bool) SetSessionStatus(string sessionId, SessionStatus status, string workspaceArg, HookInfo info)
+    {
+        if (Vm.FindSession(sessionId) is not { } found)
+        {
+            // Self-healing (feedback 2026-07-19): the session may have been deleted with its
+            // workspace. Every hook event carries cwd — recreate instead of dropping updates.
+            if (workspaceArg.Length == 0)
+                return ($"unknown session id {sessionId} (was 'session start' called?)", false);
+            var host = ResolveOrCreateWorkspace(workspaceArg, out string? err);
+            if (host == null) return (err!, false);
+            var recreated = new SessionViewModel
+            {
+                SessionId = sessionId,
+                Status = status,
+                StartedAt = DateTime.Now,
+            };
+            ApplyHookInfo(recreated, info);
+            host.Sessions.Insert(0, recreated);
+            AfterSessionChange(host);
+            return ($"session {sessionId} recreated in \"{host.DisplayTitle}\" [{SessionStatusNames.ToName(status)}]", true);
+        }
+        var (ws, session) = found;
+        if (session.Closed)
+            return ($"session {sessionId} is closed — status not changed", false);
+        session.Status = status;
+        ApplyHookInfo(session, info);
+        AfterSessionChange(ws);
+        return ($"session {sessionId} → {SessionStatusNames.ToName(status)}", true);
+    }
+
+    public (string, bool) EndSession(string sessionId, HookInfo info)
+    {
+        if (Vm.FindSession(sessionId) is not { } found)
+            return ($"unknown session id {sessionId}", false);
+        var (ws, session) = found;
+        session.Closed = true;
+        session.EndedAt = DateTime.Now;
+        ApplyHookInfo(session, info);
+
+        // Retention (SPEC decision 12): keep only the last N closed sessions per workspace.
+        var closed = ws.Sessions.Where(s => s.Closed).OrderByDescending(s => s.EndedAt ?? DateTime.MinValue).ToList();
+        foreach (var extra in closed.Skip(Math.Max(0, Vm.ClosedSessionRetention)))
+            ws.Sessions.Remove(extra);
+
+        ws.RefreshSessionVisibility();
+        AfterSessionChange(ws);
+        return ($"session {sessionId} ended", true);
+    }
+
+    private void AfterSessionChange(WorkspaceViewModel ws)
+    {
+        ws.RefreshSessionVisibility();
+        SortWorkspaces();
+        _blink.Refresh();
+        QueueSave();
+    }
+
+    /// <summary>Click on a session card = focus the window + acknowledge (SPEC §2ב).</summary>
+    public void HandleSessionClick(WorkspaceViewModel ws, SessionViewModel session)
+    {
+        if (!session.Acknowledged)
+        {
+            session.Acknowledged = true;
+            _blink.Refresh();
+            QueueSave();
+        }
+        FocusWorkspace(ws);
     }
 
     // ---- focus / pin / stage (SPEC §F3) ----
 
-    public (bool, string) FocusTile(TileViewModel tile)
+    public (bool, string) FocusWorkspace(WorkspaceViewModel ws)
     {
-        if (tile.State != TileState.Connected || !NativeMethods.IsWindow(tile.Hwnd))
-            return (false, $"tile {tile.Id} is disconnected");
-        WindowActions.Focus(tile.Hwnd);
+        if (ws.State != BindState.Connected || !NativeMethods.IsWindow(ws.Hwnd))
+        {
+            // No bound window — open VSCode on the folder; auto-bind picks it up (feedback 2026-07-19).
+            if (ws.Path.Length > 0 && Directory.Exists(ws.Path))
+            {
+                if (WindowActions.LaunchVsCode(ws.Path))
+                {
+                    SetStatus($"פותח VSCode עבור \"{ws.DisplayTitle}\"...");
+                    return (true, $"launching VSCode for workspace {ws.Id}");
+                }
+                SetStatus($"‏\"{ws.DisplayTitle}\" — פתיחת VSCode נכשלה");
+                return (false, $"failed to launch VSCode for workspace {ws.Id}");
+            }
+            SetStatus($"‏\"{ws.DisplayTitle}\" — אין חלון פתוח ואין נתיב תיקייה");
+            return (false, $"workspace {ws.Id} has no bound window and no path");
+        }
+        WindowActions.Focus(ws.Hwnd);
         return (true, "");
     }
 
-    public (bool, string) PinTile(TileViewModel tile)
+    public (bool, string) PinWorkspace(WorkspaceViewModel ws)
     {
-        if (tile.State != TileState.Connected || !NativeMethods.IsWindow(tile.Hwnd))
-            return (false, $"tile {tile.Id} is disconnected");
-        WindowActions.MoveTo(tile.Hwnd, GetStageRect());
+        if (ws.State != BindState.Connected || !NativeMethods.IsWindow(ws.Hwnd))
+        {
+            // No bound window — same launch fallback as Focus; the user can pin once it binds.
+            return FocusWorkspace(ws);
+        }
+        WindowActions.MoveTo(ws.Hwnd, GetStageRect());
         return (true, "");
     }
 
@@ -350,17 +690,7 @@ public partial class MainWindow : Window
         return new RECT { Left = x, Top = y, Right = x + w, Bottom = y + h };
     }
 
-    public void EditTile(TileViewModel tile)
-    {
-        var dialog = new EditTileDialog(tile) { Owner = this };
-        if (dialog.ShowDialog() == true)
-        {
-            _blink.Refresh();
-            QueueSave();
-        }
-    }
-
-    /// <summary>Called by the CLI after border changes that may start/stop blinking.</summary>
+    /// <summary>Called by the CLI after changes that may start/stop blinking.</summary>
     public void RefreshBlink() => _blink.Refresh();
 
     /// <summary>Stage definition from the CLI (SPEC §F3): monitor + full/half, or a custom rect.</summary>
@@ -401,7 +731,7 @@ public partial class MainWindow : Window
         StageModeCombo.Items.Clear();
         foreach (var name in new[] { "מסך מלא", "חצי שמאל", "חצי ימין", "מלבן (CLI)" }) StageModeCombo.Items.Add(name);
         StartupMenuItem.IsChecked = StartupService.IsEnabled();
-        AutoRemoveMenuItem.IsChecked = Vm.AutoRemoveDisconnected;
+        ShowHiddenToggle.IsChecked = Vm.ShowHidden;
         _syncingUi = false;
         SyncCombosFromVm();
     }
@@ -440,7 +770,26 @@ public partial class MainWindow : Window
         QueueSave();
     }
 
-    // ---- settings (SPEC §F6/§F9) ----
+    private void AddWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "בחר תיקיית פרויקט (workspace)",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        var (ws, err) = AddWorkspaceFromPath(dialog.FolderName);
+        SetStatus(ws != null ? $"נוסף workspace ‏\"{ws.DisplayTitle}\"" : err!);
+    }
+
+    private void ShowHidden_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi || _initializing) return;
+        Vm.ShowHidden = ShowHiddenToggle.IsChecked == true;
+        ApplyDeckVisibility();
+        QueueSave();
+    }
+
+    // ---- settings (SPEC §F9) ----
 
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
@@ -461,91 +810,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private void AutoRemoveMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        Vm.AutoRemoveDisconnected = AutoRemoveMenuItem.IsChecked;
-        QueueSave();
-    }
-
-    // ---- picker (SPEC §F5): drag the crosshair grip onto a window, release to add ----
-
-    private void PickerGrip_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        _picking = PickerGrip.CaptureMouse();
-        if (_picking) Mouse.OverrideCursor = Cursors.Cross;
-        e.Handled = true;
-    }
-
-    private void PickerGrip_MouseUp(object sender, MouseButtonEventArgs e)
-    {
-        if (!_picking) return;
-        _picking = false;
-        PickerGrip.ReleaseMouseCapture();
-        Mouse.OverrideCursor = null;
-        e.Handled = true;
-
-        if (!NativeMethods.GetCursorPos(out POINT pt)) return;
-        IntPtr hit = NativeMethods.WindowFromPoint(pt);
-        if (hit == IntPtr.Zero) return;
-        IntPtr root = NativeMethods.GetAncestor(hit, NativeMethods.GA_ROOT);
-
-        if (!WindowEnumerator.IsEligible(root, Environment.ProcessId))
-        {
-            SetStatus("החלון שנבחר אינו תקף (SessionDeck עצמו / ללא כותרת / tool window)");
-            return;
-        }
-        if (Vm.FindByHwnd(root) != null)
-        {
-            SetStatus("החלון הזה כבר נמצא ב-grid");
-            return;
-        }
-
-        string title = NativeMethods.GetWindowTextSafe(root);
-        var candidate = new CandidateWindow(root, title, WindowEnumerator.GetProcessName(root));
-        var tile = AddTile("^" + Regex.Escape(title) + "$", candidate.ProcessName, "", "gray", candidate);
-        SetStatus($"נוסף אריח {tile.Id}: {title}");
-    }
-
     private void SetStatus(string message) => StatusText.Text = message;
 
-    // ---- grid layout + reorder (SPEC §F1) ----
-
-    private void TilesHost_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateGridColumns();
-
-    private void UpdateGridColumns()
-    {
-        int n = Vm.Tiles.Count;
-        double w = TilesHost.ActualWidth, h = TilesHost.ActualHeight;
-        if (n <= 1 || w <= 0 || h <= 0)
-        {
-            Vm.GridColumns = 1;
-            return;
-        }
-        // Pick the column count that maximizes the letterboxed (16:9) tile area.
-        const double aspect = 16.0 / 9.0;
-        const double titleBar = 30;
-        double bestArea = -1;
-        int bestCols = 1;
-        for (int cols = 1; cols <= n; cols++)
-        {
-            int rows = (n + cols - 1) / cols;
-            double tw = w / cols, th = h / rows - titleBar;
-            if (th <= 0) continue;
-            double effW = Math.Min(tw, th * aspect);
-            double area = effW * effW / aspect;
-            if (area > bestArea) { bestArea = area; bestCols = cols; }
-        }
-        Vm.GridColumns = bestCols;
-    }
-
     private void UpdateEmptyHint()
-        => EmptyHint.Visibility = Vm.Tiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-
-    public void HandleTileClick(TileViewModel tile)
-    {
-        var (ok, msg) = FocusTile(tile);
-        if (!ok) SetStatus(msg);
-    }
+        => EmptyHint.Visibility = Vm.Workspaces.Any(w => w.VisibleInDeck) ? Visibility.Collapsed : Visibility.Visible;
 
     // ---- CLI ----
 

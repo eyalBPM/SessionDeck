@@ -66,21 +66,25 @@ public static class CliClient
     private static string HelpText => $"""
         SessionDeck CLI (v{typeof(CliClient).Assembly.GetName().Version?.ToString(3)})
 
-        sessiondeck list                          tiles table: id, state, process, color, title, desc
-        sessiondeck add --match "<title regex>" [--process <name>] [--desc "..."] [--color <c>]
+        sessiondeck list [--all]                  workspaces + sessions (--all includes closed)
+        sessiondeck add <folder path>             add a workspace to the deck
         sessiondeck remove <target>
-        sessiondeck set <target> [--title "..."] [--desc "..."]     empty --title reverts to auto
-        sessiondeck border <target> --color <c>                     static border color
-        sessiondeck border <target> --color <c> --alt <c2> [--interval <ms>]   blinking (default 500ms)
-        sessiondeck border --match "..." --color <c> --auto-add     add the window if not tiled yet
-        sessiondeck focus <target>                activate window in place
-        sessiondeck pin <target>                  move window to the Stage + activate
+        sessiondeck set <target> [--title "..."] [--desc "..."] [--color <c>]   empty value = auto
+        sessiondeck focus <target>                activate the workspace's window in place
+        sessiondeck pin <target>                  move the window to the Stage + activate
         sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
         sessiondeck zone --monitor <n> --half left|right | --full | --off
-        sessiondeck status                        app state: version, zone, stage, tile counts
+        sessiondeck status                        app state: version, zone, stage, counts
         sessiondeck help
 
-        <target> = tile id, or --match "<regex>" on the tile title
+        session commands (called by the Claude Code hooks — SPEC §4ב):
+        sessiondeck session start  --id <sid> --workspace <cwd path or name> [--title "..."] [--source <s>]
+        sessiondeck session status --id <sid> --state working|waiting|done|error|idle [--detail "..."]
+        sessiondeck session end    --id <sid> [--reason <r>]
+        sessiondeck session list   [--workspace <name>] [--all]
+        all session commands also accept: --transcript <path> --mode <permission_mode>
+
+        <target> = workspace id, or --match "<regex>" on the workspace name/title
         colors   = red, green, orange, blue, gray, yellow, purple, cyan, magenta, white, black, or #RRGGBB
         monitors = 1-based index; --rect is in virtual-screen pixels
         """;

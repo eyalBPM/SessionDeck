@@ -1,0 +1,221 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Windows.Media;
+using SessionDeck.Models;
+using SessionDeck.Services;
+
+namespace SessionDeck.ViewModels;
+
+public enum SessionStatus { Idle, Working, Waiting, Done, Error }
+
+public static class SessionStatusNames
+{
+    public static string ToName(SessionStatus s) => s switch
+    {
+        SessionStatus.Idle => "idle",
+        SessionStatus.Working => "working",
+        SessionStatus.Waiting => "waiting",
+        SessionStatus.Done => "done",
+        SessionStatus.Error => "error",
+        _ => "idle",
+    };
+
+    public static bool TryParse(string s, out SessionStatus status)
+    {
+        status = s.ToLowerInvariant() switch
+        {
+            "idle" => SessionStatus.Idle,
+            "working" => SessionStatus.Working,
+            "waiting" => SessionStatus.Waiting,
+            "done" => SessionStatus.Done,
+            "error" => SessionStatus.Error,
+            _ => (SessionStatus)(-1),
+        };
+        return (int)status >= 0;
+    }
+}
+
+/// <summary>
+/// A Claude Code session card (SPEC §2ב): status-colored border driven by the hooks,
+/// blink until acknowledge for done/error/waiting. No thumbnail by design.
+/// </summary>
+public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
+{
+    public string SessionId { get; init; } = "";
+
+    private string? _customTitle;
+    public string? CustomTitle
+    {
+        get => _customTitle;
+        set { if (_customTitle != value) { _customTitle = value; Raise(); Raise(nameof(DisplayTitle)); } }
+    }
+
+    public string DisplayTitle =>
+        !string.IsNullOrEmpty(_customTitle) ? _customTitle
+        : SessionId.Length > 8 ? "session " + SessionId[..8] : "session " + SessionId;
+
+    private string _description = "";
+    public string Description
+    {
+        get => _description;
+        set { if (_description != value) { _description = value; Raise(); Raise(nameof(SubText)); } }
+    }
+
+    // ---- hook payload data (everything Claude Code provides) ----
+
+    private string _detail = "";
+    /// <summary>Last prompt (working) or notification message (waiting) from the hooks.</summary>
+    public string Detail
+    {
+        get => _detail;
+        set { if (_detail != value) { _detail = value; Raise(); Raise(nameof(SubText)); Raise(nameof(TooltipText)); } }
+    }
+
+    /// <summary>Card subtitle: a manual description wins; otherwise the live hook detail.</summary>
+    public string SubText => _description.Length > 0 ? _description : _detail;
+
+    public string? TranscriptPath { get; set; }
+
+    private string? _source;
+    public string? Source
+    {
+        get => _source;
+        set { if (_source != value) { _source = value; Raise(nameof(TooltipText)); } }
+    }
+
+    private string? _permissionMode;
+    public string? PermissionMode
+    {
+        get => _permissionMode;
+        set { if (_permissionMode != value) { _permissionMode = value; Raise(nameof(TooltipText)); } }
+    }
+
+    private string? _endReason;
+    public string? EndReason
+    {
+        get => _endReason;
+        set { if (_endReason != value) { _endReason = value; Raise(nameof(TooltipText)); Raise(nameof(StatusText)); } }
+    }
+
+    public DateTime? LastEventAt { get; set; }
+
+    public string TooltipText
+    {
+        get
+        {
+            var lines = new List<string> { SessionId };
+            if (_detail.Length > 0) lines.Add(_detail);
+            if (_source != null) lines.Add($"source: {_source}");
+            if (_permissionMode != null) lines.Add($"permission mode: {_permissionMode}");
+            if (TranscriptPath != null) lines.Add($"transcript: {TranscriptPath}");
+            lines.Add($"started: {StartedAt:HH:mm:ss}");
+            if (LastEventAt is { } le) lines.Add($"last event: {le:HH:mm:ss}");
+            if (EndedAt is { } ea) lines.Add($"ended: {ea:HH:mm:ss}" + (_endReason != null ? $" ({_endReason})" : ""));
+            return string.Join(Environment.NewLine, lines);
+        }
+    }
+
+    private SessionStatus _status = SessionStatus.Idle;
+    public SessionStatus Status
+    {
+        get => _status;
+        set
+        {
+            if (_status == value) return;
+            _status = value;
+            _acknowledged = false;   // a new status restarts its blink cycle
+            RaiseVisuals();
+        }
+    }
+
+    private bool _acknowledged;
+    public bool Acknowledged
+    {
+        get => _acknowledged;
+        set { if (_acknowledged != value) { _acknowledged = value; RaiseVisuals(); } }
+    }
+
+    private bool _closed;
+    public bool Closed
+    {
+        get => _closed;
+        set { if (_closed != value) { _closed = value; RaiseVisuals(); } }
+    }
+
+    public DateTime StartedAt { get; set; }
+    public DateTime? EndedAt { get; set; }
+
+    /// <summary>Set by the parent workspace: closed sessions are shown only when expanded.</summary>
+    private bool _visible = true;
+    public bool Visible
+    {
+        get => _visible;
+        set { if (_visible != value) { _visible = value; Raise(); } }
+    }
+
+    public string StatusText => Closed
+        ? "closed" + (_endReason is { Length: > 0 } r ? $" ({r})" : "")
+        : SessionStatusNames.ToName(_status);
+
+    /// <summary>Status→style mapping resolver, injected once at startup from config.</summary>
+    public static Func<SessionStatus, StatusStyle> ResolveStyle { get; set; } =
+        _ => new StatusStyle();
+
+    // ---- IBlinkable ----
+
+    public bool BlinkActive
+    {
+        get
+        {
+            if (_closed) return false;
+            var style = ResolveStyle(_status);
+            if (style.AltColor == null) return false;
+            return !style.UntilAcknowledge || !_acknowledged;
+        }
+    }
+
+    public int BlinkIntervalMs => ResolveStyle(_status).BlinkIntervalMs;
+
+    private bool _altPhase;
+    public bool AltPhase
+    {
+        get => _altPhase;
+        set { if (_altPhase != value) { _altPhase = value; Raise(nameof(BorderBrush)); } }
+    }
+
+    public Brush BorderBrush
+    {
+        get
+        {
+            if (_closed) return MakeBrush("#555555");
+            var style = ResolveStyle(_status);
+            string color = BlinkActive && _altPhase ? style.AltColor ?? "black" : style.Color;
+            return MakeBrush(color);
+        }
+    }
+
+    private static readonly Dictionary<string, Brush> BrushCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static Brush MakeBrush(string name)
+    {
+        if (BrushCache.TryGetValue(name, out var cached)) return cached;
+        var brush = new SolidColorBrush(ColorUtil.TryParse(name, out var c) ? c : Colors.Gray);
+        brush.Freeze();
+        BrushCache[name] = brush;
+        return brush;
+    }
+
+    private void RaiseVisuals()
+    {
+        Raise(nameof(Status));
+        Raise(nameof(StatusText));
+        Raise(nameof(BorderBrush));
+        Raise(nameof(Closed));
+        Raise(nameof(TooltipText));
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void Raise([CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
