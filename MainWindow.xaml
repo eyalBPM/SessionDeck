@@ -69,9 +69,12 @@
                             Background="Transparent" Foreground="White" BorderThickness="0"
                             Padding="8,2" Cursor="Hand" Click="Settings_Click">
                         <Button.ContextMenu>
-                            <ContextMenu>
+                            <ContextMenu FlowDirection="RightToLeft">
                                 <MenuItem x:Name="StartupMenuItem" Header="עלייה אוטומטית עם Windows"
                                           IsCheckable="True" Click="StartupMenuItem_Click"/>
+                                <MenuItem x:Name="MaximizeSessionMenuItem" Header="צמצום הפנלים ב-VSCode בפתיחת session"
+                                          IsCheckable="True" Click="MaximizeSessionMenuItem_Click"
+                                          ToolTip="בלחיצה על session מהלוח: סגור את הפנלים הצדדיים והתחתון כך שהטאב יתפוס את כל האזור"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>

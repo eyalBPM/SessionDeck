@@ -1297,6 +1297,7 @@ public partial class MainWindow : Window
         StageModeCombo.Items.Clear();
         foreach (var name in new[] { "מסך מלא", "חצי שמאל", "חצי ימין", "מלבן (CLI)" }) StageModeCombo.Items.Add(name);
         StartupMenuItem.IsChecked = StartupService.IsEnabled();
+        MaximizeSessionMenuItem.IsChecked = Vm.OpenSessionMaximized;
         ShowHiddenToggle.IsChecked = Vm.ShowHidden;
         PinTopToggle.IsChecked = Vm.AlwaysOnTop;
         _syncingUi = false;
@@ -1370,6 +1371,12 @@ public partial class MainWindow : Window
     {
         SettingsButton.ContextMenu.PlacementTarget = SettingsButton;
         SettingsButton.ContextMenu.IsOpen = true;
+    }
+
+    private void MaximizeSessionMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        Vm.OpenSessionMaximized = MaximizeSessionMenuItem.IsChecked;
+        QueueSave();
     }
 
     private void StartupMenuItem_Click(object sender, RoutedEventArgs e)
