@@ -7,6 +7,28 @@
         Background="#FF161616">
     <Window.Resources>
         <services:FlowDirectionConverter x:Key="Rtl"/>
+        <!-- toolbar icon toggle: accent background while checked (pressed-state UI) -->
+        <Style x:Key="IconToggle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bg" Background="Transparent" CornerRadius="4" Padding="8,2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FF333333"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FF3A6EA5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <DockPanel>
         <Border DockPanel.Dock="Top" Background="#FF232323" Padding="8,6">
@@ -35,9 +57,14 @@
                     </ToggleButton>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <Button x:Name="SearchToggleButton" Content="🔍" FontSize="13" ToolTip="חיפוש וסינון"
-                            Background="Transparent" Foreground="White" BorderThickness="0"
-                            Padding="8,2" Cursor="Hand" Click="SearchToggle_Click"/>
+                    <ToggleButton x:Name="PinTopToggle" Content="📌" FontSize="13"
+                                  ToolTip="נעץ: החלון תמיד עליון (Always on Top)"
+                                  Style="{StaticResource IconToggle}"
+                                  Checked="PinTop_Changed" Unchecked="PinTop_Changed"/>
+                    <ToggleButton x:Name="SearchToggleButton" Content="🔍" FontSize="13"
+                                  ToolTip="חיפוש וסינון"
+                                  Style="{StaticResource IconToggle}"
+                                  Checked="SearchToggle_Changed" Unchecked="SearchToggle_Changed"/>
                     <Button x:Name="SettingsButton" Content="⚙" FontSize="15" ToolTip="הגדרות"
                             Background="Transparent" Foreground="White" BorderThickness="0"
                             Padding="8,2" Cursor="Hand" Click="Settings_Click">

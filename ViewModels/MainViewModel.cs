@@ -25,6 +25,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Interop.RECT? StageRect { get; set; }       // used when StageMode == Rect
     public int ClosedSessionRetention { get; set; } = 20;
     public bool OpenSessionMaximized { get; set; } = true;   // stage D: collapse panels when opening a session
+    public bool AlwaysOnTop { get; set; }                    // 📌 pin: deck window stays topmost
 
     public WorkspaceViewModel? FindById(int id)
         => Workspaces.FirstOrDefault(w => w.Id == id);

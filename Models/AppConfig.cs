@@ -144,6 +144,7 @@ public class AppConfig
     public int ClosedSessionRetention { get; set; } = 20;     // per workspace (SPEC decision 12)
     public bool OpenSessionMaximized { get; set; } = true;    // stage D: collapse VSCode panels on session open
     public bool ShowHidden { get; set; }
+    public bool AlwaysOnTop { get; set; }                     // 📌 pin toggle (feature 2026-07-19)
     public ZoneConfig Zone { get; set; } = new();
     public StageConfig Stage { get; set; } = new();
     public WindowBounds? Window { get; set; }

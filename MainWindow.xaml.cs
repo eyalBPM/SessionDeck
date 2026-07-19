@@ -98,6 +98,8 @@ public partial class MainWindow : Window
         Vm.ClosedSessionRetention = Math.Max(0, config.ClosedSessionRetention);
         Vm.OpenSessionMaximized = config.OpenSessionMaximized;
         Vm.ShowHidden = config.ShowHidden;
+        Vm.AlwaysOnTop = config.AlwaysOnTop;
+        Topmost = config.AlwaysOnTop;
 
         foreach (var wc in config.Workspaces)
         {
@@ -204,6 +206,7 @@ public partial class MainWindow : Window
             ClosedSessionRetention = Vm.ClosedSessionRetention,
             OpenSessionMaximized = Vm.OpenSessionMaximized,
             ShowHidden = Vm.ShowHidden,
+            AlwaysOnTop = Vm.AlwaysOnTop,
             Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode) },
             Stage = new StageConfig
             {
@@ -535,8 +538,11 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _contentSearchCts;
     private DispatcherTimer? _searchDebounce;
 
-    private void SearchToggle_Click(object sender, RoutedEventArgs e)
-        => SetSearchRowVisible(SearchRow.Visibility != Visibility.Visible);
+    private void SearchToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi || _initializing) return;
+        SetSearchRowVisible(SearchToggleButton.IsChecked == true);
+    }
 
     private void SearchClose_Click(object sender, RoutedEventArgs e)
         => SetSearchRowVisible(false);
@@ -548,6 +554,10 @@ public partial class MainWindow : Window
 
     private void SetSearchRowVisible(bool visible)
     {
+        // Keep the 🔍 toggle's pressed-state in sync when closed via ✕ / Escape.
+        _syncingUi = true;
+        SearchToggleButton.IsChecked = visible;
+        _syncingUi = false;
         SearchRow.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         if (visible)
         {
@@ -1288,6 +1298,7 @@ public partial class MainWindow : Window
         foreach (var name in new[] { "מסך מלא", "חצי שמאל", "חצי ימין", "מלבן (CLI)" }) StageModeCombo.Items.Add(name);
         StartupMenuItem.IsChecked = StartupService.IsEnabled();
         ShowHiddenToggle.IsChecked = Vm.ShowHidden;
+        PinTopToggle.IsChecked = Vm.AlwaysOnTop;
         _syncingUi = false;
         SyncCombosFromVm();
     }
@@ -1342,6 +1353,14 @@ public partial class MainWindow : Window
         if (_syncingUi || _initializing) return;
         Vm.ShowHidden = ShowHiddenToggle.IsChecked == true;
         ApplyDeckVisibility();
+        QueueSave();
+    }
+
+    private void PinTop_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingUi || _initializing) return;
+        Vm.AlwaysOnTop = PinTopToggle.IsChecked == true;
+        Topmost = Vm.AlwaysOnTop;
         QueueSave();
     }
 
