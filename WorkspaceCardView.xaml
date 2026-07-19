@@ -151,7 +151,14 @@
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
-                            <Grid ToolTip="{Binding TooltipText}">
+                            <Grid>
+                                <Grid.ToolTip>
+                                    <ToolTip>
+                                        <!-- RTL when the first line (Detail) starts with Hebrew -->
+                                        <TextBlock Text="{Binding TooltipText}" MaxWidth="420" TextWrapping="Wrap"
+                                                   FlowDirection="{Binding TooltipText, Converter={StaticResource Rtl}}"/>
+                                    </ToolTip>
+                                </Grid.ToolTip>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
@@ -161,20 +168,9 @@
                                     <TextBlock Text="{Binding DisplayTitle}" Foreground="White" FontSize="12"
                                                TextWrapping="Wrap"
                                                FlowDirection="{Binding DisplayTitle, Converter={StaticResource Rtl}}"/>
-                                    <!-- secondary: the session title, when it differs from the tab title -->
-                                    <TextBlock Text="{Binding SubTitle}" Foreground="#FFB0B0B0" FontSize="10"
-                                               TextWrapping="Wrap"
-                                               FlowDirection="{Binding SubTitle, Converter={StaticResource Rtl}}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SubTitle}" Value="">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                    <!-- secondary session title (AutoTitle via SubTitle) removed by request
+                                         2026-07-19; the VM property still exists. To restore, re-add here a
+                                         TextBlock bound to SubTitle (wrap + Rtl converter, collapsed when ""). -->
                                     <TextBlock Text="{Binding SubText}" Foreground="#FF999999" FontSize="10"
                                                TextTrimming="CharacterEllipsis"
                                                FlowDirection="{Binding SubText, Converter={StaticResource Rtl}}">

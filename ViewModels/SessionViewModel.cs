@@ -121,14 +121,14 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     public string? Source
     {
         get => _source;
-        set { if (_source != value) { _source = value; Raise(nameof(TooltipText)); } }
+        set { if (_source != value) { _source = value; Raise(); } }
     }
 
     private string? _permissionMode;
     public string? PermissionMode
     {
         get => _permissionMode;
-        set { if (_permissionMode != value) { _permissionMode = value; Raise(nameof(TooltipText)); } }
+        set { if (_permissionMode != value) { _permissionMode = value; Raise(); } }
     }
 
     private string? _endReason;
@@ -146,19 +146,17 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     public bool OpenAsTab
     {
         get => _openAsTab;
-        set { if (_openAsTab != value) { _openAsTab = value; Raise(); Raise(nameof(TooltipText)); } }
+        set { if (_openAsTab != value) { _openAsTab = value; Raise(); } }
     }
 
+    // Trimmed by request 2026-07-19: previously also showed SessionId, source,
+    // permission mode, transcript path and the open-as-tab flag — restore here if needed.
     public string TooltipText
     {
         get
         {
-            var lines = new List<string> { SessionId };
+            var lines = new List<string>();
             if (_detail.Length > 0) lines.Add(_detail);
-            if (_source != null) lines.Add($"source: {_source}");
-            if (_permissionMode != null) lines.Add($"permission mode: {_permissionMode}");
-            if (TranscriptPath != null) lines.Add($"transcript: {TranscriptPath}");
-            if (_openAsTab) lines.Add("open as a VSCode tab");
             lines.Add($"started: {StartedAt:HH:mm:ss}");
             if (LastEventAt is { } le) lines.Add($"last event: {le:HH:mm:ss}");
             if (EndedAt is { } ea) lines.Add($"ended: {ea:HH:mm:ss}" + (_endReason != null ? $" ({_endReason})" : ""));
