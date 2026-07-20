@@ -112,9 +112,29 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
         Raise(nameof(ClaudeTabsTooltip));
     }
 
+    /// <summary>How long a reported active tab stays believable without a refresh. The
+    /// extension heartbeats every 2s while focused, so three missed beats expire it.</summary>
+    public static TimeSpan ActiveTabTtl { get; set; } = TimeSpan.FromSeconds(6);
+
+    private string? _activeClaudeTabLabel;
+    private DateTime _activeClaudeTabAt;
+
     /// <summary>Label of the active Claude tab while the VSCode window is focused; null
-    /// otherwise. Runtime only — drives auto-acknowledge (issue 2026-07-19).</summary>
-    public string? ActiveClaudeTabLabel { get; set; }
+    /// otherwise. Runtime only — drives auto-acknowledge (issue 2026-07-19).
+    ///
+    /// Expires after <see cref="ActiveTabTtl"/>. This value is written only when a sync
+    /// arrives, and it is what SUPPRESSES a blink — so a sync that never arrives (pipe
+    /// down, a second VSCode window on the same workspace winning the last write) used to
+    /// leave the deck silencing a session forever on the belief that the user was still
+    /// looking at its tab. Blinking at a tab the user is on is recoverable; staying silent
+    /// on one they left is not, so absence of fresh evidence now means "not looking"
+    /// (recurring blink issue, second root cause 2026-07-20).</summary>
+    public string? ActiveClaudeTabLabel
+    {
+        get => _activeClaudeTabLabel != null && DateTime.Now - _activeClaudeTabAt <= ActiveTabTtl
+            ? _activeClaudeTabLabel : null;
+        set { _activeClaudeTabLabel = value; _activeClaudeTabAt = DateTime.Now; }
+    }
 
     /// <summary>Session whose tab was last active — a CHANGE of active tab bumps the new
     /// session to the top (activity sort, extreme mode — request 2026-07-19).</summary>

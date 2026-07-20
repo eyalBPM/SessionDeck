@@ -15,6 +15,7 @@ import * as net from 'net';
 const PIPE_PATH = '\\\\.\\pipe\\sessiondeck';
 const RECONNECT_MS = 5000;
 const SYNC_DEBOUNCE_MS = 300;
+const HEARTBEAT_MS = 2000;         // must stay well under SessionDeck's ActiveTabTtl
 const CLAUDE_VIEWTYPE = 'claudeVSCodePanel';   // actual viewType is prefixed (mainThreadWebview-...)
 
 let out: vscode.OutputChannel;
@@ -79,6 +80,23 @@ function queueSync(): void {
         clearTimeout(syncTimer);
     }
     syncTimer = setTimeout(sendSync, SYNC_DEBOUNCE_MS);
+}
+
+/// The event-driven syncs above are the only thing telling SessionDeck which tab the user
+/// is looking at, and that answer is what suppresses a session's blink. One dropped sync
+/// (pipe down, reconnect window, a second VSCode window on the same workspace racing us)
+/// therefore leaves the deck acting on a stale answer forever — it silences a blink the
+/// user never saw. A heartbeat gives the deck something to age out against.
+///
+/// Only while focused: an unfocused window suppresses nothing, so its state is not worth
+/// a packet (issue 2026-07-20).
+function startHeartbeat(context: vscode.ExtensionContext): void {
+    const timer = setInterval(() => {
+        if (vscode.window.state.focused) {
+            sendSync();
+        }
+    }, HEARTBEAT_MS);
+    context.subscriptions.push({ dispose: () => clearInterval(timer) });
 }
 
 async function handleCommand(raw: string): Promise<void> {
@@ -214,6 +232,7 @@ export function activate(context: vscode.ExtensionContext): void {
         sendSync();
     }));
 
+    startHeartbeat(context);
     void initGit(context);
     connect();
 }
