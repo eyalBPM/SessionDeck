@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -167,6 +168,13 @@ public partial class WorkspaceCardView : UserControl
         if (vm.Expanded) Owner?.DiscoverHistoricalSessions(vm);
     }
 
+    private void CopyPath_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm is not { Path.Length: > 0 } vm) return;
+        try { Clipboard.SetText(vm.Path); }
+        catch (ExternalException) { } // clipboard busy (locked by another process) — ignore
+    }
+
     private void Hide_Click(object sender, RoutedEventArgs e)
     {
         if (Vm != null) Owner?.ToggleHideWorkspace(Vm);
@@ -192,6 +200,7 @@ public partial class WorkspaceCardView : UserControl
     {
         if (Vm is not { } vm) return;
         HideMenuItem.Header = vm.Hidden ? "הצג חזרה בלוח" : "הסתרה";
+        CopyPathMenuItem.IsEnabled = vm.Path.Length > 0; // drag-in adds have no path yet (SPEC decision 21)
         CloseWindowMenuItem.IsEnabled = vm.State == BindState.Connected;
         MenuButton.ContextMenu.PlacementTarget = MenuButton;
         MenuButton.ContextMenu.IsOpen = true;

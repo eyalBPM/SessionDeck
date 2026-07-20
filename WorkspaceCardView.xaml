@@ -108,6 +108,8 @@
                             <Button.ContextMenu>
                                 <ContextMenu FlowDirection="RightToLeft">
                                     <MenuItem Header="עריכה" Click="Edit_Click"/>
+                                    <MenuItem x:Name="CopyPathMenuItem" Header="העתק נתיב ללוח"
+                                              Click="CopyPath_Click"/>
                                     <MenuItem x:Name="HideMenuItem" Header="הסתרה" Click="Hide_Click"/>
                                     <MenuItem x:Name="CloseWindowMenuItem" Header="סגירת חלון"
                                               Click="CloseWindow_Click"/>
