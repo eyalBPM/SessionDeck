@@ -69,11 +69,16 @@ The first launch starts the UI and the pipe server. Any later invocation with ar
 
 **Wire up the hooks** — point your Claude Code `settings.json` hooks at [`hooks/sessiondeck-hook.ps1`](hooks/sessiondeck-hook.ps1); see [`hooks/README.md`](hooks/README.md).
 
-**Install the VSCode extension** (enables tab activation and live tab labels):
+**Install the VSCode extension** (enables tab activation and live tab labels). The `.vsix` is not checked in, so build it first:
 
 ```powershell
-code --install-extension .\vscode-extension\sessiondeck-connector-0.6.6.vsix
+cd vscode-extension
+npm install
+npx @vscode/vsce package
+code --install-extension .\sessiondeck-connector-*.vsix
 ```
+
+**Add SessionDeck.exe to your PATH.** The hook bridge resolves the executable from PATH before falling back to a build directory, so this is what lets the hooks work from any workspace.
 
 ## CLI
 
@@ -108,3 +113,8 @@ sessiondeck session list   [--workspace <name>] [--all]
 - A **minimized** window freezes its DWM thumbnail on the last frame — keep tracked windows restored (being covered by other windows is fine).
 - **Inactive VSCode tabs have no thumbnail.** VSCode/DWM don't render them, so session cards are text + border only. This is a hard platform limit, not a missing feature.
 - Claude Code exposes no dedicated `error` hook; the `error` state exists in the model and CLI but is mapped conservatively.
+- Installation is still three manual steps (build, extension, hooks) and the hook JSON needs absolute paths. A packaged release with a single installer is planned.
+
+## License
+
+[MIT](LICENSE) © BPM Ltd.
