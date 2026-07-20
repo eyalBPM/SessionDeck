@@ -520,7 +520,7 @@ public partial class MainWindow : Window
             session.Status = SessionStatus.Waiting;
             session.LastEventAt = DateTime.Now;
             // Don't blink at a dialog the user is already looking at.
-            if (ws.ActiveClaudeTabLabel is { } active && TabLabelMatches(active, session))
+            if (ActiveTabSession(ws) == session)
                 session.Acknowledged = true;
             return true;
         }
@@ -1076,7 +1076,7 @@ public partial class MainWindow : Window
         LearnTranscriptDir(ws, info);
         RefreshPhantom(session);
         // The user is already looking at this session's tab — don't start blinking at them.
-        if (ws.ActiveClaudeTabLabel is { } activeTab && TabLabelMatches(activeTab, session))
+        if (ActiveTabSession(ws) == session)
             session.Acknowledged = true;
         else if (!session.Acknowledged && ws.ActiveClaudeTabLabel != null)
             // A tab IS focused but the labels disagree — likely title drift (Claude renamed
@@ -1198,9 +1198,7 @@ public partial class MainWindow : Window
 
             // Extreme activity sort (request 2026-07-19): switching to a session's tab in
             // VSCode counts as activity — the session jumps to the top of its card.
-            var activeSession = ws.ActiveClaudeTabLabel is { } activeLabel
-                ? ws.Sessions.FirstOrDefault(s => TabLabelMatches(activeLabel, s))
-                : null;
+            var activeSession = ActiveTabSession(ws);
             if (activeSession != null && ws.LastActiveSessionId != activeSession.SessionId)
             {
                 ws.LastActiveSessionId = activeSession.SessionId;
@@ -1263,6 +1261,22 @@ public partial class MainWindow : Window
     private static bool TabLabelMatches(string label, SessionViewModel session)
         => MatchTabLabel(label, session) != null;
 
+    /// <summary>The one open session the user is demonstrably looking at, or null.
+    ///
+    /// Prompts are part of the candidate set, so two sessions can answer to the same label
+    /// (same opening prompt, /clear, resume). Acknowledging the wrong one silently hides a
+    /// real alert, so an ambiguous label resolves to nothing — leaving a card blinking is
+    /// the recoverable failure. Every auto-acknowledge path goes through here: the guard
+    /// used to live in ReapplyTabCorrelation alone while the two status-driven paths
+    /// matched bare, so the same label could be safe on one path and silence a session on
+    /// another (issue 2026-07-20).</summary>
+    private static SessionViewModel? ActiveTabSession(WorkspaceViewModel ws)
+    {
+        if (ws.ActiveClaudeTabLabel is not { } active) return null;
+        var matches = ws.Sessions.Where(s => !s.Closed && TabLabelMatches(active, s)).ToList();
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
     /// <summary>Recompute tab↔session correlation (OpenAsTab + auto-acknowledge) from the
     /// workspace's last-known VSCode state. The two match inputs refresh on independent
     /// clocks — tab labels arrive event-driven from the extension while TabTitle lags
@@ -1281,16 +1295,9 @@ public partial class MainWindow : Window
             if (matched != null) s.MatchedTabLabel = matched;
         }
 
-        // Auto-acknowledge the session whose tab the user is looking at. Prompts are part
-        // of the candidate set, so two sessions can in principle answer to the same label
-        // (same opening prompt, /clear, resume). Acknowledging the wrong one silently
-        // hides a real alert, so an ambiguous label acknowledges nothing — leaving a card
-        // blinking is the recoverable failure.
-        if (ws.ActiveClaudeTabLabel is not { } active) return false;
-        var matches = ws.Sessions.Where(s => !s.Closed && TabLabelMatches(active, s)).ToList();
-        if (matches.Count != 1) return false;
-        if (matches[0].Acknowledged) return false;
-        matches[0].Acknowledged = true;
+        // Auto-acknowledge the session whose tab the user is looking at.
+        if (ActiveTabSession(ws) is not { } target || target.Acknowledged) return false;
+        target.Acknowledged = true;
         return true;
     }
 
