@@ -1,4 +1,4 @@
-# SessionDeck — תוכנית אריזה והפצה (יעד: v0.6.28)
+# SessionDeck — תוכנית אריזה והפצה (יעד: v0.6.29)
 
 > נכתב 2026-07-20. מיועד ל-session מימוש נפרד של Claude Code.
 > קרא את הקובץ הזה **במלואו** לפני שאתה נוגע בקוד.
@@ -234,7 +234,7 @@ key.SetValue(ValueName, $"\"{exe}\"");
 ## 5. שלב 3 — בניית ה-Release
 
 ```powershell
-# 1. bump ל-0.6.28 ב-SessionDeck.csproj
+# 1. bump ל-0.6.29 ב-SessionDeck.csproj
 
 # 2. האפליקציה — self-contained, single file
 dotnet publish -c Release -r win-x64 --self-contained `
@@ -244,10 +244,10 @@ dotnet publish -c Release -r win-x64 --self-contained `
 cd vscode-extension; npm install; npx @vscode/vsce package; cd ..
 
 # 4. לארוז: תוכן ה-publish (כולל hooks\) + ה-vsix + install.ps1 + uninstall.ps1
-#    לתוך SessionDeck-0.6.28-win-x64.zip
+#    לתוך SessionDeck-0.6.29-win-x64.zip
 
 # 5. לפרסם
-gh release create v0.6.28 SessionDeck-0.6.28-win-x64.zip --title "v0.6.28" --notes "..."
+gh release create v0.6.29 SessionDeck-0.6.29-win-x64.zip --title "v0.6.29" --notes "..."
 ```
 
 **‏`gh` נמצא ב-`C:\Program Files\GitHub CLI\gh.exe`** ומאומת כ-`eyalBPM`. אם `gh` לא מזוהה בטרמינל — פתח טרמינל חדש (PATH נטען פעם אחת בפתיחת חלון).
@@ -279,7 +279,7 @@ gh release create v0.6.28 SessionDeck-0.6.28-win-x64.zip --title "v0.6.28" --not
 ## 6. כללי עבודה לסשן המימוש
 
 - **ענף:** `feat/packaging-installer`. אל תעבוד על `main`.
-- **Version bump חובה** — `<Version>` ב-[`SessionDeck.csproj`](SessionDeck.csproj) מ-`0.6.27` ל-`0.6.28`.
+- **Version bump חובה** — `<Version>` ב-[`SessionDeck.csproj`](SessionDeck.csproj) מ-`0.6.28` ל-`0.6.29`.
 - **אין commit ואין push בלי אישור מפורש של אייל.**
 - קבצי zip / publish זמניים → הוסף דפוס ל-`.gitignore` **לפני** שאתה יוצר אותם (‏`*.zip`, ‏`publish/`).
 - עדכן את [`README.md`](README.md) בסוף: להחליף את סעיף ההתקנה הידני בהוראות ה-Release, ולהסיר את השורה תחת "Known limitations" שאומרת שההתקנה ידנית.
@@ -294,5 +294,5 @@ gh release create v0.6.28 SessionDeck-0.6.28-win-x64.zip --title "v0.6.28" --not
 - [ ] הרצה כפולה של `install-hooks` לא משנה כלום
 - [ ] `uninstall-hooks` מחזיר את הקובץ למצבו המקורי
 - [ ] `install.ps1` מתקין מקצה לקצה על מכונה נקייה בלי .NET
-- [ ] Release ‏`v0.6.28` פורסם עם ה-zip
+- [ ] Release ‏`v0.6.29` פורסם עם ה-zip
 - [ ] README מעודכן
