@@ -1221,17 +1221,25 @@ public partial class MainWindow : Window
                title.StartsWith(label[..^1], StringComparison.Ordinal);
     }
 
-    /// <summary>Does this VSCode tab label belong to this session? Checked against every
-    /// string the tab could be showing, not just the primary title: a session whose
-    /// transcript has no ai-title is labelled from a user prompt instead, which the title
-    /// fields alone never reproduce (issue 2026-07-20, second report).</summary>
-    private static bool TabLabelMatches(string label, SessionViewModel session)
+    /// <summary>Does this VSCode tab label belong to this session, and if so which string
+    /// is the tab showing (in full — the label itself is truncated)? Checked against every
+    /// candidate, not just the primary title: a session whose transcript has no ai-title is
+    /// labelled from a user prompt instead, which the title fields alone never reproduce
+    /// (issue 2026-07-20, second report).
+    ///
+    /// Deliberately matches concrete fields rather than DisplayTitle: DisplayTitle now
+    /// prefers the matched label, so feeding it back in would be circular.</summary>
+    private static string? MatchTabLabel(string label, SessionViewModel session)
     {
-        if (TabLabelMatches(label, session.TabTitle ?? session.DisplayTitle)) return true;
         foreach (var candidate in session.LabelCandidates)
-            if (TabLabelMatches(label, candidate)) return true;
-        return false;
+            if (TabLabelMatches(label, candidate)) return candidate;
+        foreach (var title in new[] { session.CustomTitle, session.TabTitle, session.AutoTitle })
+            if (title is { Length: > 0 } t && TabLabelMatches(label, t)) return t;
+        return null;
     }
+
+    private static bool TabLabelMatches(string label, SessionViewModel session)
+        => MatchTabLabel(label, session) != null;
 
     /// <summary>Recompute tab↔session correlation (OpenAsTab + auto-acknowledge) from the
     /// workspace's last-known VSCode state. The two match inputs refresh on independent
@@ -1241,7 +1249,15 @@ public partial class MainWindow : Window
     private static bool ReapplyTabCorrelation(WorkspaceViewModel ws)
     {
         foreach (var s in ws.Sessions)
-            s.OpenAsTab = ws.ClaudeTabLabels.Any(l => TabLabelMatches(l, s));
+        {
+            string? matched = null;
+            foreach (var label in ws.ClaudeTabLabels)
+                if (MatchTabLabel(label, s) is { } m) { matched = m; break; }
+            s.OpenAsTab = matched != null;
+            // Adopt the tab's own text as the card title (request 2026-07-20). Kept when
+            // the tab closes — a title that changes on tab close is worse than a stale one.
+            if (matched != null) s.MatchedTabLabel = matched;
+        }
 
         // Auto-acknowledge the session whose tab the user is looking at. Prompts are part
         // of the candidate set, so two sessions can in principle answer to the same label
