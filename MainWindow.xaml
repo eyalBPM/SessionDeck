@@ -104,6 +104,9 @@
                                 <MenuItem x:Name="MaximizeSessionMenuItem" Header="צמצום הפנלים ב-VSCode בפתיחת session"
                                           IsCheckable="True" Click="MaximizeSessionMenuItem_Click"
                                           ToolTip="בלחיצה על session מהלוח: סגור את הפנלים הצדדיים והתחתון כך שהטאב יתפוס את כל האזור"/>
+                                <MenuItem x:Name="NotificationsMenuItem" Header="התראות Windows"
+                                          IsCheckable="True" Click="NotificationsMenuItem_Click"
+                                          ToolTip="כשדולק: סשן שדורש תשומת לב מפיק התראת Windows, נקודה צבעונית על האייקון בשורת המשימות והבהוב חד-פעמי.&#10;פועל רק כשגם 📌 וגם ה-Zone כבויים — בכל מצב אחר הדק גלוי ממילא, וההבהוב בכרטיס מספיק.&#10;גם אז, כשהדק בפוקוס לא תוצג התראה."/>
                                 <Separator/>
                                 <MenuItem Header="מתגים (Flags)..." Click="TogglesMenuItem_Click"
                                           ToolTip="כפתורי toggle ב-toolbar שמצבם נכתב לקובץ flag — לשליטה בתהליכים חיצוניים"/>

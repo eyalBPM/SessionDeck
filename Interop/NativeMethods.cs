@@ -231,4 +231,123 @@ public static class NativeMethods
     [DllImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool AttachConsole(int dwProcessId);
+
+    // ---- Tray icon + balloon (feature 2026-07-20) ----
+    public const uint NIM_ADD = 0x0;
+    public const uint NIM_MODIFY = 0x1;
+    public const uint NIM_DELETE = 0x2;
+    public const uint NIF_MESSAGE = 0x01;
+    public const uint NIF_ICON = 0x02;
+    public const uint NIF_TIP = 0x04;
+    public const uint NIF_INFO = 0x10;
+    public const uint NIIF_INFO = 0x1;
+    public const uint NIIF_USER = 0x4;
+
+    /// <summary>Our tray callback (WM_APP + 1); lParam carries the mouse message.</summary>
+    public const int WM_TRAYCALLBACK = 0x8000 + 1;
+    public const int WM_LBUTTONUP = 0x0202;
+    public const int NIN_BALLOONUSERCLICK = 0x0400 + 5;
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool Shell_NotifyIcon(uint dwMessage, ref NOTIFYICONDATA lpData);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern uint ExtractIconEx(string lpszFile, int nIconIndex,
+        IntPtr[]? phiconLarge, IntPtr[]? phiconSmall, uint nIcons);
+
+    // ---- Taskbar button flash ----
+    public const uint FLASHW_TRAY = 0x00000002;
+    public const uint FLASHW_TIMERNOFG = 0x0000000C;
+    public const uint FLASHW_STOP = 0x00000000;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
+
+    // ---- Icon construction (badge dots are drawn in-process; no image assets) ----
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreateBitmap(int nWidth, int nHeight, uint nPlanes, uint nBitCount, byte[] lpvBits);
+
+    [DllImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DeleteObject(IntPtr hObject);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CreateIconIndirect(ref ICONINFO piconinfo);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
 }
+
+[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+public struct NOTIFYICONDATA
+{
+    public uint cbSize;
+    public IntPtr hWnd;
+    public uint uID;
+    public uint uFlags;
+    public uint uCallbackMessage;
+    public IntPtr hIcon;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string szTip;
+    public uint dwState;
+    public uint dwStateMask;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string szInfo;
+    public uint uVersion;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string szInfoTitle;
+    public uint dwInfoFlags;
+    public Guid guidItem;
+    public IntPtr hBalloonIcon;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct FLASHWINFO
+{
+    public uint cbSize;
+    public IntPtr hwnd;
+    public uint dwFlags;
+    public uint uCount;
+    public uint dwTimeout;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct ICONINFO
+{
+    [MarshalAs(UnmanagedType.Bool)] public bool fIcon;
+    public int xHotspot;
+    public int yHotspot;
+    public IntPtr hbmMask;
+    public IntPtr hbmColor;
+}
+
+/// <summary>
+/// Only <see cref="SetOverlayIcon"/> is used; every member before it is a vtable
+/// placeholder and must stay in ITaskbarList → ITaskbarList2 → ITaskbarList3 order.
+/// </summary>
+[ComImport, Guid("ea1afb91-9e28-4b86-90e9-9e9f8a5eefaf"),
+ InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface ITaskbarList3
+{
+    void HrInit();
+    void AddTab(IntPtr hwnd);
+    void DeleteTab(IntPtr hwnd);
+    void ActivateTab(IntPtr hwnd);
+    void SetActiveAlt(IntPtr hwnd);
+    void MarkFullscreenWindow(IntPtr hwnd, [MarshalAs(UnmanagedType.Bool)] bool fFullscreen);
+    void SetProgressValue(IntPtr hwnd, ulong ullCompleted, ulong ullTotal);
+    void SetProgressState(IntPtr hwnd, int tbpFlags);
+    void RegisterTab(IntPtr hwndTab, IntPtr hwndMDI);
+    void UnregisterTab(IntPtr hwndTab);
+    void SetTabOrder(IntPtr hwndTab, IntPtr hwndInsertBefore);
+    void SetTabActive(IntPtr hwndTab, IntPtr hwndMDI, uint dwReserved);
+    void ThumbBarAddButtons(IntPtr hwnd, uint cButtons, IntPtr pButton);
+    void ThumbBarUpdateButtons(IntPtr hwnd, uint cButtons, IntPtr pButton);
+    void ThumbBarSetImageList(IntPtr hwnd, IntPtr himl);
+    void SetOverlayIcon(IntPtr hwnd, IntPtr hIcon, [MarshalAs(UnmanagedType.LPWStr)] string? pszDescription);
+    void SetThumbnailTooltip(IntPtr hwnd, [MarshalAs(UnmanagedType.LPWStr)] string? pszTip);
+    void SetThumbnailClip(IntPtr hwnd, IntPtr prcClip);
+}
+
+[ComImport, Guid("56FDF344-FD6D-11d0-958A-006097C9A090"), ClassInterface(ClassInterfaceType.None)]
+public class TaskbarList { }

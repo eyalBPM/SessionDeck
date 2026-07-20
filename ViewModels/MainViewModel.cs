@@ -33,6 +33,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// dialog. Empty = heuristic off. See AppConfig.PermissionWaitToolSeconds.</summary>
     public Dictionary<string, int> PermissionWaitToolSeconds { get; set; } = new(StringComparer.Ordinal);
     public bool AlwaysOnTop { get; set; }                    // 📌 pin: deck window stays topmost
+    public bool WindowsNotifications { get; set; } = true;   // ⚙ menu: OS-level attention escalation
 
     public WorkspaceViewModel? FindById(int id)
         => Workspaces.FirstOrDefault(w => w.Id == id);
@@ -64,7 +65,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<StatusDotViewModel> StatusSummary { get; } = new();
 
     // Attention-first display order; first item renders rightmost (RTL panel).
-    private static int Severity(SessionStatus s) => s switch
+    // Also picks which status the taskbar overlay badge shows when several are blinking.
+    public static int Severity(SessionStatus s) => s switch
     {
         SessionStatus.Error => 0,
         SessionStatus.Waiting => 1,
