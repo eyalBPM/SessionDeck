@@ -6,7 +6,7 @@
         Title="SessionDeck" Height="700" Width="1100"
         Background="#FF161616">
     <Window.Resources>
-        <services:FlowDirectionConverter x:Key="Rtl"/>
+        <!-- the "Rtl" converter now lives in App.xaml (shared by every window/dialog) -->
         <!-- toolbar icon toggle: accent background while checked (pressed-state UI) -->
         <Style x:Key="IconToggle" TargetType="ToggleButton">
             <Setter Property="Foreground" Value="White"/>
@@ -44,21 +44,16 @@
                     <ComboBox x:Name="ZoneMonitorCombo" Width="110" SelectionChanged="ZoneUi_Changed"/>
                     <ComboBox x:Name="ZoneModeCombo" Width="110" Margin="4,0,0,0" SelectionChanged="ZoneUi_Changed"/>
 
-                    <TextBlock Text="אזור פתיחה:" Foreground="#FFBBBBBB" Margin="18,0,6,0" VerticalAlignment="Center"
+                    <TextBlock Text="אזור פתיחה:" FlowDirection="RightToLeft"
+                               Foreground="#FFBBBBBB" Margin="18,0,6,0" VerticalAlignment="Center"
                                ToolTip="לאן החלון ייפתח בלחיצה על ▶ (Stage)"/>
                     <ComboBox x:Name="StageMonitorCombo" Width="110" SelectionChanged="StageUi_Changed"/>
                     <ComboBox x:Name="StageModeCombo" Width="110" Margin="4,0,0,0" SelectionChanged="StageUi_Changed"/>
 
-                    <ToggleButton x:Name="ShowHiddenToggle" Margin="18,0,0,0" Padding="8,3" Cursor="Hand"
-                                  Background="#FF3A3A3A" Foreground="White" BorderThickness="0"
-                                  Checked="ShowHidden_Changed" Unchecked="ShowHidden_Changed"
-                                  ToolTip="הצג גם workspaces מוסתרים">
-                        <TextBlock Text="👁 מוסתרים"/>
-                    </ToggleButton>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                     <!-- user-defined toggles (config: customToggles) — state exported to
-                         flag files for external hook scripts -->
+                         flag files for external processes to read -->
                     <ItemsControl ItemsSource="{Binding CustomToggles}" VerticalAlignment="Center">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -74,6 +69,23 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <!-- divider between user flags and the built-in toolbar toggles;
+                         hidden when no flags are defined -->
+                    <Border Width="1" Margin="6,3" Background="#FF3E3E3E">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CustomToggles.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <ToggleButton x:Name="ShowHiddenToggle" Content="👁" FontSize="13"
+                                  ToolTip="הצג גם workspaces מוסתרים"
+                                  Style="{StaticResource IconToggle}"
+                                  Checked="ShowHidden_Changed" Unchecked="ShowHidden_Changed"/>
                     <ToggleButton x:Name="PinTopToggle" Content="📌" FontSize="13"
                                   ToolTip="נעץ: החלון תמיד עליון (Always on Top)"
                                   Style="{StaticResource IconToggle}"
@@ -93,8 +105,8 @@
                                           IsCheckable="True" Click="MaximizeSessionMenuItem_Click"
                                           ToolTip="בלחיצה על session מהלוח: סגור את הפנלים הצדדיים והתחתון כך שהטאב יתפוס את כל האזור"/>
                                 <Separator/>
-                                <MenuItem Header="עריכת מתגים אישיים..." Click="TogglesMenuItem_Click"
-                                          ToolTip="כפתורי toggle ב-toolbar שמצבם נכתב לקובץ דגל — לשליטה ב-hooks אישיים"/>
+                                <MenuItem Header="מתגים (Flags)..." Click="TogglesMenuItem_Click"
+                                          ToolTip="כפתורי toggle ב-toolbar שמצבם נכתב לקובץ flag — לשליטה בתהליכים חיצוניים"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
@@ -171,6 +183,7 @@
             </ScrollViewer>
             <TextBlock x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
                        Foreground="#FF666666" FontSize="15" TextAlignment="Center"
+                       FlowDirection="RightToLeft"
                        Text="הלוח ריק&#10;לחץ על ״+ הוסף Workspace״ ובחר תיקיית פרויקט,&#10;או הפעל session של Claude Code עם ה-hooks (ראה תיקיית hooks)"/>
         </Grid>
     </DockPanel>

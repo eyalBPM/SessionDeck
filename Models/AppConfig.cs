@@ -113,14 +113,17 @@ public class StatusStyle
 }
 
 /// <summary>A user-defined toolbar toggle (feature 2026-07-19). SessionDeck knows nothing
-/// about what the toggle controls — external hook scripts read the current state from a
-/// flag file (%APPDATA%\SessionDeck\toggles\&lt;id&gt; containing "1"/"0"). Defined by
-/// hand-editing config.json; no toggles defined = no UI.</summary>
+/// about what a toggle controls — it only owns the flag: the current state is written to
+/// %APPDATA%\SessionDeck\toggles\&lt;id&gt; as "1"/"0" for any external process to read.
+/// No toggles defined = no UI.</summary>
 public class CustomToggleConfig
 {
-    public string Id { get; set; } = "";             // flag file name; keep it filename-safe
+    /// <summary>Immutable identity and the flag file's name. Set once when the toggle is
+    /// created and never editable afterwards — renaming a toggle must not move the flag
+    /// path out from under the external processes reading it (redesign 2026-07-20).</summary>
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";           // display name; free to change any time
     public string Icon { get; set; } = "🔘";         // toolbar button content (emoji)
-    public string? Tooltip { get; set; }
     public bool DefaultOn { get; set; } = true;      // initial state when no flag file exists yet
 }
 

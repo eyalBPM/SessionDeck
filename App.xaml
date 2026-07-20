@@ -2,8 +2,25 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:SessionDeck"
+             xmlns:services="clr-namespace:SessionDeck.Services"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <!-- Hebrew-first text renders RTL and right-aligned; anything else stays LTR.
+             App-level so every window and dialog shares the one converter instance. -->
+        <services:FlowDirectionConverter x:Key="Rtl"/>
+
+        <!-- Standing rule (feedback 2026-07-20): ANY text that may start with Hebrew must
+             be direction-aware. Tooltips are the easy thing to forget — they're written
+             inline all over the app — so the default style handles every one of them. -->
+        <Style TargetType="ToolTip">
+            <Setter Property="FlowDirection"
+                    Value="{Binding Content, RelativeSource={RelativeSource Self}, Converter={StaticResource Rtl}}"/>
+        </Style>
+
+        <!-- Menu items likewise: headers are Hebrew throughout. -->
+        <Style TargetType="MenuItem">
+            <Setter Property="FlowDirection"
+                    Value="{Binding Header, RelativeSource={RelativeSource Self}, Converter={StaticResource Rtl}}"/>
+        </Style>
     </Application.Resources>
 </Application>

@@ -233,9 +233,9 @@ public sealed class CommandExecutor
         if (sub == "list")
         {
             if (Vm.CustomToggles.Count == 0)
-                return Ok("(no custom toggles — define them in config.json under \"CustomToggles\")");
+                return Ok("(no toggles — add them via the settings menu: מתגים (Flags))");
             return Ok(string.Join(Environment.NewLine,
-                Vm.CustomToggles.Select(t => $"{t.Id}  {(t.Enabled ? "on " : "off")}  {t.Tooltip}")));
+                Vm.CustomToggles.Select(t => $"{t.Id}  {(t.Enabled ? "on " : "off")}  {t.Name}")));
         }
 
         if (a.Positionals.Count < 2) return Err($"toggle {sub} requires a toggle id");

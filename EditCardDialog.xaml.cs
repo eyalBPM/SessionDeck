@@ -57,7 +57,8 @@ public partial class EditCardDialog : Window
         if (manualColor && !ColorUtil.TryParse(ColorBox.Text, out _))
         {
             MessageBox.Show(this, $"צבע לא חוקי: \"{ColorBox.Text}\"", "עריכת כרטיס",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBoxButton.OK, MessageBoxImage.Warning,
+                MessageBoxResult.OK, MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
             return;
         }
 

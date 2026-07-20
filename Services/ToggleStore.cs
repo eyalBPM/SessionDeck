@@ -4,8 +4,8 @@ namespace SessionDeck.Services;
 
 /// <summary>
 /// Flag files for custom toggles (feature 2026-07-19): one file per toggle id under
-/// %APPDATA%\SessionDeck\toggles, containing "1" (on) or "0" (off). External hook
-/// scripts read these files directly — they work even when SessionDeck isn't running,
+/// %APPDATA%\SessionDeck\toggles, containing "1" (on) or "0" (off). Any external process
+/// can read these files directly — they work even when SessionDeck isn't running,
 /// and the last state persists across restarts. Best-effort: IO failures are swallowed.
 /// </summary>
 public static class ToggleStore

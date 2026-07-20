@@ -1,7 +1,7 @@
 <Window x:Class="SessionDeck.TogglesEditorDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="מתגים אישיים" Width="560" SizeToContent="Height"
+        Title="מתגים (Flags)" Width="600" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         FlowDirection="RightToLeft" Background="#FF222222">
     <Window.Resources>
@@ -18,67 +18,149 @@
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="#FFCCCCCC"/>
         </Style>
+        <!-- read-only value box on the details page: selectable + copyable, not editable -->
+        <Style x:Key="ValueBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#FF2A2A2A"/>
+            <Setter Property="Foreground" Value="#FFDDDDDD"/>
+            <Setter Property="BorderBrush" Value="#FF3F3F3F"/>
+            <Setter Property="Padding" Value="4,3"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="FlowDirection" Value="LeftToRight"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style x:Key="CopyButton" TargetType="Button">
+            <Setter Property="Content" Value="📋"/>
+            <Setter Property="ToolTip" Value="העתק"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#FF88AACC"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Width" Value="30"/>
+        </Style>
     </Window.Resources>
-    <StackPanel Margin="16">
-        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Foreground="#FF999999"
-                   Text="כל מתג מופיע ככפתור ב-toolbar. המצב (1/0) נכתב לקובץ בשם המזהה תחת %APPDATA%\SessionDeck\toggles — משם סקריפטים ו-hooks חיצוניים קוראים אותו."/>
 
-        <!-- header -->
-        <Grid Margin="0,0,0,4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="56"/>
-                <ColumnDefinition Width="120"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="86"/>
-                <ColumnDefinition Width="34"/>
-                <ColumnDefinition Width="34"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="אייקון" FontSize="11"/>
-            <TextBlock Grid.Column="1" Text="מזהה (id)" FontSize="11"/>
-            <TextBlock Grid.Column="2" Text="תיאור (tooltip)" FontSize="11"/>
-            <TextBlock Grid.Column="3" Text="ברירת מחדל" FontSize="11" ToolTip="המצב ההתחלתי כשעדיין אין קובץ דגל"/>
-        </Grid>
+    <Grid Margin="16">
+        <!-- ============ page 1: the list ============ -->
+        <StackPanel x:Name="ListPage">
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Foreground="#FF999999"
+                       Text="כאן ניתן להוסיף מתגים שמשמשים כ-flags לתהליכים חיצוניים. כל מתג מופיע ככפתור ב-toolbar, ומצבו (1/0) נכתב לקובץ שכל תהליך חיצוני יכול לקרוא."/>
 
-        <ItemsControl x:Name="TogglesList">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Grid Margin="0,0,0,6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="56"/>
-                            <ColumnDefinition Width="120"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="86"/>
-                            <ColumnDefinition Width="34"/>
-                            <ColumnDefinition Width="34"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox Text="{Binding Icon, UpdateSourceTrigger=PropertyChanged}"
-                                 HorizontalContentAlignment="Center" Margin="0,0,6,0"/>
-                        <!-- id doubles as the flag file name — English/LTR -->
-                        <TextBox Grid.Column="1" Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}"
-                                 FlowDirection="LeftToRight" Margin="0,0,6,0"/>
-                        <TextBox Grid.Column="2" Text="{Binding Tooltip, UpdateSourceTrigger=PropertyChanged}"/>
-                        <CheckBox Grid.Column="3" IsChecked="{Binding DefaultOn}"
-                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        <Button Grid.Column="4" Content="📋" Click="CopyPrompt_Click"
-                                ToolTip="העתק פרומפט ל-AI agent: הדבק אותו אצל הסוכן שלך והוא יחבר את ה-hook שלך למתג הזה"
-                                Background="Transparent" Foreground="#FF88AACC" BorderThickness="0"
-                                Cursor="Hand" FontSize="13"/>
-                        <Button Grid.Column="5" Content="🗑" ToolTip="מחק מתג" Click="DeleteRow_Click"
-                                Background="Transparent" Foreground="#FFCC6666" BorderThickness="0"
-                                Cursor="Hand" FontSize="13"/>
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="56"/>
+                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="86"/>
+                    <ColumnDefinition Width="34"/>
+                    <ColumnDefinition Width="34"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="אייקון" FontSize="11"/>
+                <TextBlock Grid.Column="1" Text="מזהה (id)" FontSize="11"
+                           ToolTip="שם קובץ ה-flag. נקבע ביצירה ולא ניתן לשינוי"/>
+                <TextBlock Grid.Column="2" Text="שם" FontSize="11"/>
+                <TextBlock Grid.Column="3" Text="ברירת מחדל" FontSize="11"
+                           ToolTip="המצב ההתחלתי כשעדיין אין קובץ flag"/>
+            </Grid>
 
-        <Button Content="+ הוסף מתג" Click="Add_Click" HorizontalAlignment="Right" Margin="0,4,0,0"
-                Background="#FF3A3A3A" Foreground="White" BorderThickness="0" Padding="10,4" Cursor="Hand"/>
+            <ItemsControl x:Name="TogglesList">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="56"/>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="86"/>
+                                <ColumnDefinition Width="34"/>
+                                <ColumnDefinition Width="34"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding Icon, UpdateSourceTrigger=PropertyChanged}"
+                                     HorizontalContentAlignment="Center" Margin="0,0,6,0"/>
+                            <!-- id doubles as the flag file name — English/LTR, locked once created -->
+                            <TextBox Grid.Column="1" Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}"
+                                     IsReadOnly="{Binding IdLocked}" FlowDirection="LeftToRight" Margin="0,0,6,0"
+                                     ToolTip="{Binding IdHint}">
+                                <TextBox.Style>
+                                    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IdLocked}" Value="True">
+                                                <Setter Property="Background" Value="#FF2A2A2A"/>
+                                                <Setter Property="Foreground" Value="#FF999999"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBox.Style>
+                            </TextBox>
+                            <TextBox Grid.Column="2" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"/>
+                            <CheckBox Grid.Column="3" IsChecked="{Binding DefaultOn}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Button Grid.Column="4" Content="ℹ" Click="Details_Click"
+                                    ToolTip="פרטי ה-flag: מזהה, נתיב מלא, מצב ופקודות"
+                                    Background="Transparent" Foreground="#FF88AACC" BorderThickness="0"
+                                    Cursor="Hand" FontSize="14"/>
+                            <Button Grid.Column="5" Content="🗑" ToolTip="מחק מתג" Click="DeleteRow_Click"
+                                    Background="Transparent" Foreground="#FFCC6666" BorderThickness="0"
+                                    Cursor="Hand" FontSize="13"/>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,16,0,0">
-            <Button Content="אישור" Width="90" IsDefault="True" Click="Ok_Click" Margin="0,0,8,0"
-                    Background="#FF3A6EA5" Foreground="White" BorderThickness="0" Padding="0,5"/>
-            <Button Content="ביטול" Width="90" IsCancel="True"
-                    Background="#FF3A3A3A" Foreground="White" BorderThickness="0" Padding="0,5"/>
+            <Button Content="+ הוסף מתג" Click="Add_Click" HorizontalAlignment="Right" Margin="0,4,0,0"
+                    Background="#FF3A3A3A" Foreground="White" BorderThickness="0" Padding="10,4" Cursor="Hand"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,16,0,0">
+                <Button Content="אישור" Width="90" IsDefault="True" Click="Ok_Click" Margin="0,0,8,0"
+                        Background="#FF3A6EA5" Foreground="White" BorderThickness="0" Padding="0,5"/>
+                <Button Content="ביטול" Width="90" IsCancel="True"
+                        Background="#FF3A3A3A" Foreground="White" BorderThickness="0" Padding="0,5"/>
+            </StackPanel>
         </StackPanel>
-    </StackPanel>
+
+        <!-- ============ page 2: flag details (same window) ============ -->
+        <StackPanel x:Name="DetailsPage" Visibility="Collapsed">
+            <TextBlock x:Name="DetailsHeader" FontSize="14" Foreground="White" Margin="0,0,0,12"/>
+
+            <TextBlock Text="מזהה (id)" FontSize="11" Foreground="#FF999999"/>
+            <DockPanel Margin="0,2,0,10">
+                <Button DockPanel.Dock="Left" Style="{StaticResource CopyButton}" Click="CopyId_Click"/>
+                <TextBox x:Name="DetailsId" Style="{StaticResource ValueBox}"/>
+            </DockPanel>
+
+            <TextBlock Text="נתיב קובץ ה-flag" FontSize="11" Foreground="#FF999999"/>
+            <DockPanel Margin="0,2,0,10">
+                <Button DockPanel.Dock="Left" Style="{StaticResource CopyButton}" Click="CopyPath_Click"/>
+                <TextBox x:Name="DetailsPath" Style="{StaticResource ValueBox}"/>
+            </DockPanel>
+
+            <TextBlock Text="מצב נוכחי" FontSize="11" Foreground="#FF999999"/>
+            <TextBox x:Name="DetailsState" Style="{StaticResource ValueBox}" Margin="0,2,30,10"/>
+
+            <TextBlock Text="פקודות CLI" FontSize="11" Foreground="#FF999999"/>
+            <DockPanel Margin="0,2,0,10">
+                <Button DockPanel.Dock="Left" Style="{StaticResource CopyButton}" Click="CopyCli_Click"/>
+                <TextBox x:Name="DetailsCli" Style="{StaticResource ValueBox}"/>
+            </DockPanel>
+
+            <TextBlock Text="בדיקת ה-flag בתהליך חיצוני (PowerShell)" FontSize="11" Foreground="#FF999999"/>
+            <DockPanel Margin="0,2,0,10">
+                <Button DockPanel.Dock="Left" Style="{StaticResource CopyButton}" Click="CopySnippet_Click"/>
+                <TextBox x:Name="DetailsSnippet" Style="{StaticResource ValueBox}"/>
+            </DockPanel>
+
+            <TextBlock Text="פרומפט לסוכן AI — תיאור ה-flag להדבקה אצל סוכן שיחבר אליו תהליך" FontSize="11"
+                       Foreground="#FF999999" TextWrapping="Wrap"/>
+            <DockPanel Margin="0,2,0,10">
+                <Button DockPanel.Dock="Left" Style="{StaticResource CopyButton}" Click="CopyPrompt_Click"/>
+                <TextBox x:Name="DetailsPrompt" Style="{StaticResource ValueBox}" MaxHeight="110"
+                         VerticalScrollBarVisibility="Auto"/>
+            </DockPanel>
+
+            <Button Content="◀ חזרה לרשימה" Click="Back_Click" HorizontalAlignment="Left" Margin="0,8,0,0"
+                    Background="#FF3A3A3A" Foreground="White" BorderThickness="0" Padding="12,5" Cursor="Hand"/>
+        </StackPanel>
+    </Grid>
 </Window>

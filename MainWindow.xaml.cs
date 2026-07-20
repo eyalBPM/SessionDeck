@@ -1492,7 +1492,7 @@ public partial class MainWindow : Window
 
     /// <summary>Custom toggles (feature 2026-07-19): rebuild the toolbar buttons from the
     /// definitions; current state comes from the flag files (they survive restarts and
-    /// are what the hook scripts read).</summary>
+    /// are what external processes read).</summary>
     private void LoadCustomToggles()
     {
         Vm.CustomToggles.Clear();
@@ -1502,7 +1502,7 @@ public partial class MainWindow : Window
             {
                 Id = t.Id,
                 Icon = t.Icon,
-                Tooltip = t.Tooltip ?? t.Id,
+                Name = t.Name,
                 Enabled = ToggleStore.Read(t.Id, t.DefaultOn),
             };
             ToggleStore.Write(toggle.Id, toggle.Enabled);   // ensure the flag file exists
@@ -1518,7 +1518,7 @@ public partial class MainWindow : Window
         _customToggleConfigs = dialog.Result;
         LoadCustomToggles();
         QueueSave();
-        SetStatus($"מתגים אישיים עודכנו ({_customToggleConfigs.Count})");
+        SetStatus($"מתגים עודכנו ({_customToggleConfigs.Count})");
     }
 
     private void MaximizeSessionMenuItem_Click(object sender, RoutedEventArgs e)
