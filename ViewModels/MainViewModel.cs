@@ -28,6 +28,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Interop.RECT? StageRect { get; set; }       // used when StageMode == Rect
     public int ClosedSessionRetention { get; set; } = 20;
     public bool OpenSessionMaximized { get; set; } = true;   // stage D: collapse panels when opening a session
+
+    /// <summary>Per-tool seconds before an unfinished call counts as an open permission
+    /// dialog. Empty = heuristic off. See AppConfig.PermissionWaitToolSeconds.</summary>
+    public Dictionary<string, int> PermissionWaitToolSeconds { get; set; } = new(StringComparer.Ordinal);
     public bool AlwaysOnTop { get; set; }                    // 📌 pin: deck window stays topmost
 
     public WorkspaceViewModel? FindById(int id)
