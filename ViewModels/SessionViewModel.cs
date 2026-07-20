@@ -70,6 +70,11 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     /// <summary>Transcript mtime already scanned for titles (not persisted).</summary>
     public DateTime TranscriptScannedAt { get; set; }
 
+    /// <summary>Strings VSCode could be showing as this session's tab label — titles plus
+    /// recent prompts. Correlation matches the label against all of them, because which one
+    /// Claude Code picked isn't knowable from here (issue 2026-07-20). Runtime only.</summary>
+    public IReadOnlyList<string> LabelCandidates { get; set; } = Array.Empty<string>();
+
     /// <summary>The "waiting" status was inferred from an unanswered question in the
     /// transcript rather than from a hook — so it may only be cleared the same way, when
     /// the answer shows up. Runtime only (issue 2026-07-20).</summary>
@@ -94,16 +99,39 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
         set { if (_phantom != value) { _phantom = value; Raise(); } }
     }
 
+    private string? _matchedTabLabel;
+    /// <summary>The candidate string that actually matched this session's VSCode tab label
+    /// — i.e. what the tab is really showing, in full rather than truncated. Correlation
+    /// already has to determine this, so using it as the title keeps the card and the tab
+    /// in sync by construction instead of by re-deriving Claude Code's labelling rule
+    /// (request 2026-07-20). Kept after the tab closes so the title doesn't jump; runtime
+    /// only, re-derived on the next sync. Never fed back into matching — that would be
+    /// circular.</summary>
+    public string? MatchedTabLabel
+    {
+        get => _matchedTabLabel;
+        set
+        {
+            if (_matchedTabLabel == value) return;
+            _matchedTabLabel = value;
+            Raise();
+            Raise(nameof(DisplayTitle));
+            Raise(nameof(SubTitle));
+        }
+    }
+
     public string DisplayTitle =>
         !string.IsNullOrEmpty(_customTitle) ? _customTitle
+        : !string.IsNullOrEmpty(_matchedTabLabel) ? _matchedTabLabel
         : !string.IsNullOrEmpty(_tabTitle) ? _tabTitle
         : !string.IsNullOrEmpty(_autoTitle) ? _autoTitle
         : SessionId.Length > 8 ? "session " + SessionId[..8] : "session " + SessionId;
 
-    /// <summary>Secondary title: the session title, shown when the tab title is primary.</summary>
+    /// <summary>Secondary title: what the session is about, shown whenever the primary
+    /// title is something else (a tab label or an ai-title) so the card doesn't lose it.</summary>
     public string SubTitle =>
-        !string.IsNullOrEmpty(_tabTitle) && !string.IsNullOrEmpty(_autoTitle) && _autoTitle != _tabTitle
-        && string.IsNullOrEmpty(_customTitle)
+        string.IsNullOrEmpty(_customTitle) && !string.IsNullOrEmpty(_autoTitle) &&
+        _autoTitle != DisplayTitle
             ? _autoTitle : "";
 
     private string _description = "";
