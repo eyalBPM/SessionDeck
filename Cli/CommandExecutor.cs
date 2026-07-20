@@ -47,8 +47,9 @@ public sealed class CommandExecutor
                 "toggle" => Toggle(args),
                 "status" => Status(),
                 "activate" => Activate(),
+                "quit" => Quit(),
                 "snapshot" => Snapshot(args),   // internal: render the WPF tree to PNG (debug aid)
-                _ => Err($"unknown command '{args.Command}'. Available: list, add, remove, set, focus, pin, zone, stage, session, toggle, status"),
+                _ => Err($"unknown command '{args.Command}'. Available: list, add, remove, set, focus, pin, zone, stage, session, toggle, status, quit"),
             };
         }
         catch (Exception ex)
@@ -345,6 +346,17 @@ public sealed class CommandExecutor
     {
         _window.ActivateFromCli();
         return Ok("");
+    }
+
+    /// <summary>Clean shutdown for the installer (PACKAGING.md §3ב.1): Close() runs
+    /// OnClosing, which saves config and releases the AppBar — a forced kill skips that
+    /// and leaves the Windows work area permanently shrunken. The close is deferred so
+    /// the pipe response reaches the client before the pipe server is disposed.</summary>
+    private PipeResponse Quit()
+    {
+        _ = Task.Delay(150).ContinueWith(_ =>
+            _window.Dispatcher.BeginInvoke(() => _window.Close()));
+        return Ok("quitting");
     }
 
     /// <summary>Internal debug command: renders the window's WPF visual tree to a PNG.

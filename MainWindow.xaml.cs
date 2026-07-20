@@ -1550,6 +1550,7 @@ public partial class MainWindow : Window
         StageModeCombo.Items.Clear();
         foreach (var name in new[] { "מסך מלא", "חצי שמאל", "חצי ימין", "מלבן (CLI)" }) StageModeCombo.Items.Add(name);
         StartupMenuItem.IsChecked = StartupService.IsEnabled();
+        VersionMenuItem.Header = $"SessionDeck v{GetType().Assembly.GetName().Version?.ToString(3)}";
         MaximizeSessionMenuItem.IsChecked = Vm.OpenSessionMaximized;
         NotificationsMenuItem.IsChecked = Vm.WindowsNotifications;
         ShowHiddenToggle.IsChecked = Vm.ShowHidden;

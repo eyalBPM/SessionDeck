@@ -110,6 +110,8 @@
                                 <Separator/>
                                 <MenuItem Header="מתגים (Flags)..." Click="TogglesMenuItem_Click"
                                           ToolTip="כפתורי toggle ב-toolbar שמצבם נכתב לקובץ flag — לשליטה בתהליכים חיצוניים"/>
+                                <Separator/>
+                                <MenuItem x:Name="VersionMenuItem" IsEnabled="False"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
