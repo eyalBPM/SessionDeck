@@ -160,6 +160,10 @@ public class AppConfig
     public bool OpenSessionMaximized { get; set; } = true;    // stage D: collapse VSCode panels on session open
     public bool ShowHidden { get; set; }
     public bool AlwaysOnTop { get; set; }                     // 📌 pin toggle (feature 2026-07-19)
+    /// <summary>Master switch for the OS-level attention escalation (feature 2026-07-20):
+    /// balloon + taskbar overlay badge + one-shot flash. Only ever fires when the deck is
+    /// neither pinned nor zoned — see MainWindow.UpdateAttentionEscalation.</summary>
+    public bool WindowsNotifications { get; set; } = true;
     public List<CustomToggleConfig> CustomToggles { get; set; } = new();
     /// <summary>
     /// How long each tool may sit without a result before the deck reads it as an open

@@ -23,7 +23,13 @@ public partial class MainWindow : Window
     private readonly ConfigStore _configStore;
     private readonly WindowTracker _tracker = new();
     private readonly AppBarService _appBar = new();
+    private readonly AttentionNotifier _notifier = new();
     private readonly BlinkEngine _blink;
+
+    // Sessions that have already produced a balloon, so a steady "waiting" does not
+    // re-notify on every unrelated refresh. Entries drop out when the session stops
+    // needing attention, which re-arms it for next time.
+    private readonly HashSet<string> _notifiedSessions = new(StringComparer.Ordinal);
     private readonly DispatcherTimer _metadataTimer = new() { Interval = TimeSpan.FromSeconds(10) };
     private PipeServer? _pipe;
     private CommandExecutor? _executor;
@@ -77,8 +83,15 @@ public partial class MainWindow : Window
         SizeChanged += (_, _) => { if (Vm.ZoneMode == ZoneMode.Off) QueueSave(); };
         _metadataTimer.Tick += (_, _) => RefreshAllMetadata();
         _metadataTimer.Start();
+        // Focus decides whether attention has to leave the window, so both edges re-evaluate.
+        Activated += (_, _) => UpdateAttentionEscalation();
+        Deactivated += (_, _) => UpdateAttentionEscalation();
 
         _initializing = false;
+
+        // Sessions restored from config are already blinking; that is history, not news.
+        foreach (var s in Vm.AllSessions())
+            if (s.BlinkActive) _notifiedSessions.Add(s.SessionId);
     }
 
     // ---- startup / shutdown ----
@@ -102,6 +115,7 @@ public partial class MainWindow : Window
         Vm.PermissionWaitToolSeconds = new Dictionary<string, int>(config.PermissionWaitToolSeconds, StringComparer.Ordinal);
         Vm.ShowHidden = config.ShowHidden;
         Vm.AlwaysOnTop = config.AlwaysOnTop;
+        Vm.WindowsNotifications = config.WindowsNotifications;
         Topmost = config.AlwaysOnTop;
 
         _customToggleConfigs = config.CustomToggles;
@@ -171,6 +185,12 @@ public partial class MainWindow : Window
         if (PresentationSource.FromVisual(this) is not HwndSource source) return;
 
         _appBar.Attach(source);
+        _notifier.Attach(source);
+        _notifier.Activated += () =>
+        {
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            Activate();
+        };
         _tracker.TitleChanged += OnWindowTitleChanged;
         _tracker.WindowDestroyed += OnWindowDestroyed;
         _tracker.WindowAppeared += TryRebindWindow;
@@ -196,6 +216,7 @@ public partial class MainWindow : Window
         _pipe?.Dispose();
         _tracker.Dispose();
         _appBar.Remove();
+        _notifier.Dispose();
     }
 
     // ---- persistence (SPEC §F7) ----
@@ -214,6 +235,7 @@ public partial class MainWindow : Window
             PermissionWaitToolSeconds = new Dictionary<string, int>(Vm.PermissionWaitToolSeconds),
             ShowHidden = Vm.ShowHidden,
             AlwaysOnTop = Vm.AlwaysOnTop,
+            WindowsNotifications = Vm.WindowsNotifications,
             CustomToggles = _customToggleConfigs,
             Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode) },
             Stage = new StageConfig
@@ -1408,7 +1430,79 @@ public partial class MainWindow : Window
     {
         Vm.RebuildStatusSummary();
         _blink.Refresh();
+        UpdateAttentionEscalation();
     }
+
+    /// <summary>
+    /// A blinking border is only a signal while the deck is on screen. With the 📌 pin off
+    /// and no reserved zone the deck is an ordinary window that anything can cover, so
+    /// attention has to leave it: a taskbar overlay badge for as long as something is
+    /// pending, plus one balloon and a single taskbar flash per session that newly needs
+    /// attention (feature 2026-07-20).
+    ///
+    /// Nothing escalates while the deck has focus — the user is looking straight at the
+    /// blink, and a toast over the window you are already reading is the kind of false
+    /// alarm that makes people mute the app. The ⚙ menu's "התראות Windows" switch turns
+    /// the whole mechanism off regardless.
+    /// </summary>
+    private void UpdateAttentionEscalation()
+    {
+        if (_initializing) return;
+
+        var attention = Vm.Workspaces.Where(w => w.VisibleInDeck)
+            .SelectMany(w => w.Sessions.Select(s => (Ws: w, S: s)))
+            .Where(p => !p.S.Closed && !p.S.Phantom && p.S.BlinkActive)
+            .OrderBy(p => MainViewModel.Severity(p.S.Status))
+            .ToList();
+
+        // Anything that stopped needing attention is re-armed for its next event.
+        _notifiedSessions.IntersectWith(attention.Select(p => p.S.SessionId));
+
+        bool buried = Vm.WindowsNotifications && !Vm.AlwaysOnTop && Vm.ZoneMode == ZoneMode.Off;
+        if (!buried || IsActive || attention.Count == 0)
+        {
+            // Seed instead of notify: a session that was already blinking when the deck was
+            // pinned/zoned/focused or notifications were off is not news the moment that
+            // condition goes away.
+            foreach (var p in attention) _notifiedSessions.Add(p.S.SessionId);
+            _notifier.Clear();
+            return;
+        }
+
+        // Deliberately not withdrawn when only *some* of what it named is dealt with: the
+        // balloon means "the deck needs you", which is still true while anything blinks, and
+        // pulling it would leave the remaining session with a weaker signal than it had
+        // (decision 2026-07-20). Its headline can name an already-answered session — a
+        // cosmetic flaw on a transient toast, where the fix (pushing a fresh one) is noise.
+        _notifier.SetBadge(BadgeColor(attention[0].S.Status), AttentionText(attention));
+
+        var fresh = attention.Where(p => _notifiedSessions.Add(p.S.SessionId)).ToList();
+        if (fresh.Count == 0) return;
+        _notifier.Balloon("SessionDeck", AttentionText(fresh));
+        _notifier.Flash();
+    }
+
+    private static string AttentionText(IReadOnlyList<(WorkspaceViewModel Ws, SessionViewModel S)> items)
+    {
+        var (ws, s) = items[0];
+        // RLM keeps the mixed Hebrew/Latin line laid out right-to-left in the shell's balloon.
+        string first = $"‏{ws.DisplayTitle} — {s.DisplayTitle}: {AttentionWord(s.Status)}";
+        return items.Count == 1 ? first : $"{first}{Environment.NewLine}‏ועוד {items.Count - 1}";
+    }
+
+    /// <summary>Badge colour comes from the same StatusStyles map as the card border, so a
+    /// config override moves both together.</summary>
+    private static System.Windows.Media.Color BadgeColor(SessionStatus status)
+        => ColorUtil.TryParse(SessionViewModel.ResolveStyle(status).Color, out var c)
+            ? c : System.Windows.Media.Colors.Gray;
+
+    private static string AttentionWord(SessionStatus status) => status switch
+    {
+        SessionStatus.Waiting => "ממתין לך",
+        SessionStatus.Done => "סיים",
+        SessionStatus.Error => "שגיאה",
+        _ => SessionStatusNames.ToName(status),
+    };
 
     /// <summary>Stage definition from the CLI (SPEC §F3): monitor + full/half, or a custom rect.</summary>
     public void SetStage(int monitor, StageMode mode, RECT? rect)
@@ -1430,6 +1524,7 @@ public partial class MainWindow : Window
         Vm.ZoneMode = mode;
         _appBar.Apply(mode, _monitors[monitor]);
         SyncCombosFromVm();
+        UpdateAttentionEscalation();   // zone state is the other half of the escalation gate
         if (save) QueueSave();
     }
 
@@ -1449,6 +1544,7 @@ public partial class MainWindow : Window
         foreach (var name in new[] { "מסך מלא", "חצי שמאל", "חצי ימין", "מלבן (CLI)" }) StageModeCombo.Items.Add(name);
         StartupMenuItem.IsChecked = StartupService.IsEnabled();
         MaximizeSessionMenuItem.IsChecked = Vm.OpenSessionMaximized;
+        NotificationsMenuItem.IsChecked = Vm.WindowsNotifications;
         ShowHiddenToggle.IsChecked = Vm.ShowHidden;
         PinTopToggle.IsChecked = Vm.AlwaysOnTop;
         _syncingUi = false;
@@ -1513,6 +1609,7 @@ public partial class MainWindow : Window
         if (_syncingUi || _initializing) return;
         Vm.AlwaysOnTop = PinTopToggle.IsChecked == true;
         Topmost = Vm.AlwaysOnTop;
+        UpdateAttentionEscalation();   // pin state is half the escalation gate
         QueueSave();
     }
 
@@ -1558,6 +1655,13 @@ public partial class MainWindow : Window
     private void MaximizeSessionMenuItem_Click(object sender, RoutedEventArgs e)
     {
         Vm.OpenSessionMaximized = MaximizeSessionMenuItem.IsChecked;
+        QueueSave();
+    }
+
+    private void NotificationsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        Vm.WindowsNotifications = NotificationsMenuItem.IsChecked;
+        UpdateAttentionEscalation();   // turning it off must drop the badge/tray icon now
         QueueSave();
     }
 
