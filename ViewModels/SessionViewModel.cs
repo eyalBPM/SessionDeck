@@ -70,6 +70,17 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     /// <summary>Transcript mtime already scanned for titles (not persisted).</summary>
     public DateTime TranscriptScannedAt { get; set; }
 
+    /// <summary>The "waiting" status was inferred from an unanswered question in the
+    /// transcript rather than from a hook — so it may only be cleared the same way, when
+    /// the answer shows up. Runtime only (issue 2026-07-20).</summary>
+    public bool WaitingFromTranscript { get; set; }
+
+    /// <summary>Last unanswered tool call seen in the transcript, kept between scans so a
+    /// permission dialog can be aged past the threshold. The transcript stops changing
+    /// while a dialog is open, so re-reading the file would never notice — the clock has
+    /// to run against the stored call instead. Runtime only.</summary>
+    public PendingCall? PendingCall { get; set; }
+
     /// <summary>Discovered from the transcripts folder (expanded view) — not persisted.</summary>
     public bool Historical { get; init; }
 

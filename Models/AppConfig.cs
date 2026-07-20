@@ -158,6 +158,32 @@ public class AppConfig
     public bool ShowHidden { get; set; }
     public bool AlwaysOnTop { get; set; }                     // 📌 pin toggle (feature 2026-07-19)
     public List<CustomToggleConfig> CustomToggles { get; set; } = new();
+    /// <summary>
+    /// How long each tool may sit without a result before the deck reads it as an open
+    /// permission dialog (issue 2026-07-20). The VSCode extension fires no Notification
+    /// hook, so this is the only way to catch a permission prompt there — but a pending
+    /// dialog and a running tool look identical in the transcript, so the threshold is the
+    /// only thing separating them and it has to be set per tool.
+    ///
+    /// Only tools listed here are ever considered; an empty map turns the heuristic off
+    /// entirely. Questions (AskUserQuestion/ExitPlanMode) are unaffected either way —
+    /// those are detected with certainty and never wait for a threshold.
+    ///
+    /// Defaults come from measuring 11k real tool calls in this user's transcripts — the
+    /// share that legitimately runs longer than the threshold, i.e. the false-alarm rate:
+    ///   Read/Edit/Write @15s  → 0.04% / 0.08% / 0.12%   (effectively never)
+    ///   Bash/PowerShell @120s → 1.03% / 0.53%           (~1 in 100-200 calls)
+    /// Agent is deliberately absent: 37% of subagent runs exceed 120s and 65% exceed 30s,
+    /// so no threshold short enough to be useful is quiet enough to be trustworthy.
+    /// A false alarm is self-correcting — the card reverts to blue when the tool finishes.
+    /// </summary>
+    public Dictionary<string, int> PermissionWaitToolSeconds { get; set; } = new()
+    {
+        ["Read"] = 15, ["Edit"] = 15, ["Write"] = 15, ["NotebookEdit"] = 15,
+        ["Grep"] = 15, ["Glob"] = 15, ["TodoWrite"] = 15,
+        ["Bash"] = 120, ["PowerShell"] = 120,
+    };
+
     public ZoneConfig Zone { get; set; } = new();
     public StageConfig Stage { get; set; } = new();
     public WindowBounds? Window { get; set; }

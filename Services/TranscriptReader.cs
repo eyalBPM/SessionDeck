@@ -10,7 +10,22 @@ namespace SessionDeck.Services;
 /// Primary display title and the session↔tab correlation key.</param>
 /// <param name="AutoTitle">Heuristic session title: last summary entry, else the first
 /// real user prompt. Secondary display title.</param>
-public sealed record TranscriptInfo(string? TabTitle, string? AutoTitle);
+/// <param name="Pending">Set when the transcript's last assistant turn issued a tool call
+/// that has no tool_result yet. Hook-independent: the VSCode extension doesn't fire
+/// Notification/PostToolUse at all, so this is the only trustworthy "waiting" signal
+/// there (issue 2026-07-20).</param>
+public sealed record TranscriptInfo(string? TabTitle, string? AutoTitle, PendingCall? Pending = null);
+
+/// <summary>A tool call with no tool_result yet — either Claude is blocked on the user,
+/// or the tool is simply still running. <see cref="IsAsk"/> separates the two.</summary>
+/// <param name="ToolName">The tool Claude called.</param>
+/// <param name="Detail">Card text describing what Claude is waiting for.</param>
+/// <param name="StartedAtUtc">When the call was issued, per the transcript timestamp.
+/// Used to age a permission dialog past the confidence threshold.</param>
+/// <param name="IsAsk">True for AskUserQuestion/ExitPlanMode — an unanswered call is
+/// definitive proof Claude is blocked, no waiting period needed. False for every other
+/// tool, where "no result yet" is indistinguishable from "still executing".</param>
+public sealed record PendingCall(string ToolName, string Detail, DateTime StartedAtUtc, bool IsAsk);
 
 /// <summary>
 /// Single-pass transcript scanner. Best-effort: any parse failure yields nulls and the
@@ -20,16 +35,27 @@ public static class TranscriptReader
 {
     private const int MaxTitleLength = 80;
 
+    /// <summary>How many trailing lines are kept for the pending-question scan. An
+    /// unanswered tool call is always in the last assistant turn, so a bounded tail is
+    /// both sufficient and cheap on multi-MB transcripts.</summary>
+    private const int TailLines = 300;
+
+    /// <summary>Tools whose unanswered call means "Claude is blocked on the user".</summary>
+    private static readonly string[] AskTools = { "AskUserQuestion", "ExitPlanMode" };
+
     public static TranscriptInfo ReadInfo(string path)
     {
         try
         {
             string? customTitle = null, aiTitle = null, summary = null, firstUserText = null;
+            var tail = new Queue<string>(TailLines);
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var reader = new StreamReader(stream);
             while (reader.ReadLine() is { } line)
             {
                 if (line.Length == 0) continue;
+                if (tail.Count == TailLines) tail.Dequeue();
+                tail.Enqueue(line);
                 if (line.Contains("\"custom-title\""))
                 {
                     // /rename. An empty value (rename cleared) falls back to the ai-title.
@@ -43,12 +69,95 @@ public static class TranscriptReader
                 else if (firstUserText == null && line.Contains("\"user\""))
                     firstUserText = TryReadUserText(line);
             }
-            return new TranscriptInfo(Shorten(customTitle ?? aiTitle), Shorten(summary ?? firstUserText));
+            return new TranscriptInfo(
+                Shorten(customTitle ?? aiTitle),
+                Shorten(summary ?? firstUserText),
+                FindPendingCall(tail));
         }
         catch
         {
             return new TranscriptInfo(null, null);
         }
+    }
+
+    /// <summary>A tool_use with no matching tool_result. For AskUserQuestion/ExitPlanMode
+    /// that alone proves Claude is blocked; for any other tool the caller must age it past
+    /// a threshold first, since a running tool looks identical. Sidechain (subagent) lines
+    /// are ignored — only the main conversation can block the user.</summary>
+    private static PendingCall? FindPendingCall(IEnumerable<string> tail)
+    {
+        var pending = new Dictionary<string, PendingCall>();
+        var order = new List<string>();
+        foreach (var line in tail)
+        {
+            bool hasUse = line.Contains("\"tool_use\"");
+            bool hasResult = line.Contains("\"tool_result\"");
+            if (!hasUse && !hasResult) continue;
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("isSidechain", out var side) && side.ValueKind == JsonValueKind.True)
+                    continue;
+                if (!root.TryGetProperty("message", out var message) ||
+                    !message.TryGetProperty("content", out var content) ||
+                    content.ValueKind != JsonValueKind.Array)
+                    continue;
+                DateTime stamp = root.TryGetProperty("timestamp", out var ts) &&
+                                 DateTime.TryParse(ts.GetString(), null,
+                                     System.Globalization.DateTimeStyles.AdjustToUniversal |
+                                     System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed)
+                    ? parsed : DateTime.UtcNow;
+                foreach (var block in content.EnumerateArray())
+                {
+                    if (!block.TryGetProperty("type", out var bt)) continue;
+                    string? kind = bt.GetString();
+                    if (kind == "tool_use")
+                    {
+                        string? name = block.TryGetProperty("name", out var n) ? n.GetString() : null;
+                        string? id = block.TryGetProperty("id", out var i) ? i.GetString() : null;
+                        if (name == null || id == null) continue;
+                        bool isAsk = AskTools.Contains(name);
+                        string detail = isAsk ? AskDetail(name, block) : $"ממתין לאישור הרשאה: {name}";
+                        pending[id] = new PendingCall(name, detail, stamp, isAsk);
+                        order.Add(id);
+                    }
+                    else if (kind == "tool_result" &&
+                             block.TryGetProperty("tool_use_id", out var rid) &&
+                             rid.GetString() is { } resolved)
+                    {
+                        pending.Remove(resolved);
+                    }
+                }
+            }
+            catch { }
+        }
+        // Prefer a definitive question over a merely-unfinished tool, then most recent.
+        for (int i = order.Count - 1; i >= 0; i--)
+            if (pending.TryGetValue(order[i], out var call) && call.IsAsk)
+                return call;
+        for (int i = order.Count - 1; i >= 0; i--)
+            if (pending.TryGetValue(order[i], out var call))
+                return call;
+        return null;
+    }
+
+    /// <summary>Card text for a pending question: the question itself when available.</summary>
+    private static string AskDetail(string toolName, JsonElement block)
+    {
+        if (toolName == "ExitPlanMode") return "ממתין לאישור התוכנית";
+        try
+        {
+            if (block.TryGetProperty("input", out var input) &&
+                input.TryGetProperty("questions", out var questions) &&
+                questions.ValueKind == JsonValueKind.Array &&
+                questions.EnumerateArray().FirstOrDefault() is { ValueKind: JsonValueKind.Object } first &&
+                first.TryGetProperty("question", out var q) &&
+                Shorten(q.GetString()) is { } text)
+                return text;
+        }
+        catch { }
+        return "ממתין לתשובה על שאלה";
     }
 
     /// <summary>Case-insensitive text search over the raw transcript lines (search

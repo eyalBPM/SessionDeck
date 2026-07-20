@@ -99,6 +99,7 @@ public partial class MainWindow : Window
         Vm.NextWorkspaceId = Math.Max(1, config.NextWorkspaceId);
         Vm.ClosedSessionRetention = Math.Max(0, config.ClosedSessionRetention);
         Vm.OpenSessionMaximized = config.OpenSessionMaximized;
+        Vm.PermissionWaitToolSeconds = new Dictionary<string, int>(config.PermissionWaitToolSeconds, StringComparer.Ordinal);
         Vm.ShowHidden = config.ShowHidden;
         Vm.AlwaysOnTop = config.AlwaysOnTop;
         Topmost = config.AlwaysOnTop;
@@ -210,6 +211,7 @@ public partial class MainWindow : Window
             StatusStyles = _statusStyles,
             ClosedSessionRetention = Vm.ClosedSessionRetention,
             OpenSessionMaximized = Vm.OpenSessionMaximized,
+            PermissionWaitToolSeconds = new Dictionary<string, int>(Vm.PermissionWaitToolSeconds),
             ShowHidden = Vm.ShowHidden,
             AlwaysOnTop = Vm.AlwaysOnTop,
             CustomToggles = _customToggleConfigs,
@@ -333,6 +335,13 @@ public partial class MainWindow : Window
             RefreshMetadata(ws);
         RefreshTranscriptTitles();
         RefreshPhantomSessions();
+        // A permission dialog freezes the transcript, so the scan above may find nothing
+        // new — the threshold still has to be re-checked against the stored pending call.
+        if (EvaluateAllPendingWaits())
+        {
+            RefreshBlinkAndSummary();
+            QueueSave();
+        }
     }
 
     // ---- phantom sessions (issue 2026-07-19) ----
@@ -432,17 +441,84 @@ public partial class MainWindow : Window
                         session.AutoTitle = tInfo.AutoTitle;
                         changed = true;
                     }
+                    session.PendingCall = tInfo.Pending;
                 }
+                // Evaluate right after a scan too, so a question goes orange at once
+                // instead of waiting for the next tick.
+                if (EvaluateAllPendingWaits()) changed = true;
                 // A fresh TabTitle can complete a match that failed while the title was
                 // stale — re-correlate so auto-acknowledge isn't lost to title drift
                 // (recurring blink issue, root-caused 2026-07-20).
                 bool ackChanged = false;
                 foreach (var ws in retitled)
                     ackChanged |= ReapplyTabCorrelation(ws);
-                if (ackChanged) RefreshBlinkAndSummary();
+                if (ackChanged || changed) RefreshBlinkAndSummary();
                 if (changed) QueueSave();
             });
         });
+    }
+
+    /// <summary>
+    /// Drive the "waiting" status straight from the transcript. Neither Notification nor
+    /// PostToolUse fires in the VSCode extension's native UI (both do in the terminal), so
+    /// a question form or a permission dialog left the card stuck on blue "working" while
+    /// Claude was actually blocked on the user (issue 2026-07-20).
+    ///
+    /// Two confidence levels, because the transcript can't tell a pending permission
+    /// dialog from a tool that is simply still running — both are just a tool_use with no
+    /// tool_result yet:
+    ///   • AskUserQuestion / ExitPlanMode — definitive, applied immediately.
+    ///   • Any tool in PermissionWaitToolSeconds — only once pending for that tool's own
+    ///     threshold (see the AppConfig note for the measured false-alarm rates).
+    /// Runs on every metadata tick, not only after a re-scan: a transcript stops changing
+    /// while a dialog is open, so the clock must run against the stored call.
+    ///
+    /// Only transcript-inferred waiting is cleared here — a real Notification hook's
+    /// waiting state is left for its own hook to resolve.
+    /// </summary>
+    private bool EvaluatePendingWait(WorkspaceViewModel ws, SessionViewModel session)
+    {
+        if (session.Closed) return false;
+        var call = session.PendingCall;
+        bool blocked = call != null && (call.IsAsk || IsAgedPermissionDialog(call));
+
+        if (blocked)
+        {
+            if (session.Status == SessionStatus.Waiting && session.WaitingFromTranscript) return false;
+            session.WaitingFromTranscript = true;
+            session.Detail = call!.Detail;
+            session.Status = SessionStatus.Waiting;
+            session.LastEventAt = DateTime.Now;
+            // Don't blink at a dialog the user is already looking at.
+            if (ws.ActiveClaudeTabLabel is { } active &&
+                TabLabelMatches(active, session.TabTitle ?? session.DisplayTitle))
+                session.Acknowledged = true;
+            return true;
+        }
+        if (!session.WaitingFromTranscript) return false;
+        session.WaitingFromTranscript = false;
+        // Answered — Claude is running again. The Stop hook takes it from here to done.
+        if (session.Status == SessionStatus.Waiting)
+        {
+            session.Status = SessionStatus.Working;
+            session.LastEventAt = DateTime.Now;
+            return true;
+        }
+        return false;
+    }
+
+    private bool IsAgedPermissionDialog(PendingCall call)
+        => Vm.PermissionWaitToolSeconds.TryGetValue(call.ToolName, out int seconds)
+           && seconds > 0
+           && (DateTime.UtcNow - call.StartedAtUtc).TotalSeconds >= seconds;
+
+    private bool EvaluateAllPendingWaits()
+    {
+        bool changed = false;
+        foreach (var ws in Vm.Workspaces)
+        foreach (var s in ws.Sessions)
+            changed |= EvaluatePendingWait(ws, s);
+        return changed;
     }
 
     // ---- historical sessions (expanded view; issue 2026-07-19) ----
