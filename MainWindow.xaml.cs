@@ -1469,6 +1469,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Deliberately not withdrawn when only *some* of what it named is dealt with: the
+        // balloon means "the deck needs you", which is still true while anything blinks, and
+        // pulling it would leave the remaining session with a weaker signal than it had
+        // (decision 2026-07-20). Its headline can name an already-answered session — a
+        // cosmetic flaw on a transient toast, where the fix (pushing a fresh one) is noise.
         _notifier.SetBadge(BadgeColor(attention[0].S.Status), AttentionText(attention));
 
         var fresh = attention.Where(p => _notifiedSessions.Add(p.S.SessionId)).ToList();

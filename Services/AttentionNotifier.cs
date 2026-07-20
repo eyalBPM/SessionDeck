@@ -25,6 +25,7 @@ public sealed class AttentionNotifier : IDisposable
     private IntPtr _hwnd;
     private ITaskbarList3? _taskbar;
     private bool _trayAdded;
+    private bool _balloonShown;
     private bool _flashing;
     private IntPtr _appIcon;        // tray icon; extracted from our own exe
     private IntPtr _badgeIcon;      // current overlay; owned and destroyed on replace
@@ -91,6 +92,25 @@ public sealed class AttentionNotifier : IDisposable
         data.szInfoTitle = Truncate(title, 63);
         data.dwInfoFlags = _appIcon != IntPtr.Zero ? NativeMethods.NIIF_USER : NativeMethods.NIIF_INFO;
         data.hBalloonIcon = _appIcon;
+        _balloonShown = NativeMethods.Shell_NotifyIcon(NativeMethods.NIM_MODIFY, ref data);
+    }
+
+    /// <summary>
+    /// Withdraw a balloon that is still on screen or parked in the notification centre.
+    /// Only Clear() calls this, i.e. only once *nothing* needs attention any more: the
+    /// reason for a balloon can disappear without the deck being touched at all — answering
+    /// the session's tab straight in VSCode auto-acknowledges it — and a notification that
+    /// outlives its cause is worse than no notification (issue 2026-07-20).
+    ///
+    /// An empty szInfo with NIF_INFO is the documented way to cancel; it has to happen
+    /// before NIM_DELETE, because once the icon is gone there is nothing left to modify.
+    /// </summary>
+    private void RetractBalloon()
+    {
+        if (!_balloonShown || !_trayAdded) return;
+        _balloonShown = false;
+        var data = NewData();
+        data.uFlags = NativeMethods.NIF_INFO;
         NativeMethods.Shell_NotifyIcon(NativeMethods.NIM_MODIFY, ref data);
     }
 
@@ -120,6 +140,7 @@ public sealed class AttentionNotifier : IDisposable
 
         if (_trayAdded)
         {
+            RetractBalloon();
             var data = NewData();
             NativeMethods.Shell_NotifyIcon(NativeMethods.NIM_DELETE, ref data);
             _trayAdded = false;
