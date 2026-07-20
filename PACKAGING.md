@@ -171,19 +171,59 @@ sessiondeck uninstall-hooks             # לוודא חזרה נקייה למצ�
 
 ---
 
+## 3ב. שלב 1ב — שני תיקונים שה-installer מחייב
+
+**אל תדלג על הסעיף הזה.** בלי שני התיקונים האלה ה-installer ירוץ, ייראה מוצלח, וישבור שני דברים **בשקט**. שניהם קטנים.
+
+### 3ב.1 — פקודת `sessiondeck quit`
+
+**הבעיה:** כדי להחליף את ה-exe צריך לעצור את האפליקציה שרצה, אבל אין פקודה לזה — ראה את רשימת הפקודות ב-[`CommandExecutor.cs:38-50`](Cli/CommandExecutor.cs#L38-L50). יש `activate`, `status`, `focus`, ואין `quit`.
+
+לכן `install.ps1` ייאלץ לעשות `Stop-Process -Force`. וזה הורס דבר אמיתי: [`MainWindow.xaml.cs:213-218`](MainWindow.xaml.cs#L213-L218) משחרר את ה-**AppBar** רק באירוע `Closing`:
+
+```csharp
+private void OnClosing(object? sender, CancelEventArgs e)
+{
+    ...
+    _appBar.Remove();   // ← SHAppBarMessage(ABM_REMOVE)
+}
+```
+
+הריגה כפויה מדלגת על זה, וה-work area של Windows נשאר מצומצם: **חצי מסך נשאר "תפוס" אחרי שהאפליקציה כבר מתה**, בלי שום הסבר למשתמש. תקלה שאנשים לא יודעים לדווח עליה.
+
+**הפתרון:** הוסף `quit` ל-`switch` ב-[`CommandExecutor.cs`](Cli/CommandExecutor.cs) (זו פקודה רגילה שכן עוברת ב-pipe — בניגוד ל-`install-hooks`). היא צריכה לסגור את החלון דרך המסלול הרגיל כדי ש-`OnClosing` יירה. `install.ps1` יקרא לה, ויפול ל-`Stop-Process -Force` רק אחרי timeout של ~5 שניות.
+
+### 3ב.2 — רענון נתיב ה-startup
+
+**הבעיה:** [`StartupService.cs:37-38`](Services/StartupService.cs#L37-L38) כותב ל-registry את הנתיב **המוחלט** של ה-exe:
+
+```csharp
+key.SetValue(ValueName, $"\"{exe}\"");
+```
+
+הערך מתעדכן רק כשמדליקים/מכבים את ההגדרה ידנית. אחרי שההתקנה תעבור ל-`%LOCALAPPDATA%\Programs\SessionDeck`, ה-registry ימשיך להצביע לנתיב הישן — ובעלייה הבאה Windows יפעיל את ה-build הישן, או כלום אם הוא נמחק.
+
+**זה יקרה כבר בהתקנה הראשונה, לא בעדכון.** ערך ה-Run הנוכחי של אייל מצביע ל-`D:\Eyal\SessionDeck\bin\...`.
+
+**הפתרון:** בעלייה, אם `IsEnabled()` והערך השמור לא תואם ל-`Environment.ProcessPath` — לכתוב אותו מחדש. המקום הטבעי הוא ליד `MigrateLegacyValue()` שכבר נקראת מ-[`Program.cs`](Program.cs). הוסף `RefreshPathIfStale()` ב-`StartupService` וקרא לה משם.
+
+---
+
 ## 4. שלב 2 — `install.ps1`
 
 קובץ חדש בשורש. קטן. סדר הפעולות:
 
 1. דורש PowerShell; **לא** דורש הרשאות admin (הכל תחת המשתמש)
-2. עוצר instance רץ של SessionDeck אם קיים (אחרת אי אפשר להחליף את ה-exe)
+2. עוצר instance רץ של SessionDeck — **דרך `sessiondeck quit` (סעיף 3ב.1), לא `Stop-Process`.** נפילה ל-`Stop-Process -Force` רק אחרי timeout של ~5 שניות.
 3. מעתיק את תוכן ה-zip ל-`%LOCALAPPDATA%\Programs\SessionDeck`
 4. מוסיף את התיקייה ל-**user PATH** — רק אם היא לא שם כבר
 5. מתקין את ה-extension: `code --install-extension .\sessiondeck-connector-*.vsix`
    - אם `code` לא ב-PATH → **אזהרה, לא כשל.** האפליקציה עובדת בלי ה-extension; רק הפעלת טאב ספציפי ותוויות הטאבים לא יעבדו.
 6. מריץ `install-hooks` מהנתיב שהותקן
 7. מפעיל את האפליקציה
-8. מדפיס סיכום: לאן הותקן, מה נוסף ל-PATH, איזה קובץ גיבוי נוצר
+8. מדפיס סיכום: לאן הותקן, מה נוסף ל-PATH, איזה קובץ גיבוי נוצר, **ואת שלוש הגרסאות שהותקנו בפועל — אפליקציה, extension, hooks.**
+
+למה שלוש הגרסאות: שלושת החלקים מתעדכנים בנפרד ויכולים להיפרד. אם שלב 5 נכשל בשקט (אין `code` ב-PATH), האפליקציה תעבוד — רק הפעלת טאב ותוויות הטאבים יישברו. הדפסת הגרסאות הופכת אי-התאמה כזאת לגלויה במקום לבאג מסתורי.
 
 **שדרוג = הרצה חוזרת של אותו סקריפט.** כל השלבים אידמפוטנטיים, ולכן אין מסלול שדרוג נפרד.
 
@@ -216,6 +256,26 @@ gh release create v0.6.28 SessionDeck-0.6.28-win-x64.zip --title "v0.6.28" --not
 
 ---
 
+## 5ב. תהליך העדכון
+
+**אין מסלול שדרוג נפרד.** עדכון = הורדת ה-zip החדש והרצת אותו `install.ps1`. כל השלבים אידמפוטנטיים: הקבצים נדרסים, ה-PATH הוא no-op, ה-extension מתעדכן, ו-`install-hooks` כותב מחדש את הנתיבים.
+
+**מה שורד עדכון:** כל הגדרות המשתמש — `config.json`, ה-workspaces, המתגים, ה-stage וה-zone. כולם ב-`%APPDATA%\SessionDeck`, מחוץ לתיקיית ההתקנה. אם גרסה עתידית תשנה סכימת config, המיגרציה היא באחריות האפליקציה בעלייה (יש כבר תקדים — `MigrateLegacyValue`).
+
+**מה שלא ייפגע כי טיפלנו בו:** ה-AppBar (סעיף 3ב.1) ורישום ה-startup (סעיף 3ב.2).
+
+**‏Hooks שנורים תוך כדי העדכון** — סשני Claude Code פתוחים ימשיכו לירות hooks בזמן שה-exe מוחלף. זה בטוח: [`sessiondeck-hook.ps1:19`](hooks/sessiondeck-hook.ps1#L19) עושה `exit 0` כשהוא לא מוצא את ה-exe. הכרטיסים פשוט יפסידו כמה עדכוני סטטוס ויתקנו את עצמם בסריקה הבאה.
+
+### מה שלא נפתר — הודעה על עדכון
+
+**אין auto-update ואין התראה,** וריפו private אומר שאין גם עמוד ציבורי להסתכל בו. בפועל: אייל יצטרך להודיע לאנשים ידנית.
+
+**זו החלטה מודעת, לא פספוס.** לשימוש פנימי בקנה מידה של כמה אנשים, מנגנון עדכון הוא overhead לא מוצדק. הצעד הזול היחיד שכן שווה: **שהאפליקציה תציג את מספר הגרסה שלה במקום גלוי** (‏tooltip ב-toolbar או תפריט ⚙), כדי שכשמישהו מדווח על באג יהיה אפשר לדעת על איזו גרסה הוא מסתכל.
+
+אם בהמשך הריפו יהפוך לציבורי — זה הרגע לשקול auto-update, וגם winget שנותן `winget upgrade` בחינם.
+
+---
+
 ## 6. כללי עבודה לסשן המימוש
 
 - **ענף:** `feat/packaging-installer`. אל תעבוד על `main`.
@@ -228,6 +288,9 @@ gh release create v0.6.28 SessionDeck-0.6.28-win-x64.zip --title "v0.6.28" --not
 
 - [ ] `hooks/` מועתק לפלט ה-build, עם BOM שלם
 - [ ] `install-hooks` ממזג נכון את כל שבעת מקרי הקצה בטבלה 3.7
+- [ ] `sessiondeck quit` סוגר נקי — **ואחריו ה-work area של Windows חזר למלוא גודלו** (בדוק עם zone פעיל: מקסם חלון ווודא שהוא תופס את כל המסך)
+- [ ] אחרי התקנה לתיקייה חדשה, ערך ה-Run ב-registry מצביע ל-exe החדש
+- [ ] `install.ps1` מדפיס בסוף את שלוש הגרסאות
 - [ ] הרצה כפולה של `install-hooks` לא משנה כלום
 - [ ] `uninstall-hooks` מחזיר את הקובץ למצבו המקורי
 - [ ] `install.ps1` מתקין מקצה לקצה על מכונה נקייה בלי .NET
