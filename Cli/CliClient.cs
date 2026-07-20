@@ -75,6 +75,9 @@ public static class CliClient
         sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
         sessiondeck zone --monitor <n> --half left|right | --full | --off
         sessiondeck status                        app state: version, zone, stage, counts
+        sessiondeck quit                          close the running app cleanly (saves config, releases the zone)
+        sessiondeck install-hooks [--settings <path>] [--dry-run]     register the Claude Code hooks
+        sessiondeck uninstall-hooks [--settings <path>]               remove them (runs locally, app not needed)
         sessiondeck toggle list | get <id> | set <id> on|off    user-defined flags;
                                                   state is mirrored to %APPDATA%\SessionDeck\toggles\<id>
         sessiondeck help

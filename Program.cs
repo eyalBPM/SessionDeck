@@ -11,7 +11,13 @@ public static class Program
     {
         // Any command-line argument means CLI mode: forward to the running instance's pipe.
         if (args.Length > 0)
+        {
+            // Install commands run locally — they must work before the app has ever started.
+            if (args[0] is "install-hooks" or "uninstall-hooks")
+                return Cli.HookInstaller.Run(args);
+
             return Cli.CliClient.Run(args);
+        }
 
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out bool createdNew);
         if (!createdNew)
@@ -22,6 +28,7 @@ public static class Program
         }
 
         Services.StartupService.MigrateLegacyValue();
+        Services.StartupService.RefreshPathIfStale();
 
         var app = new App();
         app.InitializeComponent();

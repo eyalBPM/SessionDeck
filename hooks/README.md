@@ -50,8 +50,9 @@
 
 ## התקנה
 
-1. ודא ש-`SessionDeck.exe` רץ (או נגיש ב-PATH; הסקריפט מכיר גם את נתיב ה-build בפרויקט).
-2. הוסף ל-`~/.claude/settings.json` (או ל-settings של פרויקט ספציפי):
+**הדרך המומלצת (v0.6.29+):** `sessiondeck install-hooks` — ממזג את שבעת ה-hooks לתוך `~/.claude/settings.json` עם הנתיב האמיתי של ההתקנה, אחרי גיבוי. אידמפוטנטי; `sessiondeck uninstall-hooks` מסיר. תומך ב-`--settings <path>` (למשל settings של פרויקט ספציפי) וב-`--dry-run`.
+
+**התקנה ידנית (reference):** הוסף ל-`~/.claude/settings.json` — החלף את `D:\Eyal\SessionDeck\hooks` בנתיב האמיתי של הסקריפט אצלך:
 
 ```json
 {

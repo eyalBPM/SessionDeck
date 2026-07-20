@@ -9,6 +9,10 @@ obj/
 *.log
 TestResults/
 
+# Packaging (PACKAGING.md) — release staging output, never committed
+publish/
+*.zip
+
 # OS
 Thumbs.db
 desktop.ini

@@ -6,7 +6,7 @@ SessionDeck tiles every VSCode window into a live grid and shows each Claude Cod
 
 Under the hood it's a general-purpose window deck (any top-level window can be tiled, pinned and driven from a CLI), but the UI and workflows are deliberately scoped to VSCode + Claude Code.
 
-> Status: actively developed, `v0.6.27`. Windows-only by design.
+> Status: actively developed, `v0.6.29`. Windows-only by design.
 
 ---
 
@@ -56,20 +56,33 @@ No admin rights, no injection into foreign processes, per-monitor DPI aware (v2)
 
 ## Getting started
 
-**Requirements:** Windows 10/11, [.NET 10 SDK](https://dotnet.microsoft.com/download), VSCode with the Claude Code extension.
+**Requirements:** Windows 10/11, VSCode with the Claude Code extension. No .NET runtime needed — the release build is self-contained.
+
+1. Download `SessionDeck-<version>-win-x64.zip` from [Releases](https://github.com/eyalBPM/SessionDeck/releases) and extract it anywhere.
+2. Run the installer (no admin rights required — everything is per-user):
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+   ```
+
+That's it. The script installs to `%LOCALAPPDATA%\Programs\SessionDeck`, adds it to your user PATH, installs the VSCode extension, registers the Claude Code hooks in `~/.claude/settings.json` (after backing it up) and starts the app. It ends with a summary of the three installed versions — app, extension, hooks.
+
+**Upgrading** = download the newer zip and run `install.ps1` again; every step is idempotent. Your settings in `%APPDATA%\SessionDeck` survive. Uninstall with `uninstall.ps1`.
+
+### From source (developers)
 
 ```powershell
 git clone https://github.com/eyalBPM/SessionDeck.git
 cd SessionDeck
-dotnet build -c Release
+dotnet build -c Release          # requires the .NET 10 SDK
 .\bin\Release\net10.0-windows\SessionDeck.exe
 ```
 
 The first launch starts the UI and the pipe server. Any later invocation with arguments acts as a CLI client against it.
 
-**Wire up the hooks** — point your Claude Code `settings.json` hooks at [`hooks/sessiondeck-hook.ps1`](hooks/sessiondeck-hook.ps1); see [`hooks/README.md`](hooks/README.md).
+**Wire up the hooks** — `SessionDeck.exe install-hooks` merges the seven hooks into `~/.claude/settings.json`, pointing at the hook script next to the exe (backup + idempotent; `uninstall-hooks` reverts). See [`hooks/README.md`](hooks/README.md) for what each hook does.
 
-**Install the VSCode extension** (enables tab activation and live tab labels). The `.vsix` is not checked in, so build it first:
+**Build the VSCode extension** (enables tab activation and live tab labels). The `.vsix` is not checked in:
 
 ```powershell
 cd vscode-extension
@@ -77,8 +90,6 @@ npm install
 npx @vscode/vsce package
 code --install-extension .\sessiondeck-connector-*.vsix
 ```
-
-**Add SessionDeck.exe to your PATH.** The hook bridge resolves the executable from PATH before falling back to a build directory, so this is what lets the hooks work from any workspace.
 
 ## CLI
 
@@ -92,6 +103,9 @@ sessiondeck pin <target>                 # move it to the Stage, then activate
 sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
 sessiondeck zone  --monitor <n> --half left|right | --full | --off
 sessiondeck status
+sessiondeck quit                         # close the running app cleanly
+sessiondeck install-hooks [--settings <path>] [--dry-run]   # register the Claude Code hooks
+sessiondeck uninstall-hooks              # remove them (both run locally, no app needed)
 
 sessiondeck session start  --id <session_id> --workspace <name> [--title "..."]
 sessiondeck session status --id <session_id> --state working|waiting|done|error|idle
@@ -113,7 +127,6 @@ sessiondeck session list   [--workspace <name>] [--all]
 - A **minimized** window freezes its DWM thumbnail on the last frame — keep tracked windows restored (being covered by other windows is fine).
 - **Inactive VSCode tabs have no thumbnail.** VSCode/DWM don't render them, so session cards are text + border only. This is a hard platform limit, not a missing feature.
 - Claude Code exposes no dedicated `error` hook; the `error` state exists in the model and CLI but is mapped conservatively.
-- Installation is still three manual steps (build, extension, hooks) and the hook JSON needs absolute paths. A packaged release with a single installer is planned.
 
 ## License
 

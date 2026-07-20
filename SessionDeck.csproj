@@ -8,10 +8,18 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>SessionDeck</AssemblyName>
     <RootNamespace>SessionDeck</RootNamespace>
-    <Version>0.6.28</Version>
+    <Version>0.6.29</Version>
     <ApplicationIcon>assets\SessionDeck.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <StartupObject>SessionDeck.Program</StartupObject>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The hook bridge must ship next to the exe: install-hooks resolves it via
+         AppContext.BaseDirectory (PACKAGING.md §2). Keep the UTF-8 BOM intact. -->
+    <Content Include="hooks\sessiondeck-hook.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
 </Project>

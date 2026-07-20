@@ -1,4 +1,5 @@
 ﻿# SessionDeck hook bridge for Claude Code (SPEC stage C).
+# Version: 0.6.29  (parsed by install.ps1 — keep in sync with SessionDeck.csproj)
 # Called by Claude Code hooks with the event name as argument; the hook payload
 # (session_id, cwd, transcript_path, permission_mode + event-specific fields)
 # arrives as JSON on stdin. Everything the payload provides is forwarded to
@@ -10,8 +11,13 @@ param(
 
 $ErrorActionPreference = 'SilentlyContinue'
 
-# Resolve sessiondeck.exe: PATH first, then the default dev build location.
-$exe = (Get-Command 'SessionDeck.exe' -ErrorAction SilentlyContinue).Source
+# Resolve sessiondeck.exe: the exe that ships next to this script first (installed
+# layout: <root>\hooks\<script> — immune to stale PATH in already-open processes),
+# then PATH, then the default dev build location.
+$exe = $null
+$sibling = Join-Path (Split-Path $PSScriptRoot -Parent) 'SessionDeck.exe'
+if (Test-Path $sibling) { $exe = $sibling }
+if (-not $exe) { $exe = (Get-Command 'SessionDeck.exe' -ErrorAction SilentlyContinue).Source }
 if (-not $exe) {
     $devBuild = 'D:\Eyal\SessionDeck\bin\Debug\net10.0-windows\SessionDeck.exe'
     if (Test-Path $devBuild) { $exe = $devBuild }
