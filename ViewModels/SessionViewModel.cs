@@ -70,6 +70,11 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     /// <summary>Transcript mtime already scanned for titles (not persisted).</summary>
     public DateTime TranscriptScannedAt { get; set; }
 
+    /// <summary>Strings VSCode could be showing as this session's tab label — titles plus
+    /// recent prompts. Correlation matches the label against all of them, because which one
+    /// Claude Code picked isn't knowable from here (issue 2026-07-20). Runtime only.</summary>
+    public IReadOnlyList<string> LabelCandidates { get; set; } = Array.Empty<string>();
+
     /// <summary>The "waiting" status was inferred from an unanswered question in the
     /// transcript rather than from a hook — so it may only be cleared the same way, when
     /// the answer shows up. Runtime only (issue 2026-07-20).</summary>

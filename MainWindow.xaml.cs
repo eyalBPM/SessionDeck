@@ -441,6 +441,14 @@ public partial class MainWindow : Window
                         session.AutoTitle = tInfo.AutoTitle;
                         changed = true;
                     }
+                    if (tInfo.LabelCandidates is { } cands &&
+                        !cands.SequenceEqual(session.LabelCandidates))
+                    {
+                        // A new prompt renames the tab, so this is a correlation input
+                        // just like TabTitle — re-correlate below (issue 2026-07-20).
+                        session.LabelCandidates = cands;
+                        retitled.Add(ws);
+                    }
                     session.PendingCall = tInfo.Pending;
                 }
                 // Evaluate right after a scan too, so a question goes orange at once
@@ -490,8 +498,7 @@ public partial class MainWindow : Window
             session.Status = SessionStatus.Waiting;
             session.LastEventAt = DateTime.Now;
             // Don't blink at a dialog the user is already looking at.
-            if (ws.ActiveClaudeTabLabel is { } active &&
-                TabLabelMatches(active, session.TabTitle ?? session.DisplayTitle))
+            if (ws.ActiveClaudeTabLabel is { } active && TabLabelMatches(active, session))
                 session.Acknowledged = true;
             return true;
         }
@@ -1047,7 +1054,7 @@ public partial class MainWindow : Window
         LearnTranscriptDir(ws, info);
         RefreshPhantom(session);
         // The user is already looking at this session's tab — don't start blinking at them.
-        if (ws.ActiveClaudeTabLabel is { } activeTab && TabLabelMatches(activeTab, session.TabTitle ?? session.DisplayTitle))
+        if (ws.ActiveClaudeTabLabel is { } activeTab && TabLabelMatches(activeTab, session))
             session.Acknowledged = true;
         else if (!session.Acknowledged && ws.ActiveClaudeTabLabel != null)
             // A tab IS focused but the labels disagree — likely title drift (Claude renamed
@@ -1170,7 +1177,7 @@ public partial class MainWindow : Window
             // Extreme activity sort (request 2026-07-19): switching to a session's tab in
             // VSCode counts as activity — the session jumps to the top of its card.
             var activeSession = ws.ActiveClaudeTabLabel is { } activeLabel
-                ? ws.Sessions.FirstOrDefault(s => TabLabelMatches(activeLabel, s.TabTitle ?? s.DisplayTitle))
+                ? ws.Sessions.FirstOrDefault(s => TabLabelMatches(activeLabel, s))
                 : null;
             if (activeSession != null && ws.LastActiveSessionId != activeSession.SessionId)
             {
@@ -1214,6 +1221,18 @@ public partial class MainWindow : Window
                title.StartsWith(label[..^1], StringComparison.Ordinal);
     }
 
+    /// <summary>Does this VSCode tab label belong to this session? Checked against every
+    /// string the tab could be showing, not just the primary title: a session whose
+    /// transcript has no ai-title is labelled from a user prompt instead, which the title
+    /// fields alone never reproduce (issue 2026-07-20, second report).</summary>
+    private static bool TabLabelMatches(string label, SessionViewModel session)
+    {
+        if (TabLabelMatches(label, session.TabTitle ?? session.DisplayTitle)) return true;
+        foreach (var candidate in session.LabelCandidates)
+            if (TabLabelMatches(label, candidate)) return true;
+        return false;
+    }
+
     /// <summary>Recompute tab↔session correlation (OpenAsTab + auto-acknowledge) from the
     /// workspace's last-known VSCode state. The two match inputs refresh on independent
     /// clocks — tab labels arrive event-driven from the extension while TabTitle lags
@@ -1221,21 +1240,20 @@ public partial class MainWindow : Window
     /// not only when a sync arrives (recurring blink issue, root-caused 2026-07-20).</summary>
     private static bool ReapplyTabCorrelation(WorkspaceViewModel ws)
     {
-        bool ackChanged = false;
         foreach (var s in ws.Sessions)
-        {
-            // TabTitle (custom-title/ai-title from the transcript) IS the VSCode tab
-            // label — reliable correlation (issue 2026-07-19).
-            string key = s.TabTitle ?? s.DisplayTitle;
-            s.OpenAsTab = ws.ClaudeTabLabels.Any(l => TabLabelMatches(l, key));
-            // Auto-acknowledge: the user is looking at this session's tab right now.
-            if (!s.Acknowledged && ws.ActiveClaudeTabLabel is { } active && TabLabelMatches(active, key))
-            {
-                s.Acknowledged = true;
-                ackChanged = true;
-            }
-        }
-        return ackChanged;
+            s.OpenAsTab = ws.ClaudeTabLabels.Any(l => TabLabelMatches(l, s));
+
+        // Auto-acknowledge the session whose tab the user is looking at. Prompts are part
+        // of the candidate set, so two sessions can in principle answer to the same label
+        // (same opening prompt, /clear, resume). Acknowledging the wrong one silently
+        // hides a real alert, so an ambiguous label acknowledges nothing — leaving a card
+        // blinking is the recoverable failure.
+        if (ws.ActiveClaudeTabLabel is not { } active) return false;
+        var matches = ws.Sessions.Where(s => !s.Closed && TabLabelMatches(active, s)).ToList();
+        if (matches.Count != 1) return false;
+        if (matches[0].Acknowledged) return false;
+        matches[0].Acknowledged = true;
+        return true;
     }
 
     private VscodeConnection? FindConnector(WorkspaceViewModel ws)

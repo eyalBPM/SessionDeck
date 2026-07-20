@@ -14,7 +14,18 @@ namespace SessionDeck.Services;
 /// that has no tool_result yet. Hook-independent: the VSCode extension doesn't fire
 /// Notification/PostToolUse at all, so this is the only trustworthy "waiting" signal
 /// there (issue 2026-07-20).</param>
-public sealed record TranscriptInfo(string? TabTitle, string? AutoTitle, PendingCall? Pending = null);
+/// <param name="LabelCandidates">Every string VSCode might be showing as this session's
+/// tab label, newest first. The tab label is the ONLY handle the extension gives us on a
+/// tab (there is no session id in the VSCode tab API), so correlation is string matching —
+/// and matching a single title is too brittle: a session whose transcript has no
+/// "ai-title" at all gets labelled from a user prompt instead, which no single title field
+/// reproduces (issue 2026-07-20, second report). Matching against the whole candidate set
+/// covers every labelling rule Claude Code uses without having to know which one applied.</param>
+public sealed record TranscriptInfo(
+    string? TabTitle,
+    string? AutoTitle,
+    PendingCall? Pending = null,
+    IReadOnlyList<string>? LabelCandidates = null);
 
 /// <summary>A tool call with no tool_result yet — either Claude is blocked on the user,
 /// or the tool is simply still running. <see cref="IsAsk"/> separates the two.</summary>
@@ -40,6 +51,10 @@ public static class TranscriptReader
     /// both sufficient and cheap on multi-MB transcripts.</summary>
     private const int TailLines = 300;
 
+    /// <summary>How many recent prompts are kept as possible tab labels. The tab shows one
+    /// of them; more history only raises the odds of colliding with another session.</summary>
+    private const int MaxLabelCandidates = 8;
+
     /// <summary>Tools whose unanswered call means "Claude is blocked on the user".</summary>
     private static readonly string[] AskTools = { "AskUserQuestion", "ExitPlanMode" };
 
@@ -48,6 +63,7 @@ public static class TranscriptReader
         try
         {
             string? customTitle = null, aiTitle = null, summary = null, firstUserText = null;
+            var prompts = new List<string>();
             var tail = new Queue<string>(TailLines);
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var reader = new StreamReader(stream);
@@ -64,15 +80,33 @@ public static class TranscriptReader
                 }
                 else if (line.Contains("\"ai-title\""))
                     aiTitle = TryGetString(line, "ai-title", "aiTitle") ?? aiTitle;
+                else if (line.Contains("\"last-prompt\""))
+                {
+                    // What VSCode falls back to for the tab label when the session never
+                    // got an ai-title. Kept in order; only the tail is used.
+                    if (Shorten(TryGetString(line, "last-prompt", "lastPrompt")) is { } p)
+                    {
+                        prompts.Remove(p);
+                        prompts.Add(p);
+                        if (prompts.Count > MaxLabelCandidates) prompts.RemoveAt(0);
+                    }
+                }
                 else if (line.Contains("\"summary\""))
                     summary = TryGetString(line, "summary", "summary") ?? summary;
                 else if (firstUserText == null && line.Contains("\"user\""))
                     firstUserText = TryReadUserText(line);
             }
-            return new TranscriptInfo(
-                Shorten(customTitle ?? aiTitle),
-                Shorten(summary ?? firstUserText),
-                FindPendingCall(tail));
+            string? tabTitle = Shorten(customTitle ?? aiTitle);
+            string? autoTitle = Shorten(summary ?? firstUserText);
+            // Newest first: a tab is far more likely to carry a recent prompt than an old one.
+            var candidates = new List<string>();
+            foreach (var c in new[] { Shorten(customTitle), Shorten(aiTitle) })
+                if (c != null && !candidates.Contains(c)) candidates.Add(c);
+            for (int i = prompts.Count - 1; i >= 0; i--)
+                if (!candidates.Contains(prompts[i])) candidates.Add(prompts[i]);
+            if (autoTitle != null && !candidates.Contains(autoTitle)) candidates.Add(autoTitle);
+
+            return new TranscriptInfo(tabTitle, autoTitle, FindPendingCall(tail), candidates);
         }
         catch
         {
