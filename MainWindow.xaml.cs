@@ -395,14 +395,15 @@ public partial class MainWindow : Window
     private void RefreshTranscriptTitles()
     {
         if (_titleScanRunning) return;
-        var stale = new List<(SessionViewModel Session, string Path, DateTime Mtime)>();
-        foreach (var s in Vm.AllSessions())
+        var stale = new List<(WorkspaceViewModel Ws, SessionViewModel Session, string Path, DateTime Mtime)>();
+        foreach (var ws in Vm.Workspaces)
+        foreach (var s in ws.Sessions)
         {
             if (s.TranscriptPath is not { Length: > 0 } path) continue;
             try
             {
                 DateTime mtime = File.GetLastWriteTimeUtc(path);
-                if (mtime != s.TranscriptScannedAt) stale.Add((s, path, mtime));
+                if (mtime != s.TranscriptScannedAt) stale.Add((ws, s, path, mtime));
             }
             catch { }
         }
@@ -411,17 +412,19 @@ public partial class MainWindow : Window
         _titleScanRunning = true;
         Task.Run(() =>
         {
-            var results = stale.Select(x => (x.Session, Info: TranscriptReader.ReadInfo(x.Path), x.Mtime)).ToList();
+            var results = stale.Select(x => (x.Ws, x.Session, Info: TranscriptReader.ReadInfo(x.Path), x.Mtime)).ToList();
             Dispatcher.BeginInvoke(() =>
             {
                 _titleScanRunning = false;
                 bool changed = false;
-                foreach (var (session, tInfo, mtime) in results)
+                var retitled = new HashSet<WorkspaceViewModel>();
+                foreach (var (ws, session, tInfo, mtime) in results)
                 {
                     session.TranscriptScannedAt = mtime;
                     if (tInfo.TabTitle != null && session.TabTitle != tInfo.TabTitle)
                     {
                         session.TabTitle = tInfo.TabTitle;
+                        retitled.Add(ws);
                         changed = true;
                     }
                     if (tInfo.AutoTitle != null && session.AutoTitle != tInfo.AutoTitle)
@@ -430,6 +433,13 @@ public partial class MainWindow : Window
                         changed = true;
                     }
                 }
+                // A fresh TabTitle can complete a match that failed while the title was
+                // stale — re-correlate so auto-acknowledge isn't lost to title drift
+                // (recurring blink issue, root-caused 2026-07-20).
+                bool ackChanged = false;
+                foreach (var ws in retitled)
+                    ackChanged |= ReapplyTabCorrelation(ws);
+                if (ackChanged) RefreshBlinkAndSummary();
                 if (changed) QueueSave();
             });
         });
@@ -963,6 +973,11 @@ public partial class MainWindow : Window
         // The user is already looking at this session's tab — don't start blinking at them.
         if (ws.ActiveClaudeTabLabel is { } activeTab && TabLabelMatches(activeTab, session.TabTitle ?? session.DisplayTitle))
             session.Acknowledged = true;
+        else if (!session.Acknowledged && ws.ActiveClaudeTabLabel != null)
+            // A tab IS focused but the labels disagree — likely title drift (Claude renamed
+            // the tab mid-turn and our TabTitle is stale). Rescan the transcript now; the
+            // scan callback re-runs the correlation and acknowledges (issue 2026-07-20).
+            RefreshTranscriptTitles();
         AfterSessionChange(ws);
         return ($"session {sessionId} → {SessionStatusNames.ToName(status)}", true);
     }
@@ -1070,21 +1085,7 @@ public partial class MainWindow : Window
             ws.SetClaudeTabs(labels);
             ws.ActiveClaudeTabLabel = sync.Focused ? sync.Tabs.FirstOrDefault(t => t.Active)?.Label : null;
 
-            bool ackChanged = false;
-            foreach (var s in ws.Sessions)
-            {
-                // TabTitle (custom-title/ai-title from the transcript) IS the VSCode tab
-                // label — reliable correlation (issue 2026-07-19).
-                string key = s.TabTitle ?? s.DisplayTitle;
-                s.OpenAsTab = labels.Any(l => TabLabelMatches(l, key));
-                // Auto-acknowledge: the user is looking at this session's tab right now.
-                if (!s.Acknowledged && ws.ActiveClaudeTabLabel is { } active && TabLabelMatches(active, key))
-                {
-                    s.Acknowledged = true;
-                    ackChanged = true;
-                }
-            }
-            if (ackChanged)
+            if (ReapplyTabCorrelation(ws))
             {
                 RefreshBlinkAndSummary();
                 QueueSave();
@@ -1135,6 +1136,30 @@ public partial class MainWindow : Window
         if (label == title) return true;
         return label.EndsWith('…') && label.Length > 1 &&
                title.StartsWith(label[..^1], StringComparison.Ordinal);
+    }
+
+    /// <summary>Recompute tab↔session correlation (OpenAsTab + auto-acknowledge) from the
+    /// workspace's last-known VSCode state. The two match inputs refresh on independent
+    /// clocks — tab labels arrive event-driven from the extension while TabTitle lags
+    /// behind the 10s transcript scan — so this must re-run whenever EITHER side changes,
+    /// not only when a sync arrives (recurring blink issue, root-caused 2026-07-20).</summary>
+    private static bool ReapplyTabCorrelation(WorkspaceViewModel ws)
+    {
+        bool ackChanged = false;
+        foreach (var s in ws.Sessions)
+        {
+            // TabTitle (custom-title/ai-title from the transcript) IS the VSCode tab
+            // label — reliable correlation (issue 2026-07-19).
+            string key = s.TabTitle ?? s.DisplayTitle;
+            s.OpenAsTab = ws.ClaudeTabLabels.Any(l => TabLabelMatches(l, key));
+            // Auto-acknowledge: the user is looking at this session's tab right now.
+            if (!s.Acknowledged && ws.ActiveClaudeTabLabel is { } active && TabLabelMatches(active, key))
+            {
+                s.Acknowledged = true;
+                ackChanged = true;
+            }
+        }
+        return ackChanged;
     }
 
     private VscodeConnection? FindConnector(WorkspaceViewModel ws)

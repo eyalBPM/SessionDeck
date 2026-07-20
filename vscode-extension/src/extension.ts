@@ -31,11 +31,15 @@ function workspacePath(): string {
 
 function claudeTabs(): { Label: string; Active: boolean }[] {
     const tabs: { Label: string; Active: boolean }[] = [];
+    // isActive is per-group: with split editor groups EVERY group has an active tab, and
+    // SessionDeck auto-acknowledges the first Active it sees. Only the focused group's
+    // active tab is what the user is actually looking at (issue 2026-07-20).
+    const activeGroup = vscode.window.tabGroups.activeTabGroup;
     for (const group of vscode.window.tabGroups.all) {
         for (const tab of group.tabs) {
             const input = tab.input;
             if (input instanceof vscode.TabInputWebview && input.viewType.includes(CLAUDE_VIEWTYPE)) {
-                tabs.push({ Label: tab.label, Active: tab.isActive });
+                tabs.push({ Label: tab.label, Active: tab.isActive && group === activeGroup });
             }
         }
     }
