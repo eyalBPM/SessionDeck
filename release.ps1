@@ -64,10 +64,13 @@ if ($hookVer -ne $ver) {
 
 # --- Build & test ---------------------------------------------------------------
 Step "Publish (self-contained single file)"
+$pubDir = Join-Path $repo 'bin\Release\net10.0-windows\win-x64\publish'
+# Incremental publish silently drops Content files (hooks\) from the output dir
+# once they were published before (MSBuild up-to-date tracking) - always start fresh.
+if (Test-Path $pubDir) { Remove-Item $pubDir -Recurse -Force }
 dotnet publish -c Release -r win-x64 --self-contained `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --nologo -v quiet
 if ($LASTEXITCODE -ne 0) { Fail "dotnet publish failed." }
-$pubDir = Join-Path $repo 'bin\Release\net10.0-windows\win-x64\publish'
 $pubExe = Join-Path $pubDir 'SessionDeck.exe'
 
 $exeVer = ((Get-Item $pubExe).VersionInfo.ProductVersion -split '\+')[0]
