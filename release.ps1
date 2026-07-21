@@ -34,11 +34,35 @@ if ($csproj -notmatch '<Version>([0-9]+\.[0-9]+\.[0-9]+)</Version>') { Fail "no 
 $ver = $Matches[1]
 $tag = "v$ver"
 
-git fetch --tags --quiet
+# --prune-tags keeps local tags in sync with releases replaced/deleted on GitHub.
+git fetch --tags --prune --prune-tags --force --quiet
 if (git tag --list $tag) { Fail "tag $tag already exists - bump <Version> in SessionDeck.csproj first." }
 
-$prevTag = git tag --list 'v*' --sort=-v:refname | Select-Object -First 1
-Write-Host "  version: $ver  (previous release: $(if ($prevTag) { $prevTag } else { 'none' }))"
+# Release policy: ONE release per major.minor line. A patch bump REPLACES the
+# line's existing release (old release + tag are deleted); a new major.minor
+# opens a new release. Only the highest version overall is marked "latest".
+$verObj = [version]$ver
+$releases = @(& $gh release list --json tagName --jq '.[].tagName' 2>$null)
+$sameLine = @($releases | Where-Object { $_ -match "^v$($verObj.Major)\.$($verObj.Minor)\.[0-9]+$" })
+$others = @($releases | Where-Object { $sameLine -notcontains $_ })
+
+foreach ($old in $sameLine) {
+    if ([version]($old.TrimStart('v')) -ge $verObj) { Fail "$old is already released and is not older than $ver." }
+}
+$isLatest = -not ($others | Where-Object { [version]($_.TrimStart('v')) -gt $verObj })
+
+# Notes baseline: when replacing, the new release covers the WHOLE minor line,
+# so diff from the line's oldest release; otherwise from the newest release.
+$prevTag = $null
+if ($sameLine) {
+    $prevTag = $sameLine | Sort-Object { [version]($_.TrimStart('v')) } | Select-Object -First 1
+} elseif ($releases) {
+    $prevTag = $releases | Sort-Object { [version]($_.TrimStart('v')) } | Select-Object -Last 1
+}
+
+Write-Host "  version: $ver  (notes baseline: $(if ($prevTag) { $prevTag } else { 'none' }))"
+if ($sameLine) { Write-Host "  will replace: $($sameLine -join ', ')" }
+Write-Host "  will be marked latest: $isLatest"
 
 # --- Sync the hook script's version header (BOM must survive - PS 5.1 + Hebrew) ---
 Step "Hook script version header"
@@ -140,12 +164,19 @@ $($changes -join "`n")
 Get-Content $notesFile | ForEach-Object { "  | $_" }
 
 if ($DryRun) {
-    Step "DryRun - stopping before: git push, gh release create $tag"
+    Step "DryRun - stopping before: git push, replace [$($sameLine -join ', ')], gh release create $tag (latest: $isLatest)"
     exit 0
 }
 
 Step "Publish"
 git push origin main
-& $gh release create $tag $zip --title $tag --notes-file $notesFile
+foreach ($old in $sameLine) {
+    Write-Host "  replacing $old (release + tag deleted)"
+    & $gh release delete $old --cleanup-tag --yes
+    if ($LASTEXITCODE -ne 0) { Fail "failed to delete release $old." }
+    git tag -d $old 2>$null | Out-Null
+}
+$latestFlag = if ($isLatest) { '--latest' } else { '--latest=false' }
+& $gh release create $tag $zip --title $tag --notes-file $notesFile $latestFlag
 if ($LASTEXITCODE -ne 0) { Fail "gh release create failed." }
 Write-Host "`nDone." -ForegroundColor Green
