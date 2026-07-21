@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private List<MonitorEntry> _monitors;
     private bool _initializing = true;
     private bool _syncingUi;
+    private bool _zoneSizePrompted;   // suppresses the DropDownClosed re-prompt after SelectionChanged already asked
 
     // Legacy stage A/B tile data — round-tripped so nothing is lost (SPEC decision 15).
     private List<TileConfig> _legacyTiles = new();
@@ -169,6 +170,7 @@ public partial class MainWindow : Window
 
         if (ModeNames.TryParseZone(config.Zone.Mode, out var zm)) Vm.ZoneMode = zm;
         Vm.ZoneMonitor = Math.Clamp(config.Zone.Monitor, 0, _monitors.Count - 1);
+        if (ZoneSizeParser.TryParse(config.Zone.Size, out _)) Vm.ZoneSize = config.Zone.Size.Trim();
         if (ModeNames.TryParseStage(config.Stage.Mode, out var sm)) Vm.StageMode = sm;
         Vm.StageMonitor = Math.Clamp(config.Stage.Monitor, 0, _monitors.Count - 1);
         Vm.StageRect = ParseRect(config.Stage.Rect);
@@ -237,7 +239,7 @@ public partial class MainWindow : Window
             AlwaysOnTop = Vm.AlwaysOnTop,
             WindowsNotifications = Vm.WindowsNotifications,
             CustomToggles = _customToggleConfigs,
-            Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode) },
+            Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode), Size = Vm.ZoneSize },
             Stage = new StageConfig
             {
                 Monitor = Vm.StageMonitor,
@@ -1523,19 +1525,41 @@ public partial class MainWindow : Window
 
     // ---- Reserved Zone (SPEC §F4) ----
 
-    public void ApplyZone(int monitor, ZoneMode mode, bool save = true)
+    public void ApplyZone(int monitor, ZoneMode mode, bool save = true, string? customSize = null)
     {
+        if (customSize != null && ZoneSizeParser.TryParse(customSize, out _))
+            Vm.ZoneSize = customSize.Trim();
         _monitors = MonitorService.GetMonitors();
         monitor = Math.Clamp(monitor, 0, _monitors.Count - 1);
         Vm.ZoneMonitor = monitor;
         Vm.ZoneMode = mode;
-        _appBar.Apply(mode, _monitors[monitor]);
+        // Zoned = locked in place; NoResize also removes the resize cursors on the borders.
+        ResizeMode = mode == ZoneMode.Off ? ResizeMode.CanResize : ResizeMode.NoResize;
+        double fraction = ZoneSizeParser.TryParse(Vm.ZoneSize, out double f) ? f : 1.0 / 3;
+        _appBar.Apply(mode, _monitors[monitor], fraction);
         SyncCombosFromVm();
         UpdateAttentionEscalation();   // zone state is the other half of the escalation gate
         if (save) QueueSave();
     }
 
     // ---- UI: toolbar ----
+
+    /// <summary>
+    /// The toolbar dividers only make sense between neighbors that share a row —
+    /// hide them when the responsive wrap moved a group to its own row. Uses
+    /// Hidden (not Collapsed) so toggling never changes layout width, which would
+    /// re-trigger the wrap and oscillate on borderline window sizes.
+    /// </summary>
+    private void ToolbarLayout_Changed(object sender, SizeChangedEventArgs e)
+    {
+        static bool SameRow(FrameworkElement a, FrameworkElement b, UIElement origin) =>
+            Math.Abs(a.TranslatePoint(default, origin).Y - b.TranslatePoint(default, origin).Y) < 10;
+
+        ToolbarDiv1.Visibility = SameRow(AddWorkspaceButton, ZoneGroup, ToolbarWrap)
+            ? Visibility.Visible : Visibility.Hidden;
+        ToolbarDiv2.Visibility = SameRow(ZoneGroup, StageGroup, ToolbarWrap)
+            ? Visibility.Visible : Visibility.Hidden;
+    }
 
     private void PopulateCombos()
     {
@@ -1546,7 +1570,7 @@ public partial class MainWindow : Window
             foreach (var m in _monitors) combo.Items.Add(m.DisplayName);
         }
         ZoneModeCombo.Items.Clear();
-        foreach (var name in new[] { "כבוי", "חצי שמאל", "חצי ימין", "מסך מלא" }) ZoneModeCombo.Items.Add(name);
+        foreach (var name in new[] { "כבוי", "רבע שמאל", "חצי שמאל", "חצי ימין", "רבע ימין", "מסך מלא", "מותאם שמאל…", "מותאם ימין…" }) ZoneModeCombo.Items.Add(name);
         StageModeCombo.Items.Clear();
         foreach (var name in new[] { "מסך מלא", "חצי שמאל", "חצי ימין", "מלבן (CLI)" }) StageModeCombo.Items.Add(name);
         StartupMenuItem.IsChecked = StartupService.IsEnabled();
@@ -1563,6 +1587,9 @@ public partial class MainWindow : Window
     {
         _syncingUi = true;
         ZoneMonitorCombo.SelectedIndex = Vm.ZoneMonitor;
+        // The custom items display the active size; refresh their text before re-selecting.
+        ZoneModeCombo.Items[(int)ZoneMode.CustomLeft] = $"מותאם שמאל ({Vm.ZoneSize})…";
+        ZoneModeCombo.Items[(int)ZoneMode.CustomRight] = $"מותאם ימין ({Vm.ZoneSize})…";
         ZoneModeCombo.SelectedIndex = (int)Vm.ZoneMode;
         StageMonitorCombo.SelectedIndex = Vm.StageMonitor;
         StageModeCombo.SelectedIndex = (int)Vm.StageMode;
@@ -1573,7 +1600,33 @@ public partial class MainWindow : Window
     {
         if (_syncingUi || _initializing) return;
         if (ZoneMonitorCombo.SelectedIndex < 0 || ZoneModeCombo.SelectedIndex < 0) return;
-        ApplyZone(ZoneMonitorCombo.SelectedIndex, (ZoneMode)ZoneModeCombo.SelectedIndex);
+        var mode = (ZoneMode)ZoneModeCombo.SelectedIndex;
+        if (mode is ZoneMode.CustomLeft or ZoneMode.CustomRight && mode != Vm.ZoneMode)
+        {
+            _zoneSizePrompted = true;
+            if (!PromptZoneSize()) { SyncCombosFromVm(); return; }   // canceled → revert selection
+        }
+        ApplyZone(ZoneMonitorCombo.SelectedIndex, mode);
+    }
+
+    /// <summary>Re-selecting the already-active custom item re-opens the size dialog
+    /// (SelectionChanged doesn't fire when the selection is unchanged).</summary>
+    private void ZoneModeCombo_DropDownClosed(object sender, EventArgs e)
+    {
+        bool alreadyPrompted = _zoneSizePrompted;
+        _zoneSizePrompted = false;
+        if (_syncingUi || _initializing || alreadyPrompted) return;
+        var mode = (ZoneMode)ZoneModeCombo.SelectedIndex;
+        if (mode == Vm.ZoneMode && mode is ZoneMode.CustomLeft or ZoneMode.CustomRight && PromptZoneSize())
+            ApplyZone(Vm.ZoneMonitor, mode);
+    }
+
+    private bool PromptZoneSize()
+    {
+        var dlg = new ZoneSizeDialog(Vm.ZoneSize) { Owner = this };
+        if (dlg.ShowDialog() != true) return false;
+        Vm.ZoneSize = dlg.SizeText;
+        return true;
     }
 
     private void StageUi_Changed(object sender, SelectionChangedEventArgs e)

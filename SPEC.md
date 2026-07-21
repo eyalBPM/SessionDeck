@@ -90,7 +90,9 @@
 ### F4 — Reserved Zone
 - האפליקציה יכולה "להשתלט" על מסך מלא או חצי מסך באמצעות **AppBar API** (`SHAppBarMessage` — ABM_NEW / ABM_SETPOS), per-monitor.
 - כשה-zone פעיל, ה-work area מצטמצם: חלונות maximized ואף snap לא נכנסים לשטח; מעבר עכבר חופשי.
-- מצבים: `off` (חלון רגיל) / `half-left` / `half-right` / `full`, לכל מסך.
+- מצבים: `off` (חלון רגיל) / `quarter-left` / `half-left` / `half-right` / `quarter-right` / `full` / `custom-left` / `custom-right`, לכל מסך.
+- מצב מותאם (custom): רוחב חופשי כשבר מרוחב המסך — קלט "2/7", "40%" או "0.4" (תחום 5%–100%); נבחר בדיאלוג מה-UI או ב-CLI עם `--size`. הערך נשמר ב-config (`Zone.Size`) כפי שהוקלד.
+- כשה-zone פעיל החלון **נעול במקומו**: גרירת title bar, שינוי גודל, maximize ו-Win+Shift+חצים נבלעים; רק כיבוי ה-zone משחרר. minimize/restore נשארים זמינים.
 
 ### F5 — הוספת חלונות (הוחלט 2026-07-16: Picker + גרירה)
 1. **Picker** (MVP): כפתור "בחר חלון" בסגנון crosshair (כמו Spy++) — גוררים את הסמן אל החלון הרצוי ומשחררים.
@@ -135,7 +137,7 @@ sessiondeck set <target> [--title "..."] [--desc "..."] [--color <c>]   # ערך
 sessiondeck focus <target>                # הפעלת חלון ה-workspace במקומו
 sessiondeck pin <target>                  # הקפצה ל-Stage + הפעלה
 sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
-sessiondeck zone --monitor <n> --half left|right | --full | --off
+sessiondeck zone --monitor <n> --half left|right | --quarter left|right | --custom left|right [--size 2/7|40%|0.4] | --full | --off
 sessiondeck status                        # מצב: version, zone, stage, מוני workspaces/sessions
 ```
 

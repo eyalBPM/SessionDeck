@@ -73,7 +73,7 @@ public static class CliClient
         sessiondeck focus <target>                activate the workspace's window in place
         sessiondeck pin <target>                  move the window to the Stage + activate
         sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
-        sessiondeck zone --monitor <n> --half left|right | --full | --off
+        sessiondeck zone --monitor <n> --half left|right | --quarter left|right | --custom left|right [--size 2/7|40%|0.4] | --full | --off
         sessiondeck status                        app state: version, zone, stage, counts
         sessiondeck quit                          close the running app cleanly (saves config, releases the zone)
         sessiondeck install-hooks [--settings <path>] [--dry-run]     register the Claude Code hooks
