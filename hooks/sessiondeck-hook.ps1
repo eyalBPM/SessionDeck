@@ -19,7 +19,7 @@ $sibling = Join-Path (Split-Path $PSScriptRoot -Parent) 'SessionDeck.exe'
 if (Test-Path $sibling) { $exe = $sibling }
 if (-not $exe) { $exe = (Get-Command 'SessionDeck.exe' -ErrorAction SilentlyContinue).Source }
 if (-not $exe) {
-    $devBuild = 'D:\Eyal\SessionDeck\bin\Debug\net10.0-windows\SessionDeck.exe'
+    $devBuild = 'D:\BPM\SessionDeck\bin\Debug\net10.0-windows\SessionDeck.exe'
     if (Test-Path $devBuild) { $exe = $devBuild }
 }
 if (-not $exe) { exit 0 }

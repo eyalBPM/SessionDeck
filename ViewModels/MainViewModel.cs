@@ -23,6 +23,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ZoneMode ZoneMode { get; set; } = ZoneMode.Off;
     public int ZoneMonitor { get; set; }
+    /// <summary>Custom-mode width as the user typed it ("2/7", "40%", "0.4") — kept verbatim for display.</summary>
+    public string ZoneSize { get; set; } = "1/3";
     public StageMode StageMode { get; set; } = StageMode.HalfRight;
     public int StageMonitor { get; set; }
     public Interop.RECT? StageRect { get; set; }       // used when StageMode == Rect

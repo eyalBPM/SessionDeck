@@ -15,7 +15,7 @@ public sealed class CommandExecutor
 {
     private static readonly HashSet<string> ValueOptions = new(StringComparer.OrdinalIgnoreCase)
     {
-        "match", "desc", "color", "monitor", "half", "rect", "title",
+        "match", "desc", "color", "monitor", "half", "quarter", "custom", "size", "rect", "title",
         "id", "workspace", "state", "path",
         "detail", "transcript", "source", "mode", "reason",
     };
@@ -311,7 +311,29 @@ public sealed class CommandExecutor
             else if (half == "right") mode = ZoneMode.HalfRight;
             else return Err("--half must be left or right");
         }
-        else return Err("zone requires --half left|right, --full, or --off");
+        else if (a.Options.TryGetValue("quarter", out var quarter))
+        {
+            if (quarter == "left") mode = ZoneMode.QuarterLeft;
+            else if (quarter == "right") mode = ZoneMode.QuarterRight;
+            else return Err("--quarter must be left or right");
+        }
+        else if (a.Options.TryGetValue("custom", out var custom))
+        {
+            if (custom == "left") mode = ZoneMode.CustomLeft;
+            else if (custom == "right") mode = ZoneMode.CustomRight;
+            else return Err("--custom must be left or right");
+        }
+        else return Err("zone requires --half left|right, --quarter left|right, --custom left|right [--size 2/7], --full, or --off");
+
+        string? size = null;
+        if (a.Options.TryGetValue("size", out var sizeStr))
+        {
+            if (mode is not (ZoneMode.CustomLeft or ZoneMode.CustomRight))
+                return Err("--size only applies to --custom left|right");
+            if (!ZoneSizeParser.TryParse(sizeStr, out _))
+                return Err("--size must be a fraction like 2/7, a percent like 40%, or a decimal 0.05..1");
+            size = sizeStr;
+        }
 
         int monitor = Vm.ZoneMonitor;
         if (a.Options.TryGetValue("monitor", out var monStr))
@@ -321,8 +343,9 @@ public sealed class CommandExecutor
             monitor = mon1 - 1;
         }
 
-        _window.ApplyZone(monitor, mode);
-        return Ok($"zone: {ModeNames.ToName(mode)} on monitor {monitor + 1}");
+        _window.ApplyZone(monitor, mode, customSize: size);
+        string sizeSuffix = mode is ZoneMode.CustomLeft or ZoneMode.CustomRight ? $" {Vm.ZoneSize}" : "";
+        return Ok($"zone: {ModeNames.ToName(mode)}{sizeSuffix} on monitor {monitor + 1}");
     }
 
     private PipeResponse Status()
@@ -335,7 +358,7 @@ public sealed class CommandExecutor
             : $"{ModeNames.ToName(Vm.StageMode)} (monitor {Vm.StageMonitor + 1})";
         return Ok($"""
             SessionDeck {version}
-            zone:  {ModeNames.ToName(Vm.ZoneMode)} (monitor {Vm.ZoneMonitor + 1})
+            zone:  {ModeNames.ToName(Vm.ZoneMode)}{(Vm.ZoneMode is ZoneMode.CustomLeft or ZoneMode.CustomRight ? $" {Vm.ZoneSize}" : "")} (monitor {Vm.ZoneMonitor + 1})
             stage: {stage}
             workspaces: {Vm.Workspaces.Count} ({connected} with window, {Vm.Workspaces.Count(w => w.Hidden)} hidden)
             sessions: {openSessions} open

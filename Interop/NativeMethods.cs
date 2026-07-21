@@ -36,6 +36,15 @@ public struct DWM_THUMBNAIL_PROPERTIES
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct WINDOWPOS
+{
+    public IntPtr hwnd;
+    public IntPtr hwndInsertAfter;
+    public int x, y, cx, cy;
+    public uint flags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct APPBARDATA
 {
     public uint cbSize;
@@ -85,9 +94,16 @@ public static class NativeMethods
     // ---- Windows / focus / move ----
     public const int SW_RESTORE = 9;
     public const int SW_MAXIMIZE = 3;
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOMOVE = 0x0002;
     public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
     public const uint SWP_SHOWWINDOW = 0x0040;
+    public const int WM_WINDOWPOSCHANGING = 0x0046;
+    public const int WM_SYSCOMMAND = 0x0112;
+    public const long SC_SIZE = 0xF000;
+    public const long SC_MOVE = 0xF010;
+    public const long SC_MAXIMIZE = 0xF030;
     public const uint GA_ROOT = 2;
     public const int GWL_EXSTYLE = -20;
     public const long WS_EX_TOOLWINDOW = 0x00000080;

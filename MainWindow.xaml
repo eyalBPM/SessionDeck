@@ -11,6 +11,7 @@
         <Style x:Key="IconToggle" TargetType="ToggleButton">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,2"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
@@ -31,33 +32,19 @@
         </Style>
     </Window.Resources>
     <DockPanel>
-        <Border DockPanel.Dock="Top" Background="#FF232323" Padding="8,6">
-            <DockPanel LastChildFill="False">
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
-                    <Button x:Name="AddWorkspaceButton" Click="AddWorkspace_Click" Cursor="Hand"
-                            Background="#FF3A6EA5" Foreground="White" BorderThickness="0" Padding="10,4"
-                            ToolTip="בחר תיקיית פרויקט להוספה ללוח">
-                        <TextBlock Text="+ הוסף Workspace"/>
-                    </Button>
-
-                    <TextBlock Text="Zone:" Foreground="#FFBBBBBB" Margin="18,0,6,0" VerticalAlignment="Center"/>
-                    <ComboBox x:Name="ZoneMonitorCombo" Width="110" SelectionChanged="ZoneUi_Changed"/>
-                    <ComboBox x:Name="ZoneModeCombo" Width="110" Margin="4,0,0,0" SelectionChanged="ZoneUi_Changed"/>
-
-                    <TextBlock Text="אזור פתיחה:" FlowDirection="RightToLeft"
-                               Foreground="#FFBBBBBB" Margin="18,0,6,0" VerticalAlignment="Center"
-                               ToolTip="לאן החלון ייפתח בלחיצה על ▶ (Stage)"/>
-                    <ComboBox x:Name="StageMonitorCombo" Width="110" SelectionChanged="StageUi_Changed"/>
-                    <ComboBox x:Name="StageModeCombo" Width="110" Margin="4,0,0,0" SelectionChanged="StageUi_Changed"/>
-
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+        <Border DockPanel.Dock="Top" Background="#FF232323" Padding="10,6">
+            <!-- responsive toolbar (feedback 2026-07-21): the toggle strip stays docked
+                 right; the left controls live in a WrapPanel so on a narrow window whole
+                 groups wrap to a second row instead of being clipped off-screen -->
+            <DockPanel LastChildFill="True">
+                <!-- icon strip wraps icon-by-icon when the window gets too narrow -->
+                <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
                     <!-- user-defined toggles (config: customToggles) — state exported to
                          flag files for external processes to read -->
                     <ItemsControl ItemsSource="{Binding CustomToggles}" VerticalAlignment="Center">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal"/>
+                                <WrapPanel/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -96,7 +83,7 @@
                                   Checked="SearchToggle_Changed" Unchecked="SearchToggle_Changed"/>
                     <Button x:Name="SettingsButton" Content="⚙" FontSize="15" ToolTip="הגדרות"
                             Background="Transparent" Foreground="White" BorderThickness="0"
-                            Padding="8,2" Cursor="Hand" Click="Settings_Click">
+                            Padding="8,2" Margin="0,2" Cursor="Hand" Click="Settings_Click">
                         <Button.ContextMenu>
                             <ContextMenu FlowDirection="RightToLeft">
                                 <MenuItem x:Name="StartupMenuItem" Header="עלייה אוטומטית עם Windows"
@@ -115,7 +102,45 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
-                </StackPanel>
+                </WrapPanel>
+
+                <!-- two-stage wrap: the inner WrapPanel holds Zone+Stage, so they first drop
+                     together as one unit below the button; only when a full row can't hold
+                     both does Stage drop to its own row. Dividers hide when a wrap separates
+                     their neighbors (see UpdateToolbarDividers). -->
+                <WrapPanel x:Name="ToolbarWrap" VerticalAlignment="Center"
+                           SizeChanged="ToolbarLayout_Changed">
+                    <StackPanel Orientation="Horizontal" Margin="0,3">
+                        <Button x:Name="AddWorkspaceButton" Click="AddWorkspace_Click"
+                                Style="{StaticResource AccentButton}" FlowDirection="RightToLeft"
+                                ToolTip="בחר תיקיית פרויקט להוספה ללוח">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="+" FontWeight="SemiBold" Margin="0,0,6,0"/>
+                                <TextBlock Text="הוסף Workspace"/>
+                            </StackPanel>
+                        </Button>
+                        <Border x:Name="ToolbarDiv1" Width="1" Height="20" Background="#FF3E3E3E"
+                                Margin="14,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <WrapPanel x:Name="ZoneStageWrap" SizeChanged="ToolbarLayout_Changed">
+                        <StackPanel x:Name="ZoneGroup" Orientation="Horizontal" Margin="0,3">
+                            <TextBlock Text="Zone:" Foreground="#FFBBBBBB" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="ZoneMonitorCombo" Width="112" SelectionChanged="ZoneUi_Changed"/>
+                            <ComboBox x:Name="ZoneModeCombo" Width="140" Margin="4,0,0,0" SelectionChanged="ZoneUi_Changed"
+                                      DropDownClosed="ZoneModeCombo_DropDownClosed"/>
+                            <Border x:Name="ToolbarDiv2" Width="1" Height="20" Background="#FF3E3E3E"
+                                    Margin="14,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <StackPanel x:Name="StageGroup" Orientation="Horizontal" Margin="0,3">
+                            <TextBlock Text="Stage:" Foreground="#FFBBBBBB" Margin="0,0,6,0" VerticalAlignment="Center"
+                                       ToolTip="לאן החלון ייפתח בלחיצה על ▶ (Stage)"/>
+                            <ComboBox x:Name="StageMonitorCombo" Width="112" SelectionChanged="StageUi_Changed"/>
+                            <ComboBox x:Name="StageModeCombo" Width="118" Margin="4,0,0,0" SelectionChanged="StageUi_Changed"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </WrapPanel>
             </DockPanel>
         </Border>
 
@@ -141,7 +166,7 @@
 
         <!-- status bar: full width at the window bottom, outside the scroll area, so long
              messages never crowd the toolbar (feedback 2026-07-19) -->
-        <Border DockPanel.Dock="Bottom" Background="#FF232323" Padding="10,4">
+        <Border DockPanel.Dock="Bottom" Background="#FF232323" Padding="12,9" MinHeight="42">
             <DockPanel LastChildFill="True">
                 <!-- session-status summary (feature 2026-07-19): a dot per (status, blinking)
                      group, colored like the session borders; empty groups are not shown.
@@ -158,15 +183,16 @@
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" Margin="0,0,10,0"
                                         ToolTip="{Binding Tooltip}">
-                                <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}"
+                                <Ellipse Width="11" Height="11" Fill="{Binding DotBrush}"
                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding Count}" Foreground="#FFBBBBBB" FontSize="11"
+                                <TextBlock Text="{Binding Count}" Foreground="#FFBBBBBB" FontSize="12"
                                            Margin="4,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock x:Name="StatusText" Foreground="#FF999999" TextWrapping="Wrap"
+                           VerticalAlignment="Center" FontSize="12.5"
                            FlowDirection="{Binding Text, RelativeSource={RelativeSource Self}, Converter={StaticResource Rtl}}"/>
             </DockPanel>
         </Border>

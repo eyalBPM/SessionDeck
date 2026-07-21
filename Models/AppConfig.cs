@@ -1,6 +1,7 @@
 namespace SessionDeck.Models;
 
-public enum ZoneMode { Off, HalfLeft, HalfRight, Full }
+// Order matters: ZoneModeCombo items are mapped by index cast (persistence is by name).
+public enum ZoneMode { Off, QuarterLeft, HalfLeft, HalfRight, QuarterRight, Full, CustomLeft, CustomRight }
 public enum StageMode { Full, HalfLeft, HalfRight, Rect }
 
 public static class ModeNames
@@ -8,9 +9,13 @@ public static class ModeNames
     public static string ToName(ZoneMode m) => m switch
     {
         ZoneMode.Off => "off",
+        ZoneMode.QuarterLeft => "quarter-left",
         ZoneMode.HalfLeft => "half-left",
         ZoneMode.HalfRight => "half-right",
+        ZoneMode.QuarterRight => "quarter-right",
         ZoneMode.Full => "full",
+        ZoneMode.CustomLeft => "custom-left",
+        ZoneMode.CustomRight => "custom-right",
         _ => "off",
     };
 
@@ -19,9 +24,13 @@ public static class ModeNames
         m = s switch
         {
             "off" => ZoneMode.Off,
+            "quarter-left" => ZoneMode.QuarterLeft,
             "half-left" => ZoneMode.HalfLeft,
             "half-right" => ZoneMode.HalfRight,
+            "quarter-right" => ZoneMode.QuarterRight,
             "full" => ZoneMode.Full,
+            "custom-left" => ZoneMode.CustomLeft,
+            "custom-right" => ZoneMode.CustomRight,
             _ => (ZoneMode)(-1),
         };
         return (int)m >= 0;
@@ -47,6 +56,41 @@ public static class ModeNames
             _ => (StageMode)(-1),
         };
         return (int)m >= 0;
+    }
+}
+
+/// <summary>Parses a custom zone width: "2/7" (fraction), "40%" (percent) or "0.4" (ratio).
+/// Valid range is 5%..100% of the monitor width.</summary>
+public static class ZoneSizeParser
+{
+    public static bool TryParse(string? s, out double fraction)
+    {
+        fraction = 0;
+        s = s?.Trim();
+        if (string.IsNullOrEmpty(s)) return false;
+        double f;
+        int slash = s.IndexOf('/');
+        if (slash > 0)
+        {
+            if (!int.TryParse(s[..slash].Trim(), out int num) ||
+                !int.TryParse(s[(slash + 1)..].Trim(), out int den) || den <= 0 || num <= 0)
+                return false;
+            f = (double)num / den;
+        }
+        else if (s.EndsWith('%'))
+        {
+            if (!double.TryParse(s[..^1].Trim(), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out double pct)) return false;
+            f = pct / 100.0;
+        }
+        else
+        {
+            if (!double.TryParse(s, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out f)) return false;
+        }
+        if (f < 0.05 || f > 1.0) return false;
+        fraction = f;
+        return true;
     }
 }
 
@@ -131,6 +175,7 @@ public class ZoneConfig
 {
     public int Monitor { get; set; }          // 0-based
     public string Mode { get; set; } = "off";
+    public string Size { get; set; } = "1/3"; // custom-mode width: "2/7", "40%" or "0.4"
 }
 
 public class StageConfig
