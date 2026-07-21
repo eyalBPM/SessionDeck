@@ -93,6 +93,8 @@ code --install-extension .\sessiondeck-connector-*.vsix
 
 **Cutting a release** (maintainer): bump `<Version>` in `SessionDeck.csproj`, commit on `main`, run `.\release.ps1`. It syncs the hook-script version header, publishes self-contained, runs the installer tests against the published exe, repackages the extension only if it changed, zips and creates the GitHub release. `-DryRun` does everything except push and publish.
 
+Release policy: **one release per `major.minor` line**. A patch bump (`0.6.33` → `0.6.34`) *replaces* that line's release on GitHub (old release + tag deleted, notes cover the whole line); a minor bump (`0.6` → `0.7`) opens a new release. Only the highest version is marked *latest* — patching an old line never steals the latest flag.
+
 ## CLI
 
 ```
