@@ -99,14 +99,42 @@ public sealed class AppBarService
         else abd.rc.Left = Math.Max(abd.rc.Right - width, mon.Left);
 
         NativeMethods.SHAppBarMessage(NativeMethods.ABM_SETPOS, ref abd);
+        // Win10/11 windows carry invisible resize borders: the visible (DWM) frame is
+        // inset a few px from the window rect on the left/right/bottom, so placing the
+        // window rect exactly on the zone leaves visible gaps. Inflate by the inset so
+        // the VISIBLE frame fills the zone — the same compensation the OS applies to
+        // maximized windows. The appbar reservation itself stays abd.rc, so neighbors
+        // still align to the zone edge and only the transparent border overlaps them.
+        RECT inset = GetInvisibleFrameInset();
         _selfPositioning = true;
         try
         {
             NativeMethods.SetWindowPos(_hwnd, IntPtr.Zero,
-                abd.rc.Left, abd.rc.Top, abd.rc.Width, abd.rc.Height,
+                abd.rc.Left - inset.Left, abd.rc.Top - inset.Top,
+                abd.rc.Width + inset.Left + inset.Right,
+                abd.rc.Height + inset.Top + inset.Bottom,
                 NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
         }
         finally { _selfPositioning = false; }
+    }
+
+    /// <summary>Per-side inset of the visible (DWM extended-frame) bounds within the
+    /// window rect — i.e. the invisible resize-border thickness. Zero on failure.</summary>
+    private RECT GetInvisibleFrameInset()
+    {
+        if (NativeMethods.GetWindowRect(_hwnd, out RECT wr) &&
+            NativeMethods.DwmGetWindowAttribute(_hwnd, NativeMethods.DWMWA_EXTENDED_FRAME_BOUNDS,
+                out RECT fr, System.Runtime.InteropServices.Marshal.SizeOf<RECT>()) == 0)
+        {
+            return new RECT
+            {
+                Left = Math.Max(0, fr.Left - wr.Left),
+                Top = Math.Max(0, fr.Top - wr.Top),
+                Right = Math.Max(0, wr.Right - fr.Right),
+                Bottom = Math.Max(0, wr.Bottom - fr.Bottom),
+            };
+        }
+        return default;
     }
 
     private void SaveWindowBounds()

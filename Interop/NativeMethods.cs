@@ -86,10 +86,14 @@ public static class NativeMethods
     [DllImport("dwmapi.dll")]
     public static extern int DwmQueryThumbnailSourceSize(IntPtr hThumbnailId, out SIZE pSize);
 
+    public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     public const int DWMWA_CLOAKED = 14;
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
 
     // ---- Windows / focus / move ----
     public const int SW_RESTORE = 9;
