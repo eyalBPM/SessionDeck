@@ -91,6 +91,8 @@ npx @vscode/vsce package
 code --install-extension .\sessiondeck-connector-*.vsix
 ```
 
+**Cutting a release** (maintainer): bump `<Version>` in `SessionDeck.csproj`, commit on `main`, run `.\release.ps1`. It syncs the hook-script version header, publishes self-contained, runs the installer tests against the published exe, repackages the extension only if it changed, zips and creates the GitHub release. `-DryRun` does everything except push and publish.
+
 ## CLI
 
 ```
