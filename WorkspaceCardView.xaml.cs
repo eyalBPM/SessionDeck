@@ -20,6 +20,9 @@ public partial class WorkspaceCardView : UserControl
     private IntPtr _thumb;
     private IntPtr _thumbSource;
     private RECT _lastDest;
+    private RECT _lastSrc;
+    private bool _lastVisible;
+    private ScrollViewer? _scroll;
     private WorkspaceViewModel? _vm;
 
     private WorkspaceViewModel? Vm => DataContext as WorkspaceViewModel;
@@ -30,7 +33,7 @@ public partial class WorkspaceCardView : UserControl
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
         Loaded += (_, _) => { LayoutUpdated += OnLayoutUpdated; RefreshThumbnail(); SyncExpandGlyph(); };
-        Unloaded += (_, _) => { LayoutUpdated -= OnLayoutUpdated; UnregisterThumbnail(); };
+        Unloaded += (_, _) => { LayoutUpdated -= OnLayoutUpdated; UnregisterThumbnail(); _scroll = null; };
         // Collapsing the card (search filter / hide) doesn't unload it — without this the
         // DWM thumbnail keeps compositing at its old rect over the deck (bug 2026-07-19).
         IsVisibleChanged += (_, _) => RefreshThumbnail();
@@ -81,25 +84,83 @@ public partial class WorkspaceCardView : UserControl
             _thumbSource = vm.Hwnd;
         }
 
-        RECT dest = ComputeDestRect(source.Handle);
-        if (dest.Left == _lastDest.Left && dest.Top == _lastDest.Top &&
-            dest.Right == _lastDest.Right && dest.Bottom == _lastDest.Bottom)
+        RECT dest = ComputeDestRect(source.Handle, out SIZE srcSize);
+
+        // The DWM composites the thumbnail over the whole window surface, ignoring WPF
+        // clipping — a scrolled card would paint over the toolbar/status bar (bug
+        // 2026-07-21). Clamp the destination to the hosting ScrollViewer's viewport and
+        // crop the source proportionally so the preview is cut, not squeezed.
+        RECT clip = ComputeViewportRect(source.Handle);
+        var shown = new RECT
+        {
+            Left = Math.Max(dest.Left, clip.Left),
+            Top = Math.Max(dest.Top, clip.Top),
+            Right = Math.Min(dest.Right, clip.Right),
+            Bottom = Math.Min(dest.Bottom, clip.Bottom),
+        };
+        bool visible = shown.Width > 0 && shown.Height > 0;
+
+        RECT src = default;
+        bool hasSrc = visible && srcSize.Cx > 0 && srcSize.Cy > 0 && dest.Width > 0 && dest.Height > 0;
+        if (hasSrc)
+        {
+            src.Left = (shown.Left - dest.Left) * srcSize.Cx / dest.Width;
+            src.Top = (shown.Top - dest.Top) * srcSize.Cy / dest.Height;
+            src.Right = srcSize.Cx - (dest.Right - shown.Right) * srcSize.Cx / dest.Width;
+            src.Bottom = srcSize.Cy - (dest.Bottom - shown.Bottom) * srcSize.Cy / dest.Height;
+        }
+
+        if (visible == _lastVisible && SameRect(shown, _lastDest) && SameRect(src, _lastSrc))
             return;
-        _lastDest = dest;
+        _lastDest = shown;
+        _lastSrc = src;
+        _lastVisible = visible;
 
         var props = new DWM_THUMBNAIL_PROPERTIES
         {
-            dwFlags = NativeMethods.DWM_TNP_RECTDESTINATION | NativeMethods.DWM_TNP_VISIBLE | NativeMethods.DWM_TNP_OPACITY,
-            rcDestination = dest,
-            fVisible = true,
+            dwFlags = NativeMethods.DWM_TNP_RECTDESTINATION | NativeMethods.DWM_TNP_VISIBLE | NativeMethods.DWM_TNP_OPACITY
+                      | (hasSrc ? NativeMethods.DWM_TNP_RECTSOURCE : 0),
+            rcDestination = shown,
+            rcSource = src,
+            fVisible = visible,
             opacity = 255,
         };
         NativeMethods.DwmUpdateThumbnailProperties(_thumb, ref props);
     }
 
+    /// <summary>The hosting ScrollViewer's client area in the main window's client
+    /// coordinates (device px) — the region a thumbnail is allowed to occupy.</summary>
+    private RECT ComputeViewportRect(IntPtr mainHwnd)
+    {
+        _scroll ??= FindAncestorScroll(this);
+        if (_scroll == null) // not inside a ScrollViewer — no clipping needed
+            return new RECT { Left = int.MinValue / 2, Top = int.MinValue / 2, Right = int.MaxValue / 2, Bottom = int.MaxValue / 2 };
+
+        Point tl = _scroll.PointToScreen(new Point(0, 0));
+        Point br = _scroll.PointToScreen(new Point(_scroll.ActualWidth, _scroll.ActualHeight));
+        var p1 = new POINT { X = (int)tl.X, Y = (int)tl.Y };
+        var p2 = new POINT { X = (int)br.X, Y = (int)br.Y };
+        NativeMethods.ScreenToClient(mainHwnd, ref p1);
+        NativeMethods.ScreenToClient(mainHwnd, ref p2);
+        return new RECT { Left = p1.X, Top = p1.Y, Right = p2.X, Bottom = p2.Y };
+    }
+
+    private static ScrollViewer? FindAncestorScroll(DependencyObject? d)
+    {
+        while (d != null)
+        {
+            if (d is ScrollViewer s) return s;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return null;
+    }
+
+    private static bool SameRect(in RECT a, in RECT b) =>
+        a.Left == b.Left && a.Top == b.Top && a.Right == b.Right && a.Bottom == b.Bottom;
+
     /// <summary>ThumbArea rect in the main window's client coordinates (device px), letterboxed
     /// to the source window's aspect ratio (SPEC §F1).</summary>
-    private RECT ComputeDestRect(IntPtr mainHwnd)
+    private RECT ComputeDestRect(IntPtr mainHwnd, out SIZE srcSize)
     {
         Point tl = ThumbArea.PointToScreen(new Point(0, 0));
         Point br = ThumbArea.PointToScreen(new Point(ThumbArea.ActualWidth, ThumbArea.ActualHeight));
@@ -109,10 +170,12 @@ public partial class WorkspaceCardView : UserControl
         NativeMethods.ScreenToClient(mainHwnd, ref p1);
         NativeMethods.ScreenToClient(mainHwnd, ref p2);
 
+        srcSize = default;
         int dw = p2.X - p1.X, dh = p2.Y - p1.Y;
         if (dw > 0 && dh > 0 &&
             NativeMethods.DwmQueryThumbnailSourceSize(_thumb, out SIZE src) == 0 && src.Cx > 0 && src.Cy > 0)
         {
+            srcSize = src;
             double scale = Math.Min((double)dw / src.Cx, (double)dh / src.Cy);
             int w = (int)(src.Cx * scale), h = (int)(src.Cy * scale);
             p1.X += (dw - w) / 2;
@@ -131,6 +194,8 @@ public partial class WorkspaceCardView : UserControl
             _thumb = IntPtr.Zero;
             _thumbSource = IntPtr.Zero;
             _lastDest = default;
+            _lastSrc = default;
+            _lastVisible = false;
         }
     }
 
