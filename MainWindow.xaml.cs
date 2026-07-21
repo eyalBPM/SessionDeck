@@ -845,7 +845,20 @@ public partial class MainWindow : Window
             if (newTitle.Length > 0) TryRebindWindow(hwnd);
             return;
         }
-        if (newTitle.Length > 0) ws.WindowTitle = newTitle;
+        if (newTitle.Length == 0) return;
+        ws.WindowTitle = newTitle;
+        if (SafeIsMatch(newTitle, ws.TitlePattern)) return;
+        // Only trust settled VSCode titles; a partial mid-reload title must not
+        // release the bind. A wrong release self-heals on the next title event.
+        if (!newTitle.Contains("Visual Studio Code")) return;
+
+        // Open Folder in the same window: same HWND, new workspace — release the
+        // bind and offer the window to the card whose pattern matches the new title.
+        ws.Hwnd = IntPtr.Zero;
+        ws.State = BindState.Disconnected;
+        SortWorkspaces();
+        QueueSave();
+        TryRebindWindow(hwnd);
     }
 
     private void OnWindowDestroyed(IntPtr hwnd)
