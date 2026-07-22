@@ -54,6 +54,8 @@ public partial class MainWindow : Window
     // SessionId == null means "open a NEW session" (the + New Session button).
     private readonly Dictionary<string, (string? SessionId, DateTime At)> _pendingOpens = new();
     private static readonly TimeSpan PendingOpenTtl = TimeSpan.FromSeconds(90);
+    // Sync paths already reported as unroutable — dedup so the heartbeat can't flood the log.
+    private readonly HashSet<string> _loggedUnroutedSyncs = new(StringComparer.OrdinalIgnoreCase);
     private bool _titleScanRunning;
 
     public int MonitorCount => _monitors.Count;
@@ -68,6 +70,9 @@ public partial class MainWindow : Window
         _monitors = MonitorService.GetMonitors();
 
         LoadFromConfig(config);
+        LogService.CleanOldLogs();
+        LogService.Info("app", $"start v{GetType().Assembly.GetName().Version?.ToString(3)}" +
+                               $" debug={(LogService.DebugEnabled ? "on" : "off")}");
         PopulateCombos();
         RefreshBlinkAndSummary();
 
@@ -117,6 +122,7 @@ public partial class MainWindow : Window
         Vm.ShowHidden = config.ShowHidden;
         Vm.AlwaysOnTop = config.AlwaysOnTop;
         Vm.WindowsNotifications = config.WindowsNotifications;
+        LogService.DebugEnabled = config.DebugLogging;
         Topmost = config.AlwaysOnTop;
 
         _customToggleConfigs = config.CustomToggles;
@@ -214,6 +220,7 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        LogService.Info("app", "quit");
         _configStore.SaveNow();
         _pipe?.Dispose();
         _tracker.Dispose();
@@ -238,6 +245,7 @@ public partial class MainWindow : Window
             ShowHidden = Vm.ShowHidden,
             AlwaysOnTop = Vm.AlwaysOnTop,
             WindowsNotifications = Vm.WindowsNotifications,
+            DebugLogging = LogService.DebugEnabled,
             CustomToggles = _customToggleConfigs,
             Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode), Size = Vm.ZoneSize },
             Stage = new StageConfig
@@ -456,6 +464,7 @@ public partial class MainWindow : Window
                     session.TranscriptScannedAt = mtime;
                     if (tInfo.TabTitle != null && session.TabTitle != tInfo.TabTitle)
                     {
+                        LogService.Info("title", $"session={session.SessionId} tab=\"{tInfo.TabTitle}\"");
                         session.TabTitle = tInfo.TabTitle;
                         retitled.Add(ws);
                         changed = true;
@@ -521,9 +530,14 @@ public partial class MainWindow : Window
             session.Detail = call!.Detail;
             session.Status = SessionStatus.Waiting;
             session.LastEventAt = DateTime.Now;
+            LogService.Info("status", $"session={session.SessionId} →waiting (transcript: {call.ToolName})");
             // Don't blink at a dialog the user is already looking at.
             if (ActiveTabSession(ws) == session)
+            {
+                if (!session.Acknowledged)
+                    LogService.Info("ack", $"path=pending-wait session={session.SessionId} label=\"{ws.ActiveClaudeTabLabel}\"");
                 session.Acknowledged = true;
+            }
             return true;
         }
         if (!session.WaitingFromTranscript) return false;
@@ -533,6 +547,7 @@ public partial class MainWindow : Window
         {
             session.Status = SessionStatus.Working;
             session.LastEventAt = DateTime.Now;
+            LogService.Info("status", $"session={session.SessionId} waiting→working (transcript)");
             return true;
         }
         return false;
@@ -1086,13 +1101,20 @@ public partial class MainWindow : Window
         var (ws, session) = found;
         if (session.Closed)
             return ($"session {sessionId} is closed — status not changed", false);
+        var prev = session.Status;
         session.Status = status;
+        if (prev != status)
+            LogService.Info("status", $"session={sessionId} {SessionStatusNames.ToName(prev)}→{SessionStatusNames.ToName(status)} ws=\"{ws.DisplayTitle}\"");
         ApplyHookInfo(session, info);
         LearnTranscriptDir(ws, info);
         RefreshPhantom(session);
         // The user is already looking at this session's tab — don't start blinking at them.
         if (ActiveTabSession(ws) == session)
+        {
+            if (!session.Acknowledged)
+                LogService.Info("ack", $"path=status-hook session={sessionId} label=\"{ws.ActiveClaudeTabLabel}\"");
             session.Acknowledged = true;
+        }
         else if (!session.Acknowledged && ws.ActiveClaudeTabLabel != null)
             // A tab IS focused but the labels disagree — likely title drift (Claude renamed
             // the tab mid-turn and our TabTitle is stale). Rescan the transcript now; the
@@ -1107,6 +1129,7 @@ public partial class MainWindow : Window
         if (Vm.FindSession(sessionId) is not { } found)
             return ($"unknown session id {sessionId}", false);
         var (ws, session) = found;
+        LogService.Info("status", $"session={sessionId} ended");
         session.Closed = true;
         session.EndedAt = DateTime.Now;
         ApplyHookInfo(session, info);
@@ -1153,6 +1176,7 @@ public partial class MainWindow : Window
     {
         if (!session.Acknowledged)
         {
+            LogService.Info("ack", $"path=click session={session.SessionId}");
             session.Acknowledged = true;
             RefreshBlinkAndSummary();
             QueueSave();
@@ -1192,9 +1216,12 @@ public partial class MainWindow : Window
 
     private void OnVscodeSync(VscodeSyncMessage sync, VscodeConnection conn)
     {
-        if (!_connectors.Contains(conn)) _connectors.Add(conn);
+        bool isNew = !_connectors.Contains(conn);
+        if (isNew) _connectors.Add(conn);
         conn.Pid = sync.Pid;
         conn.WorkspacePath = sync.Workspace ?? "";
+        if (isNew)
+            LogService.Info("vscode", $"connected pid={conn.Pid} ws=\"{conn.WorkspacePath}\"");
         if (conn.WorkspacePath.Length == 0) return;
 
         if (Vm.FindByPath(conn.WorkspacePath) is { } ws)
@@ -1204,6 +1231,8 @@ public partial class MainWindow : Window
             var labels = sync.Tabs.Select(t => t.Label).ToList();
             ws.SetClaudeTabs(labels);
             ws.ActiveClaudeTabLabel = sync.Focused ? sync.Tabs.FirstOrDefault(t => t.Active)?.Label : null;
+            LogService.Debug("sync", $"ws=\"{ws.DisplayTitle}\" focused={sync.Focused}" +
+                $" active=\"{ws.ActiveClaudeTabLabel}\" tabs=[{string.Join(" | ", labels)}]");
 
             if (ReapplyTabCorrelation(ws))
             {
@@ -1222,6 +1251,13 @@ public partial class MainWindow : Window
                 QueueSave();
             }
         }
+        else if (_loggedUnroutedSyncs.Add(WorkspaceMetadata.NormalizePath(conn.WorkspacePath)))
+        {
+            // Otherwise a silent black hole (issue 3, 2026-07-22): every sync for this
+            // window is dropped and its card never shows tabs. Once per path per run —
+            // the 2s heartbeat would repeat it forever.
+            LogService.Info("sync", $"no workspace card matches \"{conn.WorkspacePath}\" — tab state dropped");
+        }
 
         // A click that had to launch VSCode first parked its open request here.
         string norm = WorkspaceMetadata.NormalizePath(conn.WorkspacePath);
@@ -1237,6 +1273,7 @@ public partial class MainWindow : Window
 
     private void OnVscodeClosed(VscodeConnection conn)
     {
+        LogService.Info("vscode", $"disconnected pid={conn.Pid} ws=\"{conn.WorkspacePath}\"");
         _connectors.Remove(conn);
         if (conn.WorkspacePath.Length > 0 &&
             Vm.FindByPath(conn.WorkspacePath) is { } ws && FindConnector(ws) == null)
@@ -1312,6 +1349,9 @@ public partial class MainWindow : Window
 
         // Auto-acknowledge the session whose tab the user is looking at.
         if (ActiveTabSession(ws) is not { } target || target.Acknowledged) return false;
+        string? active = ws.ActiveClaudeTabLabel;
+        LogService.Info("ack", $"path=correlation session={target.SessionId} label=\"{active}\"" +
+                               $" match=\"{(active != null ? MatchTabLabel(active, target) : null)}\"");
         target.Acknowledged = true;
         return true;
     }
