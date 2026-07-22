@@ -4,7 +4,11 @@
         xmlns:local="clr-namespace:SessionDeck"
         xmlns:services="clr-namespace:SessionDeck.Services"
         Title="SessionDeck" Height="700" Width="1100"
+        MinWidth="480"
         Background="#FF161616">
+    <!-- MinWidth 480 = card (430) + card margins (16) + vertical scrollbar + window frame:
+         below that the first card/toolbar controls get clipped and the window is unusable.
+         AppBarService derives the minimal zone width from this value too. -->
     <Window.Resources>
         <!-- the "Rtl" converter now lives in App.xaml (shared by every window/dialog) -->
         <!-- toolbar icon toggle: accent background while checked (pressed-state UI) -->
@@ -36,51 +40,14 @@
             <!-- responsive toolbar (feedback 2026-07-21): the toggle strip stays docked
                  right; the left controls live in a WrapPanel so on a narrow window whole
                  groups wrap to a second row instead of being clipped off-screen -->
-            <DockPanel LastChildFill="True">
-                <!-- icon strip wraps icon-by-icon when the window gets too narrow -->
-                <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
-                    <!-- user-defined toggles (config: customToggles) — state exported to
-                         flag files for external processes to read -->
-                    <ItemsControl ItemsSource="{Binding CustomToggles}" VerticalAlignment="Center">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <ToggleButton Content="{Binding Icon}" FontSize="13"
-                                              ToolTip="{Binding Tooltip}"
-                                              Style="{StaticResource IconToggle}"
-                                              IsChecked="{Binding Enabled, Mode=TwoWay}"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <!-- divider between user flags and the built-in toolbar toggles;
-                         hidden when no flags are defined -->
-                    <Border Width="1" Margin="6,3" Background="#FF3E3E3E">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding CustomToggles.Count}" Value="0">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                    </Border>
-                    <ToggleButton x:Name="ShowHiddenToggle" Content="👁" FontSize="13"
-                                  ToolTip="הצג גם workspaces מוסתרים"
-                                  Style="{StaticResource IconToggle}"
-                                  Checked="ShowHidden_Changed" Unchecked="ShowHidden_Changed"/>
-                    <ToggleButton x:Name="PinTopToggle" Content="📌" FontSize="13"
-                                  ToolTip="נעץ: החלון תמיד עליון (Always on Top)"
-                                  Style="{StaticResource IconToggle}"
-                                  Checked="PinTop_Changed" Unchecked="PinTop_Changed"/>
-                    <ToggleButton x:Name="SearchToggleButton" Content="🔍" FontSize="13"
-                                  ToolTip="חיפוש וסינון"
-                                  Style="{StaticResource IconToggle}"
-                                  Checked="SearchToggle_Changed" Unchecked="SearchToggle_Changed"/>
+            <DockPanel x:Name="ToolbarRoot" LastChildFill="True" SizeChanged="ToolbarLayout_Changed">
+                <!-- icon strip wraps icon-by-icon when the window gets too narrow; being
+                     right-docked it is measured before the combos, so ToolbarLayout_Changed
+                     caps its MaxWidth to whatever the widest left group leaves free.
+                     RTL flow + reversed child order so the LEFTMOST icons overflow to the
+                     next row first and ⚙ (rightmost) always stays on the top row -->
+                <WrapPanel x:Name="IconStrip" DockPanel.Dock="Right" VerticalAlignment="Center"
+                           Margin="12,0,0,0" FlowDirection="RightToLeft">
                     <Button x:Name="SettingsButton" Content="⚙" FontSize="15" ToolTip="הגדרות"
                             Background="Transparent" Foreground="White" BorderThickness="0"
                             Padding="8,2" Margin="0,2" Cursor="Hand" Click="Settings_Click">
@@ -102,6 +69,49 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
+                    <ToggleButton x:Name="SearchToggleButton" Content="🔍" FontSize="13"
+                                  ToolTip="חיפוש וסינון"
+                                  Style="{StaticResource IconToggle}"
+                                  Checked="SearchToggle_Changed" Unchecked="SearchToggle_Changed"/>
+                    <ToggleButton x:Name="PinTopToggle" Content="📌" FontSize="13"
+                                  ToolTip="נעץ: החלון תמיד עליון (Always on Top)"
+                                  Style="{StaticResource IconToggle}"
+                                  Checked="PinTop_Changed" Unchecked="PinTop_Changed"/>
+                    <ToggleButton x:Name="ShowHiddenToggle" Content="👁" FontSize="13"
+                                  ToolTip="הצג גם workspaces מוסתרים"
+                                  Style="{StaticResource IconToggle}"
+                                  Checked="ShowHidden_Changed" Unchecked="ShowHidden_Changed"/>
+                    <!-- divider between user flags and the built-in toolbar toggles;
+                         hidden when no flags are defined -->
+                    <Border Width="1" Margin="6,3" Background="#FF3E3E3E">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CustomToggles.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <!-- user-defined toggles (config: customToggles) — state exported to
+                         flag files for external processes to read. Inner panel back to LTR
+                         so the user-defined order still reads left-to-right -->
+                    <ItemsControl ItemsSource="{Binding CustomToggles}" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel FlowDirection="LeftToRight"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ToggleButton Content="{Binding Icon}" FontSize="13"
+                                              ToolTip="{Binding Tooltip}"
+                                              Style="{StaticResource IconToggle}"
+                                              IsChecked="{Binding Enabled, Mode=TwoWay}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </WrapPanel>
 
                 <!-- two-stage wrap: the inner WrapPanel holds Zone+Stage, so they first drop
@@ -110,7 +120,7 @@
                      their neighbors (see UpdateToolbarDividers). -->
                 <WrapPanel x:Name="ToolbarWrap" VerticalAlignment="Center"
                            SizeChanged="ToolbarLayout_Changed">
-                    <StackPanel Orientation="Horizontal" Margin="0,3">
+                    <StackPanel x:Name="AddGroup" Orientation="Horizontal" Margin="0,3">
                         <Button x:Name="AddWorkspaceButton" Click="AddWorkspace_Click"
                                 Style="{StaticResource AccentButton}" FlowDirection="RightToLeft"
                                 ToolTip="בחר תיקיית פרויקט להוספה ללוח">
