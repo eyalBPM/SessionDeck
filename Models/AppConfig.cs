@@ -236,6 +236,10 @@ public class AppConfig
         ["Bash"] = 120, ["PowerShell"] = 120,
     };
 
+    /// <summary>Debug-level logging (full sync snapshots). Persisted so a hunt for a
+    /// sporadic bug survives an app restart; toggled via `sessiondeck log --debug`.</summary>
+    public bool DebugLogging { get; set; }
+
     public ZoneConfig Zone { get; set; } = new();
     public StageConfig Stage { get; set; } = new();
     public WindowBounds? Window { get; set; }

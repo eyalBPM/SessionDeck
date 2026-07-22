@@ -17,7 +17,7 @@ public sealed class CommandExecutor
     {
         "match", "desc", "color", "monitor", "half", "quarter", "custom", "size", "rect", "title",
         "id", "workspace", "state", "path",
-        "detail", "transcript", "source", "mode", "reason",
+        "detail", "transcript", "source", "mode", "reason", "debug",
     };
 
     private readonly MainWindow _window;
@@ -46,10 +46,11 @@ public sealed class CommandExecutor
                 "session" => Session(args),
                 "toggle" => Toggle(args),
                 "status" => Status(),
+                "log" => LogCmd(args),
                 "activate" => Activate(),
                 "quit" => Quit(),
                 "snapshot" => Snapshot(args),   // internal: render the WPF tree to PNG (debug aid)
-                _ => Err($"unknown command '{args.Command}'. Available: list, add, remove, set, focus, pin, zone, stage, session, toggle, status, quit"),
+                _ => Err($"unknown command '{args.Command}'. Available: list, add, remove, set, focus, pin, zone, stage, session, toggle, status, log, quit"),
             };
         }
         catch (Exception ex)
@@ -362,7 +363,20 @@ public sealed class CommandExecutor
             stage: {stage}
             workspaces: {Vm.Workspaces.Count} ({connected} with window, {Vm.Workspaces.Count(w => w.Hidden)} hidden)
             sessions: {openSessions} open
+            log: debug={(LogService.DebugEnabled ? "on" : "off")}  {LogService.LogDir}
             """);
+    }
+
+    private PipeResponse LogCmd(ParsedArgs a)
+    {
+        if (a.Options.TryGetValue("debug", out var dbg))
+        {
+            if (dbg is not ("on" or "off")) return Err("--debug must be on or off");
+            LogService.DebugEnabled = dbg == "on";
+            LogService.Info("log", $"debug={dbg} (cli)");
+            _window.QueueSave();
+        }
+        return Ok($"log: debug={(LogService.DebugEnabled ? "on" : "off")}  {LogService.LogDir}");
     }
 
     private PipeResponse Activate()
