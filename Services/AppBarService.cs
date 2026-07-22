@@ -80,9 +80,13 @@ public sealed class AppBarService
             ZoneMode.Full => mon.Width,
             ZoneMode.QuarterLeft or ZoneMode.QuarterRight => mon.Width / 4,
             ZoneMode.CustomLeft or ZoneMode.CustomRight =>
-                Math.Clamp((int)Math.Round(mon.Width * _customFraction), 50, mon.Width),
+                (int)Math.Round(mon.Width * _customFraction),
             _ => mon.Width / 2,
         };
+        // Never reserve a zone narrower than the window's MinWidth: below it the
+        // toolbar (incl. the zone combo itself) gets clipped and the user cannot
+        // un-zone from the UI (bug 2026-07-22 — 13% custom zone buried the controls).
+        width = Math.Clamp(width, Math.Min(MinZoneWidthPx(), mon.Width), mon.Width);
 
         var abd = NewData();
         abd.uEdge = edge;
@@ -116,6 +120,18 @@ public sealed class AppBarService
                 NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
         }
         finally { _selfPositioning = false; }
+    }
+
+    /// <summary>The window's MinWidth (DIP → device px at its current DPI); 50 when unset.</summary>
+    private int MinZoneWidthPx()
+    {
+        if (_source?.RootVisual is System.Windows.Window w &&
+            !double.IsNaN(w.MinWidth) && w.MinWidth > 0)
+        {
+            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(w);
+            return (int)Math.Ceiling(w.MinWidth * dpi.DpiScaleX);
+        }
+        return 50;
     }
 
     /// <summary>Per-side inset of the visible (DWM extended-frame) bounds within the

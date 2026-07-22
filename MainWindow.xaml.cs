@@ -1572,6 +1572,16 @@ public partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Hidden;
         ToolbarDiv2.Visibility = SameRow(ZoneGroup, StageGroup, ToolbarWrap)
             ? Visibility.Visible : Visibility.Hidden;
+
+        // The right-docked icon strip is measured before the left controls, so on a
+        // narrow window it would keep its single row and squeeze the combos off-screen.
+        // Cap it to what the widest left group leaves free — the WrapPanel then wraps
+        // the icons row-by-row instead. Inputs (window width, fixed group widths) do
+        // not depend on the cap itself, so the layout converges without oscillating.
+        double leftNeeded = Math.Max(AddGroup.ActualWidth,
+            Math.Max(ZoneGroup.ActualWidth, StageGroup.ActualWidth));
+        double free = ToolbarRoot.ActualWidth - leftNeeded - IconStrip.Margin.Left;
+        IconStrip.MaxWidth = Math.Max(44, free);   // 44 ≈ one icon — never fully collapse
     }
 
     private void PopulateCombos()
