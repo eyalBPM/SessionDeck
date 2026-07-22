@@ -116,15 +116,21 @@ public partial class WorkspaceCardView : UserControl
         _lastSrc = src;
         _lastVisible = visible;
 
-        var props = new DWM_THUMBNAIL_PROPERTIES
-        {
-            dwFlags = NativeMethods.DWM_TNP_RECTDESTINATION | NativeMethods.DWM_TNP_VISIBLE | NativeMethods.DWM_TNP_OPACITY
-                      | (hasSrc ? NativeMethods.DWM_TNP_RECTSOURCE : 0),
-            rcDestination = shown,
-            rcSource = src,
-            fVisible = visible,
-            opacity = 255,
-        };
+        // Hiding must not ride along with a degenerate rect: once the card is fully
+        // scrolled out, `shown` is inverted (Bottom < Top) and DWM rejects the WHOLE
+        // update — fVisible=false included — freezing the thumbnail at its last rect
+        // over whatever scrolled into its place (sticky-preview bug 2026-07-22).
+        var props = visible
+            ? new DWM_THUMBNAIL_PROPERTIES
+            {
+                dwFlags = NativeMethods.DWM_TNP_RECTDESTINATION | NativeMethods.DWM_TNP_VISIBLE | NativeMethods.DWM_TNP_OPACITY
+                          | (hasSrc ? NativeMethods.DWM_TNP_RECTSOURCE : 0),
+                rcDestination = shown,
+                rcSource = src,
+                fVisible = true,
+                opacity = 255,
+            }
+            : new DWM_THUMBNAIL_PROPERTIES { dwFlags = NativeMethods.DWM_TNP_VISIBLE, fVisible = false };
         NativeMethods.DwmUpdateThumbnailProperties(_thumb, ref props);
     }
 
