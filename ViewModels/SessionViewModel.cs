@@ -86,6 +86,13 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     /// to run against the stored call instead. Runtime only.</summary>
     public PendingCall? PendingCall { get; set; }
 
+    /// <summary>When the orphan sweep first saw this open session with no living host —
+    /// workspace disconnected, or connected but no tab answers to its titles. The close
+    /// fires only after the condition has held a full TTL, so one stale sync or a
+    /// title-drift window can't kill a live session. Reset by any hook event
+    /// (ApplyHookInfo) and whenever the condition clears. Runtime only.</summary>
+    public DateTime? OrphanSince { get; set; }
+
     /// <summary>Discovered from the transcripts folder (expanded view) — not persisted.</summary>
     public bool Historical { get; init; }
 
