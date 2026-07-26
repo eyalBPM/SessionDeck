@@ -174,7 +174,9 @@ foreach ($old in $sameLine) {
     Write-Host "  replacing $old (release + tag deleted)"
     & $gh release delete $old --cleanup-tag --yes
     if ($LASTEXITCODE -ne 0) { Fail "failed to delete release $old." }
-    git tag -d $old 2>$null | Out-Null
+    # gh --cleanup-tag may already remove the local tag; under EAP=Stop a bare
+    # `git tag -d` on a missing tag turns its stderr into a terminating error (v0.6.40 release incident).
+    if (git tag --list $old) { git tag -d $old | Out-Null }
 }
 $latestFlag = if ($isLatest) { '--latest' } else { '--latest=false' }
 & $gh release create $tag $zip --title $tag --notes-file $notesFile $latestFlag
