@@ -47,7 +47,7 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     public string? CustomTitle
     {
         get => _customTitle;
-        set { if (_customTitle != value) { _customTitle = value; Raise(); Raise(nameof(DisplayTitle)); } }
+        set { if (_customTitle != value) { _customTitle = value; Raise(); Raise(nameof(DisplayTitle)); Raise(nameof(SubText)); } }
     }
 
     private string? _tabTitle;
@@ -56,7 +56,7 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     public string? TabTitle
     {
         get => _tabTitle;
-        set { if (_tabTitle != value) { _tabTitle = value; Raise(); Raise(nameof(DisplayTitle)); Raise(nameof(SubTitle)); } }
+        set { if (_tabTitle != value) { _tabTitle = value; Raise(); Raise(nameof(DisplayTitle)); Raise(nameof(SubTitle)); Raise(nameof(SubText)); } }
     }
 
     private string? _autoTitle;
@@ -64,7 +64,7 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     public string? AutoTitle
     {
         get => _autoTitle;
-        set { if (_autoTitle != value) { _autoTitle = value; Raise(); Raise(nameof(DisplayTitle)); Raise(nameof(SubTitle)); } }
+        set { if (_autoTitle != value) { _autoTitle = value; Raise(); Raise(nameof(DisplayTitle)); Raise(nameof(SubTitle)); Raise(nameof(SubText)); } }
     }
 
     /// <summary>Transcript mtime already scanned for titles (not persisted).</summary>
@@ -117,6 +117,7 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
             Raise();
             Raise(nameof(DisplayTitle));
             Raise(nameof(SubTitle));
+            Raise(nameof(SubText));
         }
     }
 
@@ -151,8 +152,17 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
         set { if (_detail != value) { _detail = value; Raise(); Raise(nameof(SubText)); Raise(nameof(TooltipText)); } }
     }
 
-    /// <summary>Card subtitle: a manual description wins; otherwise the live hook detail.</summary>
-    public string SubText => _description.Length > 0 ? _description : _detail;
+    /// <summary>Card subtitle: a manual description wins; otherwise the live hook detail.
+    /// Suppressed when it just repeats the title — e.g. a tab labelled by the same last
+    /// prompt the hook reported as Detail (issue 2026-07-26).</summary>
+    public string SubText
+    {
+        get
+        {
+            string text = _description.Length > 0 ? _description : _detail;
+            return text == DisplayTitle ? "" : text;
+        }
+    }
 
     public string? TranscriptPath { get; set; }
 

@@ -145,7 +145,7 @@ public partial class MainWindow : Window
             foreach (var sc in wc.Sessions)
             {
                 if (!SessionStatusNames.TryParse(sc.Status, out var status)) status = SessionStatus.Idle;
-                ws.Sessions.Add(new SessionViewModel
+                var svm = new SessionViewModel
                 {
                     SessionId = sc.SessionId,
                     CustomTitle = sc.CustomTitle,
@@ -163,7 +163,11 @@ public partial class MainWindow : Window
                     LastEventAt = sc.LastEventAt,
                     AutoTitle = sc.AutoTitle,
                     TabTitle = sc.TabTitle,
-                });
+                };
+                // Purge archived warmup sessions persisted before this fix — closed,
+                // titleless, transcript never written (issue 2026-07-26).
+                if (svm.Closed && NeverMaterialized(svm)) continue;
+                ws.Sessions.Add(svm);
             }
             foreach (var s in ws.Sessions) RefreshPhantom(s);
             ws.RefreshSessionVisibility();
@@ -409,10 +413,19 @@ public partial class MainWindow : Window
                 }
                 if (DateTime.Now - s.StartedAt > PhantomSessionTtl)
                 {
-                    s.Closed = true;
-                    s.EndedAt = DateTime.Now;
-                    s.EndReason = "stale";
-                    s.Phantom = false;
+                    // Removed outright, not stale-closed — a closed phantom used to leak
+                    // into the session history as "session xxxx" (issue 2026-07-26).
+                    if (NeverMaterialized(s))
+                    {
+                        ws.Sessions.Remove(s);
+                    }
+                    else
+                    {
+                        s.Closed = true;
+                        s.EndedAt = DateTime.Now;
+                        s.EndReason = "stale";
+                        s.Phantom = false;
+                    }
                     changed = true;
                 }
             }
@@ -1124,16 +1137,34 @@ public partial class MainWindow : Window
         return ($"session {sessionId} → {SessionStatusNames.ToName(status)}", true);
     }
 
+    /// <summary>A session whose declared transcript file was never written and that has no
+    /// titles — an empty conversation VSCode spins up eagerly (issue 2026-07-26). Nothing
+    /// to display or resume, so on close it is dropped rather than archived.</summary>
+    private static bool NeverMaterialized(SessionViewModel s)
+    {
+        if (!string.IsNullOrEmpty(s.CustomTitle) || !string.IsNullOrEmpty(s.TabTitle) ||
+            !string.IsNullOrEmpty(s.AutoTitle) || s.Description.Length > 0) return false;
+        if (s.TranscriptPath is not { Length: > 0 } path) return false;
+        try { return !File.Exists(path); } catch { return false; }
+    }
+
     public (string, bool) EndSession(string sessionId, HookInfo info)
     {
         if (Vm.FindSession(sessionId) is not { } found)
             return ($"unknown session id {sessionId}", false);
         var (ws, session) = found;
+        ApplyHookInfo(session, info);
+        LearnTranscriptDir(ws, info);
+        if (NeverMaterialized(session))
+        {
+            LogService.Info("status", $"session={sessionId} ended (never materialized — removed)");
+            ws.Sessions.Remove(session);
+            AfterSessionChange(ws);
+            return ($"session {sessionId} ended (empty — removed)", true);
+        }
         LogService.Info("status", $"session={sessionId} ended");
         session.Closed = true;
         session.EndedAt = DateTime.Now;
-        ApplyHookInfo(session, info);
-        LearnTranscriptDir(ws, info);
 
         // Retention (SPEC decision 12): keep only the last N closed sessions per workspace.
         var closed = ws.Sessions.Where(s => s.Closed).OrderByDescending(s => s.EndedAt ?? DateTime.MinValue).ToList();
