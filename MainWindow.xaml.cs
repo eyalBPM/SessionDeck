@@ -371,6 +371,7 @@ public partial class MainWindow : Window
             RefreshMetadata(ws);
         RefreshTranscriptTitles();
         RefreshPhantomSessions();
+        RefreshOrphanSessions();
         // A permission dialog freezes the transcript, so the scan above may find nothing
         // new — the threshold still has to be re-checked against the stored pending call.
         if (EvaluateAllPendingWaits())
@@ -441,6 +442,56 @@ public partial class MainWindow : Window
             SortWorkspaces();
             RefreshBlinkAndSummary();
             QueueSave();
+        }
+    }
+
+    // ---- orphan sessions (issue 2026-07-26: VSCode update killed the window, SessionEnd never fired) ----
+
+    /// <summary>How long BOTH conditions must hold before an orphan is closed: the session
+    /// has no living host, AND no hook event or transcript write has arrived. Generous on
+    /// purpose (false alarms break trust); a wrong close is revived by the next status
+    /// hook, see SetSessionStatus.</summary>
+    private static readonly TimeSpan OrphanSessionTtl = TimeSpan.FromMinutes(15);
+
+    /// <summary>Newest sign of life we can observe: hook events (LastEventAt) or the
+    /// transcript file's own mtime — the transcript is authoritative when hooks are dead.</summary>
+    private static DateTime LastActivity(SessionViewModel s)
+    {
+        var last = s.LastEventAt ?? s.StartedAt;
+        if (s.TranscriptPath is { Length: > 0 } path)
+            try { var m = File.GetLastWriteTime(path); if (m > last) last = m; } catch { }
+        return last;
+    }
+
+    /// <summary>Has anything to match a VSCode tab label against — a session with no
+    /// titles at all can never correlate, so "no tab matched" proves nothing for it.</summary>
+    private static bool Correlatable(SessionViewModel s)
+        => s.LabelCandidates.Count > 0 || !string.IsNullOrEmpty(s.CustomTitle)
+           || !string.IsNullOrEmpty(s.TabTitle) || !string.IsNullOrEmpty(s.AutoTitle);
+
+    /// <summary>Close sessions whose host died without a SessionEnd hook. Two shapes:
+    /// (א) the workspace's VSCode window is gone — an update/crash kill skips the hooks
+    /// entirely; (ב) the window is up but no tab answers to the session's titles — a
+    /// restored-then-closed tab was never a live session, so closing it fires nothing.
+    /// Both are invisible to the phantom sweep (status isn't idle, the transcript exists).
+    /// The close waits out OrphanSessionTtl on both the condition and total silence.</summary>
+    private void RefreshOrphanSessions()
+    {
+        foreach (var ws in Vm.Workspaces.ToList())
+        {
+            bool connected = FindConnector(ws) != null;
+            // Two windows on the same workspace race SetClaudeTabs (see extension.ts) —
+            // the stored tab list reflects only one of them, so absence proves nothing.
+            bool tabsAuthoritative = connected && ConnectorCount(ws) == 1;
+            foreach (var s in ws.Sessions.Where(s => !s.Closed && !s.Phantom).ToList())
+            {
+                bool candidate = !connected || (tabsAuthoritative && Correlatable(s) && !s.OpenAsTab);
+                if (!candidate) { s.OrphanSince = null; continue; }
+                s.OrphanSince ??= DateTime.Now;
+                if (DateTime.Now - s.OrphanSince < OrphanSessionTtl) continue;
+                if (DateTime.Now - LastActivity(s) < OrphanSessionTtl) continue;
+                EndSession(s.SessionId, new HookInfo(Reason: "orphaned"));
+            }
         }
     }
 
@@ -1024,6 +1075,7 @@ public partial class MainWindow : Window
     private static void ApplyHookInfo(SessionViewModel session, HookInfo info)
     {
         session.LastEventAt = DateTime.Now;
+        session.OrphanSince = null;   // any hook event is proof of life — restart the orphan clock
         if (info.Detail != null) session.Detail = Sanitize(info.Detail);
         if (info.Transcript != null) session.TranscriptPath = info.Transcript;
         if (info.Source != null) session.Source = info.Source;
@@ -1113,7 +1165,19 @@ public partial class MainWindow : Window
         }
         var (ws, session) = found;
         if (session.Closed)
-            return ($"session {sessionId} is closed — status not changed", false);
+        {
+            // An auto-closed session (orphan/stale sweep) that emits a hook is demonstrably
+            // alive — the sweep guessed wrong; revive it. User/hook closes stay final.
+            if (session.EndReason is "orphaned" or "stale")
+            {
+                session.Closed = false;
+                session.EndedAt = null;
+                session.EndReason = null;
+                LogService.Info("status", $"session={sessionId} revived (was auto-closed) ws=\"{ws.DisplayTitle}\"");
+            }
+            else
+                return ($"session {sessionId} is closed — status not changed", false);
+        }
         var prev = session.Status;
         session.Status = status;
         if (prev != status)
@@ -1162,7 +1226,7 @@ public partial class MainWindow : Window
             AfterSessionChange(ws);
             return ($"session {sessionId} ended (empty — removed)", true);
         }
-        LogService.Info("status", $"session={sessionId} ended");
+        LogService.Info("status", $"session={sessionId} ended{(info.Reason is { Length: > 0 } r ? $" ({r})" : "")}");
         session.Closed = true;
         session.EndedAt = DateTime.Now;
 
@@ -1392,6 +1456,14 @@ public partial class MainWindow : Window
         if (ws.Path.Length == 0) return null;
         string norm = WorkspaceMetadata.NormalizePath(ws.Path);
         return _connectors.LastOrDefault(c => c.WorkspacePath.Length > 0 &&
+            WorkspaceMetadata.NormalizePath(c.WorkspacePath) == norm);
+    }
+
+    private int ConnectorCount(WorkspaceViewModel ws)
+    {
+        if (ws.Path.Length == 0) return 0;
+        string norm = WorkspaceMetadata.NormalizePath(ws.Path);
+        return _connectors.Count(c => c.WorkspacePath.Length > 0 &&
             WorkspaceMetadata.NormalizePath(c.WorkspacePath) == norm);
     }
 
