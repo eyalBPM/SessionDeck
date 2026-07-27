@@ -240,6 +240,10 @@ public class AppConfig
     /// sporadic bug survives an app restart; toggled via `sessiondeck log --debug`.</summary>
     public bool DebugLogging { get; set; }
 
+    /// <summary>External tasks file (T-0116). null/empty = the tasks feature is fully off:
+    /// no watcher, no read, no UI (strict opt-in).</summary>
+    public string? TasksFilePath { get; set; }
+
     public ZoneConfig Zone { get; set; } = new();
     public StageConfig Stage { get; set; } = new();
     public WindowBounds? Window { get; set; }

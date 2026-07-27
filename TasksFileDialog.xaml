@@ -1,0 +1,29 @@
+<Window x:Class="SessionDeck.TasksFileDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="קובץ משימות (JSON)" Width="480" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        FlowDirection="RightToLeft" Background="#FF222222">
+    <StackPanel Margin="16">
+        <TextBlock Text="נתיב לקובץ ה-JSON שמזין את פאנל המשימות:" Foreground="#FFCCCCCC" Margin="0,0,0,4"/>
+        <DockPanel>
+            <Button DockPanel.Dock="Left" Content="עיון…" Width="70" Margin="8,0,0,0"
+                    Click="Browse_Click"
+                    Background="#FF3A3A3A" Foreground="White" BorderThickness="0" Padding="0,4"/>
+            <TextBox x:Name="PathBox" FlowDirection="LeftToRight" TextChanged="Path_Changed"
+                     Background="#FF333333" Foreground="White" BorderBrush="#FF555555" Padding="4,3"/>
+        </DockPanel>
+        <TextBlock Text="שדה ריק = כיבוי הפאנל (ברירת המחדל). הקובץ נקרא בלבד — SessionDeck לעולם לא כותב אליו."
+                   Foreground="#FF888888" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+        <TextBlock x:Name="PreviewText" Foreground="#FF7FB2E5" Margin="0,8,0,0" TextWrapping="Wrap"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,14,0,0">
+            <Button x:Name="OkButton" Content="אישור" Width="90" IsDefault="True" Click="Ok_Click" Margin="0,0,8,0"
+                    Background="#FF3A6EA5" Foreground="White" BorderThickness="0" Padding="0,5"/>
+            <Button Content="ביטול" Width="90" IsCancel="True" Margin="0,0,8,0"
+                    Background="#FF3A3A3A" Foreground="White" BorderThickness="0" Padding="0,5"/>
+            <Button Content="📋 העתק הנחיות" Click="CopySpec_Click" Padding="10,5"
+                    Background="#FF3A3A3A" Foreground="White" BorderThickness="0"
+                    ToolTip="מעתיק ללוח את חוזה הקובץ המלא — מבנה, שדות חובה/רשות ודוגמה — להדבקה אצל ה-producer (סקריפט, Claude וכו')"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

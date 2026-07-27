@@ -62,6 +62,8 @@
                                           IsCheckable="True" Click="NotificationsMenuItem_Click"
                                           ToolTip="כשדולק: סשן שדורש תשומת לב מפיק התראת Windows, נקודה צבעונית על האייקון בשורת המשימות והבהוב חד-פעמי.&#10;פועל רק כשגם 📌 וגם ה-Zone כבויים — בכל מצב אחר הדק גלוי ממילא, וההבהוב בכרטיס מספיק.&#10;גם אז, כשהדק בפוקוס לא תוצג התראה."/>
                                 <Separator/>
+                                <MenuItem Header="קובץ משימות (JSON)..." Click="TasksFileMenuItem_Click"
+                                          ToolTip="פאנל משימות read-only הניזון מקובץ JSON חיצוני (למשל export של TaskDeck). ריק = כבוי"/>
                                 <MenuItem Header="מתגים (Flags)..." Click="TogglesMenuItem_Click"
                                           ToolTip="כפתורי toggle ב-toolbar שמצבם נכתב לקובץ flag — לשליטה בתהליכים חיצוניים"/>
                                 <Separator/>
@@ -208,24 +210,32 @@
         </Border>
 
         <Grid>
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl x:Name="CardsHost" ItemsSource="{Binding Workspaces}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <local:WorkspaceCardView Width="430"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-            <TextBlock x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
-                       Foreground="#FF666666" FontSize="15" TextAlignment="Center"
-                       FlowDirection="RightToLeft"
-                       Text="הלוח ריק&#10;לחץ על ״+ הוסף Workspace״ ובחר תיקיית פרויקט,&#10;או הפעל session של Claude Code עם ה-hooks (ראה תיקיית hooks)"/>
+            <!-- deck view: workspace cards + the collapsed tasks strip (T-0116) -->
+            <DockPanel x:Name="DeckView">
+                <local:TasksStripView x:Name="TasksStrip" DockPanel.Dock="Right"/>
+                <Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="CardsHost" ItemsSource="{Binding Workspaces}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <local:WorkspaceCardView Width="430"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <TextBlock x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
+                               Foreground="#FF666666" FontSize="15" TextAlignment="Center"
+                               FlowDirection="RightToLeft"
+                               Text="הלוח ריק&#10;לחץ על ״+ הוסף Workspace״ ובחר תיקיית פרויקט,&#10;או הפעל session של Claude Code עם ה-hooks (ראה תיקיית hooks)"/>
+                </Grid>
+            </DockPanel>
+            <!-- tasks page: swapped with DeckView (T-0116 revised design — page, not expand) -->
+            <local:TasksPageView x:Name="TasksPage" Visibility="Collapsed"/>
         </Grid>
     </DockPanel>
 </Window>

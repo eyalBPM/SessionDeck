@@ -51,8 +51,9 @@ public partial class MainWindow : Window
     private readonly List<VscodeConnection> _connectors = new();
     // A session click with no connector yet (VSCode still launching) parks here until the
     // extension's first sync for that workspace, then the open command is flushed to it.
-    // SessionId == null means "open a NEW session" (the + New Session button).
-    private readonly Dictionary<string, (string? SessionId, DateTime At)> _pendingOpens = new();
+    // SessionId == null means "open a NEW session" (the + New Session button / a task);
+    // Prompt rides along for new sessions opened from a task (T-0116).
+    private readonly Dictionary<string, (string? SessionId, string? Prompt, DateTime At)> _pendingOpens = new();
     private static readonly TimeSpan PendingOpenTtl = TimeSpan.FromSeconds(90);
     // ▶ clicked with no bound window: VSCode was launched, and the stage is applied
     // when the window binds (the launched window ignores clicks made before it existed).
@@ -83,8 +84,10 @@ public partial class MainWindow : Window
         {
             UpdateEmptyHint();
             RefreshBlinkAndSummary();
+            RefreshWorkspaceTaskLinks();   // a new card may match tasks (T-0116)
             QueueSave();
         };
+        PreviewKeyDown += Window_PreviewKeyDown;   // Esc closes the tasks page
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => UpdateEmptyHint();
         Closing += OnClosing;
@@ -193,6 +196,8 @@ public partial class MainWindow : Window
         {
             Left = wb.X; Top = wb.Y; Width = wb.W; Height = wb.H;
         }
+
+        ApplyTasksFile(config.TasksFilePath);   // after workspaces, so task links resolve
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -253,6 +258,7 @@ public partial class MainWindow : Window
             AlwaysOnTop = Vm.AlwaysOnTop,
             WindowsNotifications = Vm.WindowsNotifications,
             DebugLogging = LogService.DebugEnabled,
+            TasksFilePath = Vm.TasksFilePath,
             CustomToggles = _customToggleConfigs,
             Zone = new ZoneConfig { Monitor = Vm.ZoneMonitor, Mode = ModeNames.ToName(Vm.ZoneMode), Size = Vm.ZoneSize },
             Stage = new StageConfig
@@ -766,6 +772,8 @@ public partial class MainWindow : Window
         SearchToggleButton.IsChecked = visible;
         _syncingUi = false;
         SearchRow.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        // Mutual exclusion (T-0116): the tasks-page button is dead while search is up.
+        Vm.TasksPanel.PageBlocked = visible;
         if (visible)
         {
             SearchBox.Focus();
@@ -1367,8 +1375,8 @@ public partial class MainWindow : Window
             _pendingOpens.Remove(norm);
             if (DateTime.Now - pending.At < PendingOpenTtl)
                 conn.TrySend(pending.SessionId is { } sid
-                    ? new { Cmd = "openSession", SessionId = (string?)sid, Maximize = Vm.OpenSessionMaximized }
-                    : new { Cmd = "newSession", SessionId = (string?)null, Maximize = Vm.OpenSessionMaximized });
+                    ? new { Cmd = "openSession", SessionId = (string?)sid, Prompt = (string?)null, Maximize = Vm.OpenSessionMaximized }
+                    : new { Cmd = "newSession", SessionId = (string?)null, Prompt = pending.Prompt, Maximize = Vm.OpenSessionMaximized });
         }
     }
 
@@ -1481,7 +1489,7 @@ public partial class MainWindow : Window
         if (conn == null)
         {
             if (ws.Path.Length > 0)
-                _pendingOpens[WorkspaceMetadata.NormalizePath(ws.Path)] = (session.SessionId, DateTime.Now);
+                _pendingOpens[WorkspaceMetadata.NormalizePath(ws.Path)] = (session.SessionId, null, DateTime.Now);
             return (false, "no VSCode connector for this workspace yet — request queued");
         }
         if (!conn.TrySend(new { Cmd = "openSession", SessionId = session.SessionId, Maximize = Vm.OpenSessionMaximized }))
@@ -1493,19 +1501,20 @@ public partial class MainWindow : Window
     }
 
     /// <summary>+ New Session (feedback 2026-07-19): open a fresh Claude conversation tab
-    /// in the workspace's VSCode window; parks like openSession when VSCode is launching.</summary>
-    public (bool, string) NewSessionInVscode(WorkspaceViewModel ws)
+    /// in the workspace's VSCode window; parks like openSession when VSCode is launching.
+    /// An optional opening prompt (a task's newSessionPrompt, T-0116) rides along.</summary>
+    public (bool, string) NewSessionInVscode(WorkspaceViewModel ws, string? prompt = null)
     {
         FocusWorkspace(ws);
         var conn = FindConnector(ws);
         if (conn == null)
         {
             if (ws.Path.Length > 0)
-                _pendingOpens[WorkspaceMetadata.NormalizePath(ws.Path)] = (null, DateTime.Now);
+                _pendingOpens[WorkspaceMetadata.NormalizePath(ws.Path)] = (null, prompt, DateTime.Now);
             SetStatus($"‏VSCode נפתח — סשן חדש ייפתח כשהחיבור יעלה");
             return (false, "no VSCode connector yet — request queued");
         }
-        if (!conn.TrySend(new { Cmd = "newSession", Maximize = Vm.OpenSessionMaximized }))
+        if (!conn.TrySend(new { Cmd = "newSession", Prompt = prompt, Maximize = Vm.OpenSessionMaximized }))
         {
             _connectors.Remove(conn);
             return (false, "connector connection lost");

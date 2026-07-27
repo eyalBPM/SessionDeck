@@ -1,0 +1,69 @@
+using System.Windows.Media;
+using SessionDeck.Models;
+using SessionDeck.Services;
+
+namespace SessionDeck.ViewModels;
+
+/// <summary>
+/// One task from the external tasks file (T-0116). Immutable snapshot — the whole list is
+/// rebuilt on every file reload, so no change notifications are needed.
+/// </summary>
+public sealed class TaskItemViewModel
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public string Description { get; init; } = "";
+    public string Status { get; init; } = "";
+    public bool Pinned { get; init; }
+    public string WorkspacePath { get; init; } = "";
+    public IReadOnlyList<string> Sessions { get; init; } = Array.Empty<string>();
+    public string Url { get; init; } = "";
+
+    public bool HasDescription => Description.Length > 0;
+    public bool HasStatus => Status.Length > 0;
+    public bool HasUrl => Url.Length > 0;
+    public bool HasWorkspace => WorkspacePath.Length > 0;
+    /// <summary>The workspace/sessions button exists when there is anywhere to go.</summary>
+    public bool HasTarget => HasWorkspace || Sessions.Count > 0;
+
+    public string TargetButtonText => Sessions.Count > 0 ? $"▶ סשנים ({Sessions.Count})" : "▶ סשן חדש";
+
+    /// <summary>Status color resolved from the document's statusColors map at build time;
+    /// a status without a color (or no status) renders neutral.</summary>
+    public Brush StatusBrush { get; init; } = NeutralBrush;
+
+    public static readonly Brush NeutralBrush = SessionViewModel.MakeBrush("#6E6E6E");
+
+    public string TooltipText
+    {
+        get
+        {
+            var lines = new List<string> { $"‏{Id} — {Name}" };
+            if (HasStatus) lines.Add($"סטטוס: {Status}");
+            if (HasDescription) lines.Add(Description);
+            if (Pinned) lines.Add("📌 נעוצה");
+            return string.Join(Environment.NewLine, lines);
+        }
+    }
+
+    public static TaskItemViewModel From(TaskEntry entry, IReadOnlyDictionary<string, string> statusColors)
+    {
+        string status = entry.Status?.Trim() ?? "";
+        Brush brush = NeutralBrush;
+        if (status.Length > 0 && statusColors.TryGetValue(status, out var colorName) &&
+            ColorUtil.TryParse(colorName, out _))
+            brush = SessionViewModel.MakeBrush(colorName);
+        return new TaskItemViewModel
+        {
+            Id = entry.Id!.Trim(),
+            Name = entry.Name!.Trim(),
+            Description = entry.Description?.Trim() ?? "",
+            Status = status,
+            Pinned = entry.Pinned,
+            WorkspacePath = entry.Workspace?.Trim() ?? "",
+            Sessions = entry.Sessions.Where(s => !string.IsNullOrWhiteSpace(s)).ToList(),
+            Url = entry.Url?.Trim() ?? "",
+            StatusBrush = brush,
+        };
+    }
+}
