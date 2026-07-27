@@ -29,6 +29,12 @@
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Bg" Property="Background" Value="#FF3A6EA5"/>
                             </Trigger>
+                            <!-- Feedback 2026-07-27: without this the disabled 🔍 (tasks-page
+                                 mutual exclusion) looked identical to enabled — users read it
+                                 as a broken button. Same fade as the app-wide Button style. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
