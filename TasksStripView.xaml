@@ -44,7 +44,8 @@
                     Padding="2,3" Cursor="Hand" Click="OpenPage_Click"
                     IsEnabled="{Binding TasksPanel.PageButtonEnabled}">
                 <Button.Style>
-                    <Style TargetType="Button">
+                    <!-- BasedOn keeps the app-wide rounded template -->
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                         <Setter Property="Background" Value="Transparent"/>
                         <Style.Triggers>
                             <Trigger Property="IsEnabled" Value="False">

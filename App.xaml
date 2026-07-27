@@ -33,6 +33,45 @@
         <SolidColorBrush x:Key="ControlBorderHoverBrush" Color="#FF5E5E5E"/>
         <SolidColorBrush x:Key="PopupBgBrush" Color="#FF242424"/>
 
+        <!-- Default Button (feedback 2026-07-27): rounded corners EVERYWHERE. The square
+             WPF chrome leaked through on every plain button (card actions, dialogs,
+             + New Session). This implicit style keeps each button's own Background/
+             Padding and adds a uniform white hover/pressed overlay that works on any
+             color, plus a disabled fade. Local Button styles must use
+             BasedOn="{StaticResource {x:Type Button}}" or they fall back to the
+             square chrome. -->
+        <Style TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4"/>
+                            <Border x:Name="Overlay" Background="Transparent" CornerRadius="4"/>
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Overlay" Property="Background" Value="#1FFFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Overlay" Property="Background" Value="#33FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Primary (accent) button: rounded, hover/pressed states. The default WPF
              button chrome ignores CornerRadius, hence the template. -->
         <Style x:Key="AccentButton" TargetType="Button">

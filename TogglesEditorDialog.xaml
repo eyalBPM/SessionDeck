@@ -30,7 +30,7 @@
             <Setter Property="FontFamily" Value="Consolas"/>
             <Setter Property="FontSize" Value="11"/>
         </Style>
-        <Style x:Key="CopyButton" TargetType="Button">
+        <Style x:Key="CopyButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Content" Value="📋"/>
             <Setter Property="ToolTip" Value="העתק"/>
             <Setter Property="Background" Value="Transparent"/>

@@ -62,13 +62,12 @@
             </TextBlock>
             <StackPanel Orientation="Horizontal" Margin="0,5,0,0" FlowDirection="RightToLeft">
                 <StackPanel.Resources>
-                    <Style TargetType="Button">
+                    <!-- BasedOn keeps the app-wide rounded template -->
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                         <Setter Property="Background" Value="#FF333333"/>
                         <Setter Property="Foreground" Value="#FFDDDDDD"/>
-                        <Setter Property="BorderThickness" Value="0"/>
                         <Setter Property="Padding" Value="9,2"/>
                         <Setter Property="Margin" Value="0,0,6,0"/>
-                        <Setter Property="Cursor" Value="Hand"/>
                         <Setter Property="FontSize" Value="11"/>
                     </Style>
                 </StackPanel.Resources>

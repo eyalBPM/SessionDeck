@@ -101,12 +101,11 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <StackPanel.Resources>
-                            <Style TargetType="Button">
+                            <!-- BasedOn keeps the app-wide rounded template -->
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                 <Setter Property="Background" Value="Transparent"/>
                                 <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="BorderThickness" Value="0"/>
                                 <Setter Property="Padding" Value="6,2"/>
-                                <Setter Property="Cursor" Value="Hand"/>
                             </Style>
                         </StackPanel.Resources>
                         <!-- linked tasks from the external tasks file (T-0116);
