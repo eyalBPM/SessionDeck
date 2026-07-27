@@ -21,24 +21,27 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
     public string Path
     {
         get => _path;
-        set { if (_path != value) { _path = value; Raise(); } }
+        set { if (_path != value) { _path = value; Raise(); Raise(nameof(TitleTooltip)); } }
     }
 
     private string _name = "";
     public string Name
     {
         get => _name;
-        set { if (_name != value) { _name = value; Raise(); Raise(nameof(DisplayTitle)); } }
+        set { if (_name != value) { _name = value; Raise(); Raise(nameof(DisplayTitle)); Raise(nameof(TitleTooltip)); } }
     }
 
     private string? _customTitle;
     public string? CustomTitle
     {
         get => _customTitle;
-        set { if (_customTitle != value) { _customTitle = value; Raise(); Raise(nameof(DisplayTitle)); } }
+        set { if (_customTitle != value) { _customTitle = value; Raise(); Raise(nameof(DisplayTitle)); Raise(nameof(TitleTooltip)); } }
     }
 
     public string DisplayTitle => !string.IsNullOrEmpty(_customTitle) ? _customTitle : _name;
+
+    /// <summary>Card-header tooltip: the full title (the header trims long ones) + path.</summary>
+    public string TitleTooltip => Path.Length > 0 ? DisplayTitle + Environment.NewLine + Path : DisplayTitle;
 
     private string _description = "";
     public string Description

@@ -39,43 +39,52 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel>
-                        <StackPanel Orientation="Horizontal">
+                        <!-- WrapPanel (feedback 2026-07-27): a long title/branch used to
+                             overflow the header StackPanel INTO the action buttons. Now
+                             long values are ellipsis-trimmed (full text in the tooltip),
+                             and the branch+tabs pills drop to a second row AS ONE UNIT
+                             when the first row runs out of room. -->
+                        <WrapPanel>
                             <TextBlock Text="{Binding DisplayTitle}" Foreground="White" FontWeight="Bold"
-                                       FontSize="14" TextWrapping="Wrap" MaxWidth="240"
+                                       FontSize="14" MaxWidth="300" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"
                                        FlowDirection="{Binding DisplayTitle, Converter={StaticResource Rtl}}"
-                                       ToolTip="{Binding Path}"/>
-                            <Border Background="#33FFFFFF" CornerRadius="8" Padding="7,1" Margin="8,0,0,0"
-                                    VerticalAlignment="Center">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasBranch}" Value="False">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock Foreground="#FFDDDDDD" FontSize="11">
-                                    <Run Text="&#x2387;"/> <Run Text="{Binding Branch}"/>
-                                </TextBlock>
-                            </Border>
-                            <!-- open Claude Code tabs, reported by the VSCode extension (stage D) -->
-                            <Border Background="#33FFFFFF" CornerRadius="8" Padding="7,1" Margin="6,0,0,0"
-                                    VerticalAlignment="Center" ToolTip="{Binding ClaudeTabsTooltip}">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasClaudeTabs}" Value="False">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock Foreground="#FFDDDDDD" FontSize="11">
-                                    <Run Text="📑"/> <Run Text="{Binding ClaudeTabCount, Mode=OneWay}"/>
-                                </TextBlock>
-                            </Border>
-                        </StackPanel>
+                                       ToolTip="{Binding TitleTooltip}"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Background="#33FFFFFF" CornerRadius="8" Padding="7,1" Margin="8,1,0,1"
+                                        VerticalAlignment="Center" ToolTip="{Binding Branch}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasBranch}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Foreground="#FFDDDDDD" FontSize="11" MaxWidth="280"
+                                               TextTrimming="CharacterEllipsis">
+                                        <Run Text="&#x2387;"/> <Run Text="{Binding Branch}"/>
+                                    </TextBlock>
+                                </Border>
+                                <!-- open Claude Code tabs, reported by the VSCode extension (stage D) -->
+                                <Border Background="#33FFFFFF" CornerRadius="8" Padding="7,1" Margin="6,1,0,1"
+                                        VerticalAlignment="Center" ToolTip="{Binding ClaudeTabsTooltip}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasClaudeTabs}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Foreground="#FFDDDDDD" FontSize="11">
+                                        <Run Text="📑"/> <Run Text="{Binding ClaudeTabCount, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </Border>
+                            </StackPanel>
+                        </WrapPanel>
                         <TextBlock Text="{Binding Description}" Foreground="#FFAAAAAA" FontSize="11"
                                    TextTrimming="CharacterEllipsis"
                                    FlowDirection="{Binding Description, Converter={StaticResource Rtl}}">
@@ -100,7 +109,6 @@
                                 <Setter Property="Cursor" Value="Hand"/>
                             </Style>
                         </StackPanel.Resources>
-                        <Button Content="▶" Click="Pin_Click" ToolTip="פתח את החלון באזור הפתיחה המוגדר"/>
                         <!-- linked tasks from the external tasks file (T-0116);
                              label = count, disabled at 0, hidden when the feature is off -->
                         <Button x:Name="TasksButton" Click="Tasks_Click" ToolTip="משימות מקושרות ל-workspace">
@@ -121,6 +129,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
+                        <Button Content="▶" Click="Pin_Click" ToolTip="פתח את החלון באזור הפתיחה המוגדר"/>
                         <Button x:Name="ExpandButton" Content="▼" Click="Expand_Click"
                                 ToolTip="הצג גם סשנים סגורים"/>
                         <!-- all card actions live in one ⋯ menu (feedback 2026-07-19) -->
