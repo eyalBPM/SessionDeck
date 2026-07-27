@@ -54,6 +54,9 @@ public partial class MainWindow : Window
     // SessionId == null means "open a NEW session" (the + New Session button).
     private readonly Dictionary<string, (string? SessionId, DateTime At)> _pendingOpens = new();
     private static readonly TimeSpan PendingOpenTtl = TimeSpan.FromSeconds(90);
+    // ▶ clicked with no bound window: VSCode was launched, and the stage is applied
+    // when the window binds (the launched window ignores clicks made before it existed).
+    private readonly Dictionary<int, DateTime> _pendingPins = new();
     // Sync paths already reported as unroutable — dedup so the heartbeat can't flood the log.
     private readonly HashSet<string> _loggedUnroutedSyncs = new(StringComparer.OrdinalIgnoreCase);
     private bool _titleScanRunning;
@@ -911,6 +914,9 @@ public partial class MainWindow : Window
         ws.WindowTitle = title;
         ws.ProcessName = process;
         ws.State = BindState.Connected;
+        // ▶ that had to launch VSCode first parked its stage request here.
+        if (_pendingPins.Remove(ws.Id, out var pinnedAt) && DateTime.Now - pinnedAt < PendingOpenTtl)
+            PinWorkspace(ws);
         SortWorkspaces();
         QueueSave();
     }
@@ -1549,8 +1555,11 @@ public partial class MainWindow : Window
     {
         if (ws.State != BindState.Connected || !NativeMethods.IsWindow(ws.Hwnd))
         {
-            // No bound window — same launch fallback as Focus; the user can pin once it binds.
-            return FocusWorkspace(ws);
+            // No bound window — same launch fallback as Focus, and the stage is
+            // applied automatically once the launched window binds (Bind()).
+            var res = FocusWorkspace(ws);
+            if (res.Item1) _pendingPins[ws.Id] = DateTime.Now;
+            return res;
         }
         if (Vm.StageMode == StageMode.Full)
             WindowActions.MaximizeOn(ws.Hwnd, GetStageRect());
