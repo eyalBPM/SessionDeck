@@ -122,6 +122,11 @@ public static class TranscriptReader
     {
         var pending = new Dictionary<string, PendingCall>();
         var order = new List<string>();
+        // Transcript lines are NOT strictly ordered: a tool_result line can precede its
+        // own tool_use line (seen in the wild 2026-07-27 — same-second flush). Matching
+        // must therefore be order-insensitive, or the call reads as pending forever and
+        // the card is stuck orange.
+        var resolved = new HashSet<string>(StringComparer.Ordinal);
         foreach (var line in tail)
         {
             bool hasUse = line.Contains("\"tool_use\"");
@@ -150,7 +155,7 @@ public static class TranscriptReader
                     {
                         string? name = block.TryGetProperty("name", out var n) ? n.GetString() : null;
                         string? id = block.TryGetProperty("id", out var i) ? i.GetString() : null;
-                        if (name == null || id == null) continue;
+                        if (name == null || id == null || resolved.Contains(id)) continue;
                         bool isAsk = AskTools.Contains(name);
                         string detail = isAsk ? AskDetail(name, block) : $"ממתין לאישור הרשאה: {name}";
                         pending[id] = new PendingCall(name, detail, stamp, isAsk);
@@ -158,9 +163,10 @@ public static class TranscriptReader
                     }
                     else if (kind == "tool_result" &&
                              block.TryGetProperty("tool_use_id", out var rid) &&
-                             rid.GetString() is { } resolved)
+                             rid.GetString() is { } rId)
                     {
-                        pending.Remove(resolved);
+                        resolved.Add(rId);
+                        pending.Remove(rId);
                     }
                 }
             }
