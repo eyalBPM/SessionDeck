@@ -12,6 +12,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>User-defined toolbar toggles (config: customToggles); empty = no UI.</summary>
     public ObservableCollection<CustomToggleViewModel> CustomToggles { get; } = new();
 
+    /// <summary>External tasks file state (T-0116); inert until a path is configured.</summary>
+    public TasksPanelViewModel TasksPanel { get; } = new();
+
+    /// <summary>Configured tasks-file path; null/empty = feature off (strict opt-in).</summary>
+    public string? TasksFilePath { get; set; }
+
     public int NextWorkspaceId { get; set; } = 1;
 
     private bool _showHidden;

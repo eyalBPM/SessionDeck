@@ -17,7 +17,7 @@ public sealed class CommandExecutor
     {
         "match", "desc", "color", "monitor", "half", "quarter", "custom", "size", "rect", "title",
         "id", "workspace", "state", "path",
-        "detail", "transcript", "source", "mode", "reason", "debug",
+        "detail", "transcript", "source", "mode", "reason", "debug", "file",
     };
 
     private readonly MainWindow _window;
@@ -45,12 +45,13 @@ public sealed class CommandExecutor
                 "stage" => Stage(args),
                 "session" => Session(args),
                 "toggle" => Toggle(args),
+                "tasks" => Tasks(args),
                 "status" => Status(),
                 "log" => LogCmd(args),
                 "activate" => Activate(),
                 "quit" => Quit(),
                 "snapshot" => Snapshot(args),   // internal: render the WPF tree to PNG (debug aid)
-                _ => Err($"unknown command '{args.Command}'. Available: list, add, remove, set, focus, pin, zone, stage, session, toggle, status, log, quit"),
+                _ => Err($"unknown command '{args.Command}'. Available: list, add, remove, set, focus, pin, zone, stage, session, toggle, tasks, status, log, quit"),
             };
         }
         catch (Exception ex)
@@ -365,6 +366,41 @@ public sealed class CommandExecutor
             sessions: {openSessions} open
             log: debug={(LogService.DebugEnabled ? "on" : "off")}  {LogService.LogDir}
             """);
+    }
+
+    /// <summary>The external tasks file (T-0116): show / set / turn off from the CLI.
+    /// Same semantics as the ⚙ dialog — the folder must exist, the file itself may not
+    /// yet (the watcher picks it up when it appears).</summary>
+    private PipeResponse Tasks(ParsedArgs a)
+    {
+        if (a.Options.TryGetValue("file", out var file) || a.Flags.Contains("off"))
+        {
+            string? path = a.Flags.Contains("off") ? null : file;
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                try
+                {
+                    string? dir = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path));
+                    if (dir == null || !System.IO.Directory.Exists(dir))
+                        return Err($"the file's folder does not exist: {dir ?? path}");
+                }
+                catch (Exception ex)
+                {
+                    return Err("invalid path: " + ex.Message);
+                }
+            }
+            _window.ApplyTasksFile(path);
+            _window.QueueSave();
+            return Ok(Vm.TasksFilePath == null ? "tasks: off" : $"tasks: file={Vm.TasksFilePath}");
+        }
+
+        if (Vm.TasksFilePath == null)
+            return Ok("tasks: off  (enable: sessiondeck tasks --file \"<path>.json\")");
+        var p = Vm.TasksPanel;
+        string state = p.HasError ? $"ERROR: {p.ErrorText}"
+            : $"{p.PinnedTasks.Count + p.OtherTasks.Count} tasks ({p.PinnedTasks.Count} pinned)"
+              + (p.HasWarning ? $"  WARNING: {p.WarningText}" : "");
+        return Ok($"tasks: file={Vm.TasksFilePath}\n{state}");
     }
 
     private PipeResponse LogCmd(ParsedArgs a)

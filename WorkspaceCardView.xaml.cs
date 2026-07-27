@@ -239,6 +239,11 @@ public partial class WorkspaceCardView : UserControl
         if (vm.Expanded) Owner?.DiscoverHistoricalSessions(vm);
     }
 
+    private void Tasks_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm) vm.TasksExpanded = !vm.TasksExpanded;
+    }
+
     private void CopyPath_Click(object sender, RoutedEventArgs e)
     {
         if (Vm is not { Path.Length: > 0 } vm) return;

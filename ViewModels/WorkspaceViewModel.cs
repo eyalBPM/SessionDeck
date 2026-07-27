@@ -210,6 +210,29 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
 
     public ObservableCollection<SessionViewModel> Sessions { get; } = new();
 
+    // ---- linked tasks from the external tasks file (T-0116); runtime only ----
+
+    /// <summary>Tasks whose workspace path matches this card, pinned first then file
+    /// order. Rebuilt by the controller on every tasks-file reload.</summary>
+    public ObservableCollection<TaskItemViewModel> WorkspaceTasks { get; } = new();
+
+    private bool _tasksEnabled;
+    /// <summary>The tasks feature is on (a file path is configured) — shows the card's
+    /// task-count button even at 0 (disabled).</summary>
+    public bool TasksEnabled
+    {
+        get => _tasksEnabled;
+        set { if (_tasksEnabled != value) { _tasksEnabled = value; Raise(); } }
+    }
+
+    private bool _tasksExpanded;
+    /// <summary>The card's inline task list is open.</summary>
+    public bool TasksExpanded
+    {
+        get => _tasksExpanded;
+        set { if (_tasksExpanded != value) { _tasksExpanded = value; Raise(); } }
+    }
+
     /// <summary>Phantom sessions don't count — they must not float the workspace up.</summary>
     public bool HasOpenSessions => Sessions.Any(s => !s.Closed && !s.Phantom);
 

@@ -111,18 +111,19 @@ async function handleCommand(raw: string): Promise<void> {
     if (name === 'openSession') {
         const sessionId = cmd.SessionId ?? cmd.sessionId;
         if (sessionId) {
-            await openClaudePanel(sessionId, cmd.Maximize ?? cmd.maximize);
+            await openClaudePanel(sessionId, cmd.Maximize ?? cmd.maximize, undefined);
         }
     } else if (name === 'newSession') {
         // claude-vscode.editor.open without a session id opens a fresh conversation tab.
-        await openClaudePanel(undefined, cmd.Maximize ?? cmd.maximize);
+        // Prompt (T-0116): pre-filled input text for a session opened from a task.
+        await openClaudePanel(undefined, cmd.Maximize ?? cmd.maximize, cmd.Prompt ?? cmd.prompt ?? undefined);
     } else {
         out.appendLine(`unknown command: ${name}`);
     }
 }
 
-async function openClaudePanel(sessionId: string | undefined, maximize: boolean): Promise<void> {
-    out.appendLine(`${sessionId ? `openSession ${sessionId}` : 'newSession'} (maximize=${maximize})`);
+async function openClaudePanel(sessionId: string | undefined, maximize: boolean, prompt: string | undefined): Promise<void> {
+    out.appendLine(`${sessionId ? `openSession ${sessionId}` : 'newSession'} (maximize=${maximize}, prompt=${prompt ? 'yes' : 'no'})`);
     if (maximize) {
         // "Full tab area": collapse both side bars and the bottom panel first.
         for (const c of ['workbench.action.closeSidebar', 'workbench.action.closePanel', 'workbench.action.closeAuxiliaryBar']) {
@@ -134,7 +135,9 @@ async function openClaudePanel(sessionId: string | undefined, maximize: boolean)
     try {
         // Claude Code's reveal-or-resume (or new conversation when no id). ViewColumn.Active
         // keeps it in the current editor group and doesn't touch the location preference.
-        await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId, undefined, vscode.ViewColumn.Active);
+        // The 2nd arg is the webview's initial prompt (data-initial-prompt → setInputText,
+        // verified against the installed extension 2.1.215) — the text is pre-filled, not sent.
+        await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId, prompt, vscode.ViewColumn.Active);
     } catch (e) {
         // Internal command signature changed / Claude extension missing — guaranteed fallback.
         out.appendLine(`claude-vscode.editor.open failed (${e}) — falling back to terminal`);
@@ -142,6 +145,11 @@ async function openClaudePanel(sessionId: string | undefined, maximize: boolean)
             const term = vscode.window.createTerminal({ name: 'Claude Code' });
             term.show();
             term.sendText(sessionId ? `claude --resume ${sessionId}` : 'claude');
+            if (!sessionId && prompt) {
+                // Type the prompt into the TUI without submitting — the user reviews and
+                // sends. Delayed so the CLI has time to boot and own the terminal input.
+                setTimeout(() => term.sendText(prompt, false), 3000);
+            }
             void vscode.window.showWarningMessage(
                 'SessionDeck: פתיחת הסשן דרך Claude Code נכשלה — ייתכן שה-API הפנימי השתנה בעדכון. ' +
                 'בוצע fallback לטרמינל. פרטים: Output ← SessionDeck.');
