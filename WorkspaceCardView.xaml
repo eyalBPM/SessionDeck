@@ -110,12 +110,15 @@
                         </StackPanel.Resources>
                         <!-- linked tasks from the external tasks file (T-0116);
                              label = count, disabled at 0, hidden when the feature is off -->
-                        <Button x:Name="TasksButton" Click="Tasks_Click" ToolTip="משימות מקושרות ל-workspace">
+                        <Button x:Name="TasksButton" Click="Tasks_Click">
                             <TextBlock>
                                 <Run Text="🗒"/><Run Text=" "/><Run Text="{Binding WorkspaceTasks.Count, Mode=OneWay}"/>
                             </TextBlock>
                             <Button.Style>
+                                <!-- ToolTip lives in the style (not on the element) so the
+                                     open-state trigger can swap it (T-0236) -->
                                 <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="ToolTip" Value="משימות מקושרות ל-workspace"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding TasksEnabled}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -124,13 +127,31 @@
                                             <Setter Property="IsEnabled" Value="False"/>
                                             <Setter Property="Opacity" Value="0.45"/>
                                         </DataTrigger>
+                                        <!-- pressed look while the inline list is open (T-0236) -->
+                                        <DataTrigger Binding="{Binding TasksExpanded}" Value="True">
+                                            <Setter Property="Background" Value="#FF2E4A66"/>
+                                            <Setter Property="ToolTip" Value="הסתר את המשימות"/>
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
                         </Button>
                         <Button Content="▶" Click="Pin_Click" ToolTip="פתח את החלון באזור הפתיחה המוגדר"/>
-                        <Button x:Name="ExpandButton" Content="▼" Click="Expand_Click"
-                                ToolTip="הצג גם סשנים סגורים"/>
+                        <Button x:Name="ExpandButton" Content="▼" Click="Expand_Click">
+                            <Button.Style>
+                                <!-- glyph swap stays in code-behind (SyncExpandGlyph); the style
+                                     adds the matching pressed look + tooltip swap (T-0236) -->
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="ToolTip" Value="הצג גם סשנים סגורים"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Expanded}" Value="True">
+                                            <Setter Property="Background" Value="#FF2E4A66"/>
+                                            <Setter Property="ToolTip" Value="הסתר סשנים סגורים"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                         <!-- all card actions live in one ⋯ menu (feedback 2026-07-19) -->
                         <Button x:Name="MenuButton" Content="⋯" FontWeight="Bold" Click="Menu_Click"
                                 ToolTip="פעולות">
