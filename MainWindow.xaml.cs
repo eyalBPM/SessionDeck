@@ -1451,7 +1451,12 @@ public partial class MainWindow : Window
     {
         foreach (var candidate in session.LabelCandidates)
             if (TabLabelMatches(label, candidate)) return candidate;
-        foreach (var title in new[] { session.CustomTitle, session.TabTitle, session.AutoTitle })
+        // Same rule as the candidate list: AutoTitle is a prompt/summary, and prompts
+        // label only titleless sessions (T-0313 follow-up — see TranscriptReader).
+        var fallbacks = session.TabTitle is { Length: > 0 }
+            ? new[] { session.CustomTitle, session.TabTitle }
+            : new[] { session.CustomTitle, session.TabTitle, session.AutoTitle };
+        foreach (var title in fallbacks)
             if (title is { Length: > 0 } t && TabLabelMatches(label, t)) return t;
         return null;
     }
