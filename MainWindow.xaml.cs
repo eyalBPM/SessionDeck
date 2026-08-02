@@ -169,7 +169,23 @@ public partial class MainWindow : Window
                     LastEventAt = sc.LastEventAt,
                     AutoTitle = sc.AutoTitle,
                     TabTitle = sc.TabTitle,
+                    // Restored waiting must be re-provable from the transcript, or the
+                    // first scan clears it (T-0313: a fork-phantom orange otherwise
+                    // survives restarts — the persisted status said waiting and the
+                    // runtime-only flag no longer allowed clearing it). A genuine block
+                    // is always re-confirmed by its still-pending call, hook or not.
+                    WaitingFromTranscript = status == SessionStatus.Waiting,
                 };
+                // Same restart rule for working: hooks were down with the app, so a
+                // restored "working" whose transcript went quiet has no Stop coming —
+                // it would stay blue forever (T-0313 follow-up). A genuinely running
+                // session re-proves itself within one turn.
+                if (svm.Status == SessionStatus.Working && !svm.Closed &&
+                    !TranscriptActiveWithin(svm, RecentTranscriptActivity))
+                {
+                    svm.Status = SessionStatus.Idle;
+                    svm.Detail = null;
+                }
                 // Purge archived warmup sessions persisted before this fix — closed,
                 // titleless, transcript never written (issue 2026-07-26).
                 if (svm.Closed && NeverMaterialized(svm)) continue;
@@ -615,15 +631,36 @@ public partial class MainWindow : Window
         }
         if (!session.WaitingFromTranscript) return false;
         session.WaitingFromTranscript = false;
-        // Answered — Claude is running again. The Stop hook takes it from here to done.
+        // Answered — Claude is running again, and the Stop hook takes it from here to
+        // done. Unless the transcript is quiet: then nothing is running (a restored
+        // fork-phantom, T-0313) and "working" would stick forever — land on idle.
         if (session.Status == SessionStatus.Waiting)
         {
-            session.Status = SessionStatus.Working;
+            bool active = TranscriptActiveWithin(session, RecentTranscriptActivity);
+            session.Status = active ? SessionStatus.Working : SessionStatus.Idle;
+            if (!active) session.Detail = null;
             session.LastEventAt = DateTime.Now;
-            LogService.Info("status", $"session={session.SessionId} waiting→working (transcript)");
+            LogService.Info("status",
+                $"session={session.SessionId} waiting→{(active ? "working" : "idle")} (transcript)");
             return true;
         }
         return false;
+    }
+
+    /// <summary>How fresh a transcript write must be to count as "Claude is doing
+    /// something right now". Generous: turns write every few seconds.</summary>
+    private static readonly TimeSpan RecentTranscriptActivity = TimeSpan.FromMinutes(2);
+
+    /// <summary>A transcript write within the window is the only hook-independent signal
+    /// of live activity — used before claiming a session is working (T-0313).</summary>
+    private static bool TranscriptActiveWithin(SessionViewModel session, TimeSpan window)
+    {
+        try
+        {
+            return session.TranscriptPath is { Length: > 0 } path &&
+                   DateTime.UtcNow - File.GetLastWriteTimeUtc(path) < window;
+        }
+        catch { return false; }
     }
 
     private bool IsAgedPermissionDialog(PendingCall call)
