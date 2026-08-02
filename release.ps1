@@ -127,8 +127,14 @@ if ($extChanged -and $prevTag -and -not $DryRun) {
 if ($extChanged -or -not (Test-Path $vsix)) {
     Write-Host "  packaging vsix $extVer..."
     Push-Location $extDir
+    # npm/vsce write warnings to stderr; under EAP=Stop PS 5.1 turns a merged (2>&1)
+    # native stderr line into a terminating NativeCommandError even on success.
+    # The Test-Path below is the real success check.
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     npm install --silent 2>&1 | Out-Null
     npx @vscode/vsce package 2>&1 | Select-Object -Last 1
+    $ErrorActionPreference = $prevEap
     Pop-Location
     if (-not (Test-Path $vsix)) { Fail "vsce did not produce $vsix" }
 } else {
