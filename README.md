@@ -6,7 +6,7 @@ SessionDeck tiles every VSCode window into a live grid and shows each Claude Cod
 
 Under the hood it's a general-purpose window deck (any top-level window can be tiled, pinned and driven from a CLI), but the UI and workflows are deliberately scoped to VSCode + Claude Code.
 
-> Status: actively developed, `v0.6.29`. Windows-only by design.
+> Status: actively developed, `v0.7.7`. Windows-only by design.
 
 ---
 
