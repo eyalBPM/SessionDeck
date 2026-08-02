@@ -117,7 +117,10 @@ public static class TranscriptReader
     /// <summary>A tool_use with no matching tool_result. For AskUserQuestion/ExitPlanMode
     /// that alone proves Claude is blocked; for any other tool the caller must age it past
     /// a threshold first, since a running tool looks identical. Sidechain (subagent) lines
-    /// are ignored — only the main conversation can block the user.</summary>
+    /// are ignored — only the main conversation can block the user. A later human prompt
+    /// clears earlier pending calls: "Fork conversation" copies history but drops some
+    /// tool_result lines (parallel-call siblings off the parentUuid chain, T-0313), so an
+    /// orphaned tool_use mid-history would otherwise read as pending forever.</summary>
     private static PendingCall? FindPendingCall(IEnumerable<string> tail)
     {
         var pending = new Dictionary<string, PendingCall>();
@@ -131,7 +134,8 @@ public static class TranscriptReader
         {
             bool hasUse = line.Contains("\"tool_use\"");
             bool hasResult = line.Contains("\"tool_result\"");
-            if (!hasUse && !hasResult) continue;
+            bool maybeUser = line.Contains("\"role\":\"user\"");
+            if (!hasUse && !hasResult && !maybeUser) continue;
             try
             {
                 using var doc = JsonDocument.Parse(line);
@@ -139,36 +143,50 @@ public static class TranscriptReader
                 if (root.TryGetProperty("isSidechain", out var side) && side.ValueKind == JsonValueKind.True)
                     continue;
                 if (!root.TryGetProperty("message", out var message) ||
-                    !message.TryGetProperty("content", out var content) ||
-                    content.ValueKind != JsonValueKind.Array)
+                    !message.TryGetProperty("content", out var content))
                     continue;
                 DateTime stamp = root.TryGetProperty("timestamp", out var ts) &&
                                  DateTime.TryParse(ts.GetString(), null,
                                      System.Globalization.DateTimeStyles.AdjustToUniversal |
                                      System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed)
                     ? parsed : DateTime.UtcNow;
-                foreach (var block in content.EnumerateArray())
-                {
-                    if (!block.TryGetProperty("type", out var bt)) continue;
-                    string? kind = bt.GetString();
-                    if (kind == "tool_use")
+                bool sawToolBlock = false;
+                if (content.ValueKind == JsonValueKind.Array)
+                    foreach (var block in content.EnumerateArray())
                     {
-                        string? name = block.TryGetProperty("name", out var n) ? n.GetString() : null;
-                        string? id = block.TryGetProperty("id", out var i) ? i.GetString() : null;
-                        if (name == null || id == null || resolved.Contains(id)) continue;
-                        bool isAsk = AskTools.Contains(name);
-                        string detail = isAsk ? AskDetail(name, block) : $"ממתין לאישור הרשאה: {name}";
-                        pending[id] = new PendingCall(name, detail, stamp, isAsk);
-                        order.Add(id);
+                        if (!block.TryGetProperty("type", out var bt)) continue;
+                        string? kind = bt.GetString();
+                        if (kind == "tool_use")
+                        {
+                            sawToolBlock = true;
+                            string? name = block.TryGetProperty("name", out var n) ? n.GetString() : null;
+                            string? id = block.TryGetProperty("id", out var i) ? i.GetString() : null;
+                            if (name == null || id == null || resolved.Contains(id)) continue;
+                            bool isAsk = AskTools.Contains(name);
+                            string detail = isAsk ? AskDetail(name, block) : $"ממתין לאישור הרשאה: {name}";
+                            pending[id] = new PendingCall(name, detail, stamp, isAsk);
+                            order.Add(id);
+                        }
+                        else if (kind == "tool_result")
+                        {
+                            sawToolBlock = true;
+                            if (block.TryGetProperty("tool_use_id", out var rid) &&
+                                rid.GetString() is { } rId)
+                            {
+                                resolved.Add(rId);
+                                pending.Remove(rId);
+                            }
+                        }
                     }
-                    else if (kind == "tool_result" &&
-                             block.TryGetProperty("tool_use_id", out var rid) &&
-                             rid.GetString() is { } rId)
-                    {
-                        resolved.Add(rId);
-                        pending.Remove(rId);
-                    }
-                }
+                // A tool-free user message means the conversation moved past every call
+                // issued before it — those can't be blocking. Timestamp-guarded so the
+                // same-second flush reorder above can't clear a genuinely pending call.
+                if (!sawToolBlock &&
+                    root.TryGetProperty("type", out var rt) && rt.GetString() == "user" &&
+                    !(root.TryGetProperty("isMeta", out var meta) && meta.ValueKind == JsonValueKind.True))
+                    foreach (var id in order)
+                        if (pending.TryGetValue(id, out var pc) && pc.StartedAtUtc <= stamp)
+                            pending.Remove(id);
             }
             catch { }
         }
