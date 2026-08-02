@@ -184,7 +184,7 @@ public partial class MainWindow : Window
                     !TranscriptActiveWithin(svm, RecentTranscriptActivity))
                 {
                     svm.Status = SessionStatus.Idle;
-                    svm.Detail = null;
+                    svm.Detail = "";
                 }
                 // Purge archived warmup sessions persisted before this fix — closed,
                 // titleless, transcript never written (issue 2026-07-26).
@@ -638,7 +638,7 @@ public partial class MainWindow : Window
         {
             bool active = TranscriptActiveWithin(session, RecentTranscriptActivity);
             session.Status = active ? SessionStatus.Working : SessionStatus.Idle;
-            if (!active) session.Detail = null;
+            if (!active) session.Detail = "";
             session.LastEventAt = DateTime.Now;
             LogService.Info("status",
                 $"session={session.SessionId} waiting→{(active ? "working" : "idle")} (transcript)");
