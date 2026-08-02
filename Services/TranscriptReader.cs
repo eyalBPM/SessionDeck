@@ -102,9 +102,17 @@ public static class TranscriptReader
             var candidates = new List<string>();
             foreach (var c in new[] { Shorten(customTitle), Shorten(aiTitle) })
                 if (c != null && !candidates.Contains(c)) candidates.Add(c);
-            for (int i = prompts.Count - 1; i >= 0; i--)
-                if (!candidates.Contains(prompts[i])) candidates.Add(prompts[i]);
-            if (autoTitle != null && !candidates.Contains(autoTitle)) candidates.Add(autoTitle);
+            // Prompts label only titleless sessions — VSCode always prefers the title when
+            // one exists. Prompt candidates on a titled session produce false matches: a
+            // forked session shares its prompt history with its origin, so the shared
+            // prompts made both cards answer to the fork's tab label and the ambiguity
+            // guard blocked auto-acknowledge for both (T-0313 follow-up).
+            if (tabTitle == null)
+            {
+                for (int i = prompts.Count - 1; i >= 0; i--)
+                    if (!candidates.Contains(prompts[i])) candidates.Add(prompts[i]);
+                if (autoTitle != null && !candidates.Contains(autoTitle)) candidates.Add(autoTitle);
+            }
 
             return new TranscriptInfo(tabTitle, autoTitle, FindPendingCall(tail), candidates);
         }
