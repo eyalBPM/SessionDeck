@@ -1,8 +1,11 @@
 # Generates SessionDeck.ico — the app icon: a dark deck with a 2x2 grid of workspace
 # cards, each carrying a status dot (blue/orange/green/gray = working/waiting/done/idle);
 # the first card has the accent-blue border (the "active" card).
-# Output: assets\SessionDeck.ico with 256/64/48/32/16 px PNG-compressed entries.
-# PowerShell 5.1 compatible. Re-run after tweaking to regenerate the .ico.
+# Outputs:
+#   assets\SessionDeck.ico                    — 256/64/48/32/16 px PNG-compressed entries
+#   vscode-extension\assets\logo128.png       — the Connector's Marketplace icon (VSCode wants 128x128)
+# Both come from the same Draw-Icon, so the app and the extension can never drift apart.
+# PowerShell 5.1 compatible. Re-run after tweaking to regenerate both.
 
 Add-Type -AssemblyName System.Drawing
 
@@ -118,3 +121,14 @@ foreach ($e in $entries) { $bw.Write($e.Bytes) }
 $bw.Close()
 
 Write-Host "written: $outPath ($((Get-Item $outPath).Length) bytes, sizes: $($sizes -join ','))"
+
+# the Connector's extension icon - same artwork, plain 128x128 PNG (vsce only packs
+# files under vscode-extension\, so it gets its own copy rather than a link)
+$pngPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'vscode-extension\assets\logo128.png'
+$pngDir = Split-Path $pngPath -Parent
+if (-not (Test-Path $pngDir)) { New-Item -ItemType Directory -Path $pngDir | Out-Null }
+$png = Draw-Icon 128
+$png.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
+$png.Dispose()
+
+Write-Host "written: $pngPath ($((Get-Item $pngPath).Length) bytes, 128x128)"

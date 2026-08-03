@@ -26,6 +26,20 @@ let syncTimer: NodeJS.Timeout | undefined;
 let gitApi: any;
 const hookedRepos = new WeakSet<object>();
 
+// The app icon rendered for a monospace log: the 2x2 deck of workspace cards with
+// their status dots (working/waiting/done/idle), next to the wordmark.
+function banner(version: string): string {
+    return [
+        '',
+        '  ┌─────┬─────┐',
+        '  │  ●  │  ●  │    S E S S I O N D E C K',
+        '  ├─────┼─────┤    Connector v' + version,
+        '  │  ●  │  ●  │    ' + PIPE_PATH,
+        '  └─────┴─────┘',
+        ''
+    ].join('\n');
+}
+
 function workspacePath(): string {
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
 }
@@ -229,6 +243,7 @@ async function initGit(context: vscode.ExtensionContext): Promise<void> {
 export function activate(context: vscode.ExtensionContext): void {
     out = vscode.window.createOutputChannel('SessionDeck');
     context.subscriptions.push(out);
+    out.appendLine(banner(context.extension.packageJSON.version ?? '?'));
     out.appendLine(`SessionDeck Connector activated for: ${workspacePath() || '(no folder)'}`);
 
     context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(queueSync));
