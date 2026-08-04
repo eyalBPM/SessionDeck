@@ -82,6 +82,20 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     /// Runtime only.</summary>
     public bool WaitingFromTranscript { get; set; }
 
+    /// <summary>Set while a PermissionRequest hook's dialog is unresolved, to the value
+    /// TranscriptScannedAt had when the hook arrived. Non-null both blocks the scanner
+    /// from clearing the wait off a PendingCall it hasn't read yet, and marks the call as
+    /// blocking without ageing. The stored mark is what bounds the hold: the moment
+    /// TranscriptScannedAt moves off it, a scan has read the file since the dialog opened
+    /// and PendingCall can be trusted. Runtime only (T-0318).</summary>
+    public DateTime? PermissionDialogScanMark { get; set; }
+
+    /// <summary>StartedAtUtc of the pending call a PermissionRequest hook was matched to.
+    /// The ageing thresholds are skipped for that call — the hook already proved it is a
+    /// dialog — but only for it: without this the privilege leaked to whatever call came
+    /// next and pinned the card orange for the rest of the turn. Runtime only.</summary>
+    public DateTime? PermissionDialogCallAt { get; set; }
+
     /// <summary>Last unanswered tool call seen in the transcript, kept between scans so a
     /// permission dialog can be aged past the threshold. The transcript stops changing
     /// while a dialog is open, so re-reading the file would never notice — the clock has

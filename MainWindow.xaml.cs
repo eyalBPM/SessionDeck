@@ -610,7 +610,40 @@ public partial class MainWindow : Window
     {
         if (session.Closed) return false;
         var call = session.PendingCall;
-        bool blocked = call != null && (call.IsAsk || IsAgedPermissionDialog(call));
+
+        // A PermissionRequest hook reported an open dialog. PendingCall may not show it
+        // yet — the scan is driven by the transcript's mtime, and the transcript stops
+        // growing exactly while a dialog is open, so the read can lag a tick or more.
+        // Clearing on that stale null is what made v0.8.0 blink back to blue while the
+        // user was still blocked. Hold — but only until a scan has actually read the file
+        // since the dialog opened, otherwise a fast Deny (answered before the scanner
+        // caught up) would leave the card orange for the rest of the turn.
+        if (session.PermissionDialogScanMark is { } mark)
+        {
+            if (call != null)
+            {
+                // Corroborated. Pin the privilege to this call only.
+                session.PermissionDialogCallAt = call.StartedAtUtc;
+                session.PermissionDialogScanMark = null;
+            }
+            else if (session.TranscriptScannedAt == mark) return false;   // no scan yet — hold
+            else
+            {
+                // A scan read the file and there is no pending call: answered before the
+                // scanner caught up, or a subagent's call, which is filtered out
+                // (isSidechain) and never appears. Release via the normal clear path.
+                session.PermissionDialogScanMark = null;
+                session.WaitingFromTranscript = true;
+            }
+        }
+
+        // A hook-confirmed dialog needs no ageing — that guesswork is what the hook
+        // replaces — but the privilege belongs to that one call. Letting it ride on the
+        // session pinned the card orange onto every later call (v0.8.1).
+        bool hookConfirmed = call != null && session.PermissionDialogCallAt == call.StartedAtUtc;
+        if (!hookConfirmed) session.PermissionDialogCallAt = null;
+
+        bool blocked = call != null && (call.IsAsk || hookConfirmed || IsAgedPermissionDialog(call));
 
         if (blocked)
         {
@@ -1234,11 +1267,12 @@ public partial class MainWindow : Window
         if (prev != status)
             LogService.Info("status", $"session={sessionId} {SessionStatusNames.ToName(prev)}→{SessionStatusNames.ToName(status)} ws=\"{ws.DisplayTitle}\"");
         // PermissionRequest fires when the dialog opens, but Claude Code has no matching
-        // "resolved" event — so hand the clearing to the transcript scanner, which sees the
-        // tool_result arrive. Safe because the tool_use is already in the transcript when
-        // the hook lands (measured 2026-08-04: written ~0.5s before it fires).
+        // "resolved" event — so the clearing is handed to the transcript scanner, which
+        // sees the tool_result arrive. Not WaitingFromTranscript directly: that let the
+        // very next tick clear the wait off a PendingCall the scanner had not read yet
+        // (v0.8.0 blinked orange→blue→orange). EvaluatePendingWait promotes this.
         if (status == SessionStatus.Waiting && info.PermissionDialog)
-            session.WaitingFromTranscript = true;
+            session.PermissionDialogScanMark = session.TranscriptScannedAt;
         ApplyHookInfo(session, info);
         LearnTranscriptDir(ws, info);
         RefreshPhantom(session);
