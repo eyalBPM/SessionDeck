@@ -615,19 +615,23 @@ public partial class MainWindow : Window
         // yet — the scan is driven by the transcript's mtime, and the transcript stops
         // growing exactly while a dialog is open, so the read can lag a tick or more.
         // Clearing on that stale null is what made v0.8.0 blink back to blue while the
-        // user was still blocked. Hold until the call is actually observed; a subagent's
-        // call is filtered out (isSidechain) and never will be, so that one is left for
-        // the Stop hook. WaitingFromTranscript doubles as the "was observed" marker.
-        if (session.PermissionDialogOpen)
+        // user was still blocked. Hold — but only until a scan has actually read the file
+        // since the dialog opened, otherwise a fast Deny (answered before the scanner
+        // caught up) would leave the card orange for the rest of the turn.
+        if (session.PermissionDialogScanMark is { } mark && call == null)
         {
-            if (call == null && !session.WaitingFromTranscript) return false;
-            if (call == null) session.PermissionDialogOpen = false;   // observed, then resolved
+            if (session.TranscriptScannedAt == mark) return false;    // no scan yet — hold
+            // A scan has seen the file and there is no pending call: either it resolved,
+            // or it is a subagent's call, which is filtered out (isSidechain) and will
+            // never appear. Release through the normal clear path.
+            session.PermissionDialogScanMark = null;
+            session.WaitingFromTranscript = true;
         }
 
         // A hook-confirmed dialog needs no ageing — that guesswork is exactly what the
         // hook replaces.
         bool blocked = call != null &&
-                       (call.IsAsk || session.PermissionDialogOpen || IsAgedPermissionDialog(call));
+                       (call.IsAsk || session.PermissionDialogScanMark != null || IsAgedPermissionDialog(call));
 
         if (blocked)
         {
@@ -1256,7 +1260,7 @@ public partial class MainWindow : Window
         // very next tick clear the wait off a PendingCall the scanner had not read yet
         // (v0.8.0 blinked orange→blue→orange). EvaluatePendingWait promotes this.
         if (status == SessionStatus.Waiting && info.PermissionDialog)
-            session.PermissionDialogOpen = true;
+            session.PermissionDialogScanMark = session.TranscriptScannedAt;
         ApplyHookInfo(session, info);
         LearnTranscriptDir(ws, info);
         RefreshPhantom(session);
