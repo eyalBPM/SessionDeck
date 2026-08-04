@@ -17,7 +17,7 @@ public static class HookInstaller
     /// them before re-adding is what makes install idempotent and path-upgrade safe.</summary>
     private const string ScriptMarker = "sessiondeck-hook.ps1";
 
-    // Must match hooks/README.md ("התקנה") exactly, including the matchers.
+    // Must match hooks/README.md ("Installation") exactly, including the matchers.
     private static readonly (string Event, string? Matcher)[] HookTable =
     {
         ("SessionStart", null),

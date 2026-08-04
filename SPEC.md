@@ -1,289 +1,289 @@
-# SessionDeck (לשעבר WinGrid) — אפיון פיתוח (v0.6)
+# SessionDeck (formerly WinGrid) — development spec (v0.6)
 
 > Last updated: 2026-07-17
-> Status: **שלבים א'–ד' ממומשים** (v0.5.0, 2026-07-19; ממתין לבדיקות ידניות — `MANUAL_TESTS.md`); rename ל-SessionDeck בוצע (v0.3.0); auto-acknowledge מטאב (שלב ד', סעיף אחרון) — עדיין פתוח.
-> שם: **SessionDeck** (נבחר 2026-07-17 — החלטה 20). ה-rename הושלם במלואו: קוד 2026-07-17 (csproj/slnx, namespaces, pipe `sessiondeck`, mutex, ‏`%APPDATA%\SessionDeck` + מיגרציה, ערך Run + מיגרציה), ושם התיקייה `D:\Eyal\SessionDeck` ‏(2026-07-19, ע"י אייל).
-> מחבר האפיון: Claude Code בשיתוף אייל, סשנים 2026-07-16 – 2026-07-17.
+> Status: **stages A–D implemented** (v0.5.0, 2026-07-19; pending manual testing — `MANUAL_TESTS.md`); the rename to SessionDeck is done (v0.3.0); auto-acknowledge from a tab (stage D, last item) — still open.
+> Name: **SessionDeck** (chosen 2026-07-17 — decision 20). The rename was completed in full: the code on 2026-07-17 (csproj/slnx, namespaces, the `sessiondeck` pipe, the mutex, `%APPDATA%\SessionDeck` + migration, the Run value + migration), and the folder name `D:\Eyal\SessionDeck` (2026-07-19, by Eyal).
+> Spec author: Claude Code together with Eyal, sessions 2026-07-16 – 2026-07-17.
 
 ---
 
-## 1. רקע ומטרה
+## 1. Background and goal
 
-אפליקציית Windows כללית לניטור ושליטה בחלונות: לוח (grid) של "אריחים" (tiles), כל אריח מציג **תצוגה חיה** של חלון OS נבחר, עם כותרת, תיאור ומסגרת צבעונית. לחיצה מקפיצה/מפעילה את החלון האמיתי. האפליקציה נשלטת גם מ-CLI.
+A general-purpose Windows app for monitoring and driving windows: a grid of "tiles", each showing a **live view** of a chosen OS window, with a title, a description and a colored border. Clicking one raises/activates the real window. The app is also driven from a CLI.
 
-**מטרת-על (זכורה, אך האפיון נשאר גנרי):** שליטה בכל ה-sessions של Claude Code שרצים במחשב (כל session בחלון VSCode). בשלב 2, hooks של Claude Code יקראו ל-CLI כדי לעדכן צבע מסגרת לפי סטטוס העבודה של כל session (למשל: עובד = ירוק, ממתין לאינפוט = מהבהב כתום/שחור).
+**The overarching goal (kept in mind, though the spec stays generic):** control over every Claude Code session running on the machine (each session in a VSCode window). In phase 2, Claude Code hooks will call the CLI to update a border color per session's work status (working = green, waiting for input = blinking orange/black, for instance).
 
-**עדכון אג'נדה (2026-07-17, v0.5 — החלטה 15):** האפליקציה ממוקדת מעתה **במפורש בסשני Claude Code ב-VSCode** — לוח בקרה שמציג כל חלון VSCode ככרטיס, ואת הסשנים (טאבים) שבתוכו כתת-כרטיסים עם סטטוס חי מה-hooks. היכולת הגנרית (ניטור כל חלון OS) נשמרת במנוע מתחת למכסה, אבל ה-UI וה-flows מסוננים ל-VSCode בלבד (החלטה 13). המודל המלא — §2ב. שלבים א'–ב' (שכבר ממומשים) הם התשתית: thumbnails, focus/pin, zone, CLI, persistence, blink — הכל משרת את המבנה החדש.
-
----
-
-## 2. מושגי יסוד
-
-| מושג | הגדרה |
-|------|--------|
-| **Tile** | ריבוע ב-grid המייצג חלון OS אחד (HWND top-level): תצוגה חיה + כותרת + תיאור + מסגרת צבעונית. |
-| **Stage** | אזור יעד גלובלי מוגדר-מראש (מסך שלם / חצי מסך / מלבן), שאליו "קופץ" חלון בפעולת **Pin**. |
-| **Reserved Zone** | שטח המסך שהאפליקציה עצמה תופסת (מסך מלא או חצי מסך). מנוכה מה-work area של Windows — חלונות אחרים (כולל maximized) לא נכנסים אליו; העכבר חופשי לנוע לשם. |
-| **Matcher** | כלל שיוך persistent של tile לחלון: process name + title pattern (regex), לצורך re-bind אחרי הפעלה מחדש. |
-| **Window Card** | (v0.5) כרטיס לכל חלון VSCode: תצוגה חיה + פרטי חלון + כפתור Focus + כפתור הרחבה. גלגול של ה-Tile הקיים. |
-| **Session Card** | (v0.5) תת-כרטיס בתוך Window Card, מייצג סשן Claude Code (טאב): שם, סטטוס, מסגרת צבע לפי סטטוס. ללא thumbnail. |
+**Agenda update (2026-07-17, v0.5 — decision 15):** the app is now **explicitly focused on Claude Code sessions in VSCode** — a control deck showing every VSCode window as a card, and the sessions (tabs) inside it as sub-cards with live status from the hooks. The generic capability (monitoring any OS window) is kept in the engine under the hood, but the UI and the flows are filtered to VSCode only (decision 13). The full model — §2b. Stages A–B (already implemented) are the foundation: thumbnails, focus/pin, zone, CLI, persistence, blink — all of it serves the new structure.
 
 ---
 
-## 2ב. מודל Cards וסטטוסים (v0.5 — האג'נדה החדשה)
+## 2. Core concepts
 
-### מבנה ה-UI
-- **Window Card** לכל חלון VSCode: תצוגה חיה (DWM thumbnail) למעלה, פרטי החלון (workspace, process), כפתור פתיחה (Focus), וכפתור הרחבה.
-- **Session Cards** מתחת ל-thumbnail: אחד לכל סשן Claude Code פעיל באותו חלון — שם הסשן, סטטוס טקסטואלי, ו**מסגרת צבעונית לפי סטטוס** (הצבעים וההבהוב חיים כאן, לא ברמת החלון). ללא thumbnail — טאב לא-אקטיבי אינו מרונדר ע"י VSCode/DWM, אין פיקסלים להציג (מגבלה טכנית מוחלטת).
-- **הרחבה**: לחיצה על כפתור ההרחבה מציגה גם סשנים **סגורים** של אותו workspace, עם אפשרות פתיחה מחדש (resume — המימוש בשלב ד'). retention לסשנים סגורים: ~20 אחרונים ל-workspace (config).
-
-### סטטוסים (החלטה 11)
-| סטטוס | מסגרת | מעברים |
-|--------|--------|---------|
-| `idle` | אפורה קבועה | סשן קיים ולא עובד (אחרי SessionStart, לפני prompt ראשון) |
-| `working` | כחולה קבועה | עד האירוע הבא |
-| `waiting` | כתומה מהבהבת | ממתין ל-permission/אינפוט; עד לחיצה או אירוע הבא |
-| `done` | ירוקה מהבהבת → קבועה | מהבהבת עד **acknowledge** (לחיצת המשתמש) → ירוקה קבועה |
-| `error` | אדומה מהבהבת → קבועה | כנ"ל — מהבהבת עד acknowledge → אדומה קבועה |
-
-- **לחיצה על Session Card** = Focus לחלון + acknowledge (עצירת הבהוב done/error) + הפעלת/פתיחת הטאב הספציפי ב-VSCode (שלב ד', v0.5.0). ‏auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode — עדיין פתוח (שאלה 3 ב-§9).
-- **מיפוי סטטוס→צבע/הבהוב יושב ב-config** — ניתן לשינוי בלי לגעת ב-hooks או בקוד.
-- הערה: ל-hooks של Claude Code אין אירוע error ייעודי; מצב `error` קיים במודל וב-CLI, והמיפוי מאירועים בפועל ייקבע בשלב ג' לפי מה שה-hooks מספקים.
-
-### מחזור חיים של סשן (החלטה 12)
-- SessionStart (hook) → נוצר Session Card תחת ה-Window Card של ה-workspace (נוצר Window Card אם אין).
-- SessionEnd (hook) → הכרטיס נעלם מהתצוגה הרגילה; נשמר ומוצג בתצוגה המורחבת.
-
-### ניהול Workspaces (נוסף 2026-07-17 — החלטות 16–18)
-- **Workspace = ישות persistent**: נזכר גם כשאין חלון VSCode פתוח (מקביל ל-disconnected tile היום). ה-Window Card הופך בפועל ל-**Workspace Card** — החלון הוא רק ה-binding החי שלו.
-- **מיון**: workspaces פעילים (חלון פתוח / סשן חי) עולים למעלה; ישנים ניתנים **להסתרה** ומוצגים דרך כפתור/פילטר "הצג מוסתרים".
-- **פריסה**: כרטיסים רחבים, ירידות שורה לפי רוחב, **גודל מינימום** לכרטיס, והכל בתוך **אזור גלילה** אנכי (ה-grid כבר לא חייב להיכנס כולו למסך).
-- **תוכן הכרטיס הראשי**: שם הפרויקט, ה-**branch הנוכחי** של git, תצוגה חיה, ותת-כרטיסי הסשנים. **Custom title + description** נתמכים גם בכרטיס הראשי וגם בתת-הכרטיסים.
-- **צבע הכרטיס הראשי**: נלקח אוטומטית מהגדרות ה-workspace של VSCode (`.vscode/settings.json` — ‏`peacock.color` או `workbench.colorCustomizations.titleBar.activeBackground`) כשקיים — אינטגרציה טבעית למי שעובד עם Peacock; אחרת צבע ידני/ברירת מחדל.
-- **הוספת workspace ל-deck (החלטה 21)** — לפי סדר העדיפות:
-  1. **בחירת תיקייה** (primary, שלב ג'): דיאלוג בחירת תיקייה כמו פתיחת פרויקט ב-VSCode. הנתיב ידוע מיידית → צבע Peacock + branch זמינים עוד לפני שנפתח חלון או רץ סשן.
-  2. **דיווח מה-VSCode extension** (שלב ד'): ה-extension מדווח על ה-workspaces הפתוחים ומוסיף אוטומטית.
-  3. **גרירת חלון (drag-in)** — נשארת כערוץ משני: נחסמת אם החלון אינו VSCode או אם ה-workspace כבר קיים ב-deck (וכשה-extension פעיל הוא ממילא כבר יהיה קיים).
-  4. **hook `cwd`** — רשת ביטחון: סשן שמדווח על workspace שלא קיים ב-deck יוצר אותו אוטומטית עם הנתיב מה-cwd.
-- **הערה טכנית**: קריאת settings.json וה-branch (`.git/HEAD`) דורשת את **נתיב** ה-workspace — מובטח מזרימות 1/2/4 (בחירת תיקייה, extension, hook cwd). הנתיב נשמר ב-config לתמיד.
+| Concept | Definition |
+|---------|------------|
+| **Tile** | A square in the grid representing one OS window (a top-level HWND): live view + title + description + colored border. |
+| **Stage** | A predefined global target area (full screen / half screen / rectangle) that a window "jumps" to on a **Pin** action. |
+| **Reserved Zone** | The screen area the app itself claims (full or half screen). It is subtracted from Windows' work area — other windows (maximized ones included) can't enter it; the mouse moves there freely. |
+| **Matcher** | A persistent rule binding a tile to a window: process name + title pattern (regex), for re-binding after a restart. |
+| **Window Card** | (v0.5) A card per VSCode window: live view + window details + a Focus button + an expand button. The evolution of the existing Tile. |
+| **Session Card** | (v0.5) A sub-card inside a Window Card, representing a Claude Code session (tab): name, status, border color by status. No thumbnail. |
 
 ---
 
-## 3. דרישות פונקציונליות
+## 2b. The cards and statuses model (v0.5 — the new agenda)
 
-### F1 — Grid חי
-- תצוגה חיה של כל חלון באמצעות **DWM Thumbnail API** (`DwmRegisterThumbnail`) — רינדור ע"י ה-compositor של Windows, עלות CPU אפסית, בלי הזרקה או צילום של חלונות המקור.
-- פריסה **אוטומטית** (הוחלט 2026-07-16): מספר עמודות מחושב לפי כמות ה-tiles וגודל אזור התצוגה; כל ה-tiles באותו גודל; שינוי סדר בגרירה בתוך ה-grid.
-- Aspect ratio של כל thumbnail נשמר לפי יחס החלון המקורי (letterboxing בתוך ה-tile).
+### UI structure
+- A **Window Card** per VSCode window: a live view (DWM thumbnail) at the top, the window's details (workspace, process), an open (Focus) button, and an expand button.
+- **Session Cards** below the thumbnail: one per live Claude Code session in that window — the session name, a textual status, and a **colored border by status** (the colors and the blink live here, not at the window level). No thumbnail — an inactive tab isn't rendered by VSCode/DWM, so there are no pixels to show (an absolute technical limit).
+- **Expanding**: clicking the expand button also shows **closed** sessions of that workspace, with the option to reopen them (resume — implemented in stage D). Retention for closed sessions: the ~20 most recent per workspace (config).
 
-### F2 — אנטומיית Tile
-- **כותרת**: ברירת מחדל = ה-window title מ-Windows (`GetWindowText`); ניתנת לעריכה ידנית. כל עוד לא נערכה ידנית — מתעדכנת אוטומטית כשהחלון משנה title.
-- **תיאור**: ריק כברירת מחדל; ניתן לעריכה (UI + CLI).
-- **מסגרת צבעונית**: צבע סטטי, או **מצב מהבהב** — התחלפות בין שני צבעים (למשל כתום/שחור) בקצב מוגדר (ברירת מחדל 500ms).
-- אינדיקציה נוספת על ה-tile: process name + אייקון החלון (nice-to-have).
+### Statuses (decision 11)
+| Status | Border | Transitions |
+|--------|--------|-------------|
+| `idle` | steady grey | a session exists and isn't working (after SessionStart, before the first prompt) |
+| `working` | steady blue | until the next event |
+| `waiting` | blinking orange | waiting for permission/input; until a click or the next event |
+| `done` | blinking green → steady | blinks until **acknowledge** (a user click) → steady green |
+| `error` | blinking red → steady | same — blinks until acknowledge → steady red |
 
-### F3 — הפעלה וקיבוע (הוחלט 2026-07-16: שני מצבים)
-- **Focus (הפעלה במקום)**: לחיצה רגילה על tile → החלון האמיתי מובא לחזית ומופעל (`SetForegroundWindow`) **במיקומו הנוכחי**.
-- **Pin (קיבוע ל-Stage)**: פעולה נפרדת (כפתור על ה-tile / double-click / CLI) → החלון האמיתי מוזז ל-Stage (`SetWindowPos`) + מופעל.
-- הגדרת ה-Stage: דרך UI ("קבע Stage") ודרך CLI — מסך + חצי (left/right) / full / מלבן מותאם.
+- **Clicking a Session Card** = Focus the window + acknowledge (stop the done/error blink) + activate/open that specific tab in VSCode (stage D, v0.5.0). Auto-acknowledge when the user opens the tab directly in VSCode — still open (question 3 in §9).
+- **The status→color/blink mapping lives in config** — changeable without touching the hooks or the code.
+- Note: Claude Code's hooks have no dedicated error event; the `error` state exists in the model and in the CLI, and the mapping from real events will be settled in stage C based on what the hooks actually provide.
+
+### A session's lifecycle (decision 12)
+- SessionStart (hook) → a Session Card is created under the workspace's Window Card (creating the Window Card if there isn't one).
+- SessionEnd (hook) → the card disappears from the normal view; it is kept and shown in the expanded view.
+
+### Managing workspaces (added 2026-07-17 — decisions 16–18)
+- **A workspace is a persistent entity**: it is remembered even with no VSCode window open (the equivalent of today's disconnected tile). The Window Card effectively becomes a **Workspace Card** — the window is only its live binding.
+- **Sorting**: active workspaces (open window / live session) rise to the top; old ones can be **hidden** and are shown through a "show hidden" button/filter.
+- **Layout**: wide cards, wrapping by width, a **minimum size** per card, all inside a vertical **scroll area** (the grid no longer has to fit the screen in full).
+- **The main card's content**: the project name, git's **current branch**, the live view, and the session sub-cards. **Custom title + description** are supported on the main card and on the sub-cards alike.
+- **The main card's color**: taken automatically from VSCode's workspace settings (`.vscode/settings.json` — `peacock.color` or `workbench.colorCustomizations.titleBar.activeBackground`) when present — a natural integration for anyone working with Peacock; otherwise a manual/default color.
+- **Adding a workspace to the deck (decision 21)** — in priority order:
+  1. **Picking a folder** (primary, stage C): a folder-picker dialog, like opening a project in VSCode. The path is known immediately → the Peacock color + branch are available before any window opens or session runs.
+  2. **Reported by the VSCode extension** (stage D): the extension reports the open workspaces and adds them automatically.
+  3. **Dragging a window in (drag-in)** — kept as a secondary channel: blocked if the window isn't VSCode or if the workspace is already on the deck (and with the extension active it will already be there anyway).
+  4. **The hook's `cwd`** — a safety net: a session reporting a workspace that isn't on the deck creates it automatically, with the path from the cwd.
+- **Technical note**: reading settings.json and the branch (`.git/HEAD`) requires the workspace **path** — guaranteed by flows 1/2/4 (folder pick, extension, hook cwd). The path is stored in config permanently.
+
+---
+
+## 3. Functional requirements
+
+### F1 — a live grid
+- A live view of each window through the **DWM Thumbnail API** (`DwmRegisterThumbnail`) — rendered by Windows' compositor, zero CPU cost, with no injection into or capture of the source windows.
+- **Automatic** layout (decided 2026-07-16): the column count is computed from the number of tiles and the size of the display area; all tiles the same size; reordering by dragging within the grid.
+- Each thumbnail's aspect ratio follows the source window (letterboxing inside the tile).
+
+### F2 — anatomy of a tile
+- **Title**: defaults to the window title from Windows (`GetWindowText`); manually editable. As long as it hasn't been edited by hand — it updates automatically when the window changes its title.
+- **Description**: empty by default; editable (UI + CLI).
+- **Colored border**: a static color, or a **blinking mode** — alternating between two colors (orange/black, say) at a configured rate (default 500ms).
+- Additional indication on the tile: process name + the window's icon (nice-to-have).
+
+### F3 — activation and pinning (decided 2026-07-16: two modes)
+- **Focus (activate in place)**: an ordinary click on a tile → the real window is brought to the front and activated (`SetForegroundWindow`) **where it currently is**.
+- **Pin (pin to the Stage)**: a separate action (a button on the tile / double-click / CLI) → the real window is moved to the Stage (`SetWindowPos`) and activated.
+- Defining the Stage: through the UI ("set Stage") and through the CLI — monitor + half (left/right) / full / a custom rectangle.
 
 ### F4 — Reserved Zone
-- האפליקציה יכולה "להשתלט" על מסך מלא או חצי מסך באמצעות **AppBar API** (`SHAppBarMessage` — ABM_NEW / ABM_SETPOS), per-monitor.
-- כשה-zone פעיל, ה-work area מצטמצם: חלונות maximized ואף snap לא נכנסים לשטח; מעבר עכבר חופשי.
-- מצבים: `off` (חלון רגיל) / `quarter-left` / `half-left` / `half-right` / `quarter-right` / `full` / `custom-left` / `custom-right`, לכל מסך.
-- מצב מותאם (custom): רוחב חופשי כשבר מרוחב המסך — קלט "2/7", "40%" או "0.4" (תחום 5%–100%); נבחר בדיאלוג מה-UI או ב-CLI עם `--size`. הערך נשמר ב-config (`Zone.Size`) כפי שהוקלד.
-- כשה-zone פעיל החלון **נעול במקומו**: גרירת title bar, שינוי גודל, maximize ו-Win+Shift+חצים נבלעים; רק כיבוי ה-zone משחרר. minimize/restore נשארים זמינים.
+- The app can "claim" a full or half screen through the **AppBar API** (`SHAppBarMessage` — ABM_NEW / ABM_SETPOS), per monitor.
+- While the zone is active the work area shrinks: maximized windows and even snap don't enter the area; the mouse still moves freely.
+- Modes: `off` (an ordinary window) / `quarter-left` / `half-left` / `half-right` / `quarter-right` / `full` / `custom-left` / `custom-right`, per screen.
+- Custom mode: a free width as a fraction of the screen width — input "2/7", "40%" or "0.4" (range 5%–100%); chosen in a dialog from the UI or from the CLI with `--size`. The value is stored in config (`Zone.Size`) exactly as typed.
+- While the zone is active the window is **locked in place**: dragging the title bar, resizing, maximizing and Win+Shift+Arrow are all swallowed; only turning the zone off releases it. Minimize/restore stay available.
 
-### F5 — הוספת חלונות (הוחלט 2026-07-16: Picker + גרירה)
-1. **Picker** (MVP): כפתור "בחר חלון" בסגנון crosshair (כמו Spy++) — גוררים את הסמן אל החלון הרצוי ומשחררים.
-2. **Drag-in** (שלב ב'): גרירת title bar של חלון אמיתי ושחרורו מעל האפליקציה → נוסף tile. מימוש: low-level mouse hook גלובלי שמזהה סיום move-drag של חלון זר מעל אזור האפליקציה.
-3. **CLI**: `sessiondeck add ...` (ראה §4).
-- חלונות מסוננים מה-picker: חלונות של SessionDeck עצמו, חלונות ללא title, tool windows.
+### F5 — adding windows (decided 2026-07-16: picker + drag)
+1. **Picker** (MVP): a crosshair-style "pick a window" button (like Spy++) — drag the cursor onto the window you want and release.
+2. **Drag-in** (stage B): drag a real window's title bar and drop it over the app → a tile is added. Implementation: a global low-level mouse hook detecting the end of a foreign window's move-drag over the app's area.
+3. **CLI**: `sessiondeck add ...` (see §4).
+- Windows filtered out of the picker: SessionDeck's own windows, windows with no title, tool windows.
 
-### F6 — ניהול Tiles (עודכן 2026-07-16)
-- הסרה (UI + CLI), עריכת כותרת/תיאור/צבע (UI + CLI), שינוי סדר בגרירה.
-- לכל tile יש שדה **state**: `connected` / `disconnected`. ה-state מוצג כאינדיקציית סטטוס על ה-tile (למשל אייקון/תג + placeholder במקום ה-thumbnail) — **הכותרת, התיאור והצבע לא משתנים בגלל ניתוק** (הוחלט 2026-07-16). ה-state מופיע גם ב-`sessiondeck list`.
-- **חלון שנסגר**: ה-tile עובר ל-`disconnected` ולא נמחק; כשנפתח חלון חדש שתואם ל-Matcher — re-bind אוטומטי וה-tile חוזר ל-`connected`. הסרה אוטומטית = אופציה בהגדרות (כבויה כברירת מחדל).
+### F6 — managing tiles (updated 2026-07-16)
+- Removal (UI + CLI), editing title/description/color (UI + CLI), reordering by drag.
+- Every tile has a **state** field: `connected` / `disconnected`. The state is shown as a status indication on the tile (an icon/badge + a placeholder instead of the thumbnail, say) — **the title, description and color do not change because of a disconnect** (decided 2026-07-16). The state also appears in `sessiondeck list`.
+- **A window that closes**: the tile moves to `disconnected` and is not deleted; when a new window matching the Matcher opens — an automatic re-bind and the tile returns to `connected`. Automatic removal = a setting (off by default).
 
-### F7 — Persistence + Auto-Save (עודכן 2026-07-16)
-- פרופיל JSON ב-`%APPDATA%\SessionDeck\config.json` (מיגרציה אוטומטית חד-פעמית מ-`%APPDATA%\WinGrid` הישן): רשימת tiles (Matcher, כותרת ידנית, תיאור, צבע/הבהוב), מצב zone, הגדרת Stage, סדר, מיקום/גודל החלון הראשי.
-- **Auto-save תמידי**: כל שינוי (הוספה/הסרה/עריכה/צבע/סדר/zone/stage) נשמר מיידית (debounce ~1s, כתיבה אטומית: temp file + rename). אין כפתור "שמור" ואין מצב לא-שמור.
-- בהפעלה: טעינת הפרופיל, enumerate של חלונות קיימים + re-bind לפי Matchers; tiles שחלונם טרם נפתח מוצגים "מנותקים" (אפור) עד שיופיע חלון תואם.
+### F7 — persistence + auto-save (updated 2026-07-16)
+- A JSON profile at `%APPDATA%\SessionDeck\config.json` (with a one-time automatic migration from the old `%APPDATA%\WinGrid`): the tile list (Matcher, manual title, description, color/blink), zone state, Stage setting, order, and the main window's position/size.
+- **Always auto-save**: every change (add/remove/edit/color/order/zone/stage) is saved immediately (~1s debounce, atomic write: temp file + rename). There is no "save" button and no unsaved state.
+- On startup: load the profile, enumerate existing windows + re-bind by Matchers; tiles whose window hasn't opened yet are shown "disconnected" (grey) until a matching window appears.
 
-### F8 — CLI (ראה §4)
-- כל יכולות הניהול זמינות מ-CLI, לצורך אוטומציה (ובפרט hooks של Claude Code בשלב 2).
+### F8 — CLI (see §4)
+- Every management capability is available from the CLI, for automation (and in particular for Claude Code's hooks in phase 2).
 
-### F9 — עלייה אוטומטית עם Windows (נוסף 2026-07-16)
-- SessionDeck נרשם ל-startup של המשתמש (registry `HKCU\...\Run`, ללא admin; ניתן לכיבוי בהגדרות).
-- בעלייה משוחזר **המצב המלא** מהפרופיל: כל ה-tiles (דרך Matchers — אחרי ריסטארט כל החלונות מקבלים HWND חדש, ולכן השחזור מבוסס re-bind), מצב ה-Reserved Zone, הגדרת ה-Stage, וסדר ה-grid.
-- tiles שחלונם עוד לא נפתח אחרי הריסטארט מופיעים מנותקים ומתחברים אוטומטית ברגע שהחלון התואם נפתח.
+### F9 — starting with Windows (added 2026-07-16)
+- SessionDeck registers in the user's startup (registry `HKCU\...\Run`, no admin; can be turned off in the settings).
+- At startup the **full state** is restored from the profile: every tile (through Matchers — after a restart every window gets a new HWND, so restoration is re-bind based), the Reserved Zone state, the Stage setting, and the grid order.
+- Tiles whose window hasn't opened yet after the restart appear disconnected and bind automatically the moment the matching window opens.
 
 ---
 
-## 4. CLI — פירוט
+## 4. The CLI — in detail
 
-### מודל הפעלה
-- **Singleton**: ההרצה הראשונה מרימה את ה-UI + שרת **named pipe** (`\\.\pipe\sessiondeck`).
-- הרצה חוזרת עם ארגומנטים = CLI client: מעביר את הפקודה ל-pipe, מדפיס תשובה, מחזיר exit code (0 = הצלחה, ≠0 = שגיאה + הודעה ל-stderr). זמן ריצה יעד: <100ms (קריטי ל-hooks).
-- אם אין instance רץ: פקודות CLI נכשלות עם הודעה ברורה (אופציה עתידית: `--start` שמרים את ה-UI).
+### Execution model
+- **Singleton**: the first run raises the UI + a **named pipe** server (`\\.\pipe\sessiondeck`).
+- Any later run with arguments is a CLI client: it passes the command over the pipe, prints the reply, and returns an exit code (0 = success, ≠0 = an error + a message on stderr). Target runtime: <100ms (critical for the hooks).
+- With no instance running: CLI commands fail with a clear message (a possible future option: `--start`, which raises the UI).
 
-### פקודות (עודכן v0.4.0 — מודל workspaces; פקודות ה-tiles הישנות `border`/`add --match` הוסרו)
+### Commands (updated in v0.4.0 — the workspaces model; the old tile commands `border`/`add --match` were removed)
 
 ```
-sessiondeck list [--all]                  # workspaces + sessions (--all כולל סגורים)
-sessiondeck add <folder path>             # הוספת workspace לפי תיקייה (המקביל ל-picker ב-UI)
+sessiondeck list [--all]                  # workspaces + sessions (--all includes closed ones)
+sessiondeck add <folder path>             # add a workspace by folder (the equivalent of the UI picker)
 sessiondeck remove <target>
-sessiondeck set <target> [--title "..."] [--desc "..."] [--color <c>]   # ערך ריק = auto
-sessiondeck focus <target>                # הפעלת חלון ה-workspace במקומו
-sessiondeck pin <target>                  # הקפצה ל-Stage + הפעלה
+sessiondeck set <target> [--title "..."] [--desc "..."] [--color <c>]   # an empty value = auto
+sessiondeck focus <target>                # activate the workspace's window in place
+sessiondeck pin <target>                  # move to the Stage + activate
 sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
 sessiondeck zone --monitor <n> --half left|right | --quarter left|right | --custom left|right [--size 2/7|40%|0.4] | --full | --off
-sessiondeck status                        # מצב: version, zone, stage, מוני workspaces/sessions
+sessiondeck status                        # state: version, zone, stage, workspace/session counts
 ```
 
-- **`<target>`**: id מספרי יציב של workspace, או `--match "<regex>"` על השם/כותרת.
-- **צבעים**: שמות (`red`, `green`, `orange`, `blue`, `gray`, ...) או hex `#RRGGBB`.
-- צבעי המסגרות של הסשנים נגזרים מהסטטוס (מיפוי `StatusStyles` ב-config) — אין יותר פקודת `border`.
+- **`<target>`**: a workspace's stable numeric id, or `--match "<regex>"` against the name/title.
+- **Colors**: names (`red`, `green`, `orange`, `blue`, `gray`, ...) or hex `#RRGGBB`.
+- Session border colors are derived from the status (the `StatusStyles` map in config) — there is no `border` command any more.
 
-### 4ב. CLI לסשנים (ממומש v0.4.0 — שלב ג')
+### 4b. The sessions CLI (implemented in v0.4.0 — stage C)
 
 ```
 sessiondeck session start  --id <session_id> --workspace <name> [--title "..."]
 sessiondeck session status --id <session_id> --state working|waiting|done|error|idle
 sessiondeck session end    --id <session_id>
-sessiondeck session list   [--workspace <name>] [--all]     # --all כולל סגורים
+sessiondeck session list   [--workspace <name>] [--all]     # --all includes closed ones
 ```
 
-- `session_id` מגיע מה-hook של Claude Code; ה-workspace משמש למיפוי לחלון (לפי title).
-- הפקודות נקראות מסקריפט ה-hooks (שלב ג') — ולכן חייבות להישאר מהירות (<100ms) ואטומיות.
+- `session_id` comes from Claude Code's hook; the workspace is used to map to a window (by title).
+- These commands are called from the hooks script (stage C) — so they must stay fast (<100ms) and atomic.
 
 ---
 
-## 5. ארכיטקטורה (הוחלט 2026-07-16: C# / .NET + WPF)
+## 5. Architecture (decided 2026-07-16: C# / .NET + WPF)
 
-| רכיב | תפקיד | טכנולוגיה |
-|------|-------|-----------|
-| **UI Shell** | חלון ראשי, grid, עריכת tiles, picker | WPF (.NET 10 LTS) |
-| **Thumbnail Host** | אירוח DWM thumbnails בתוך ה-grid | `DwmRegisterThumbnail` / `DwmUpdateThumbnailProperties`, interop דרך HwndHost |
-| **Window Tracker** | מעקב אחרי חלונות: title change, destroy, create (ל-re-bind) | `SetWinEventHook` (EVENT_OBJECT_NAMECHANGE / DESTROY / CREATE) — בלי polling |
+| Component | Role | Technology |
+|-----------|------|------------|
+| **UI Shell** | Main window, grid, tile editing, picker | WPF (.NET 10 LTS) |
+| **Thumbnail Host** | Hosting DWM thumbnails inside the grid | `DwmRegisterThumbnail` / `DwmUpdateThumbnailProperties`, interop through HwndHost |
+| **Window Tracker** | Tracking windows: title change, destroy, create (for re-bind) | `SetWinEventHook` (EVENT_OBJECT_NAMECHANGE / DESTROY / CREATE) — no polling |
 | **AppBar Module** | Reserved Zone | `SHAppBarMessage` |
-| **Pipe Server** | קבלת פקודות CLI | NamedPipeServerStream, פרוטוקול JSON פשוט |
-| **CLI Client** | אותו exe עם args → pipe | System.CommandLine (או פרסור ידני) |
-| **Config Store** | persistence | JSON ב-%APPDATA% |
-| **Blink Engine** | טיימר משותף לכל המסגרות המהבהבות | DispatcherTimer אחד (לא טיימר פר-tile) |
+| **Pipe Server** | Receiving CLI commands | NamedPipeServerStream, a simple JSON protocol |
+| **CLI Client** | The same exe with args → the pipe | System.CommandLine (or hand-rolled parsing) |
+| **Config Store** | Persistence | JSON in %APPDATA% |
+| **Blink Engine** | One shared timer for every blinking border | A single DispatcherTimer (not a timer per tile) |
 
-- ללא הרשאות admin; ללא הזרקת קוד לחלונות זרים.
-- Per-Monitor DPI awareness (v2) מהיום הראשון — סביבת multi-monitor עם DPI שונה היא תרחיש היעד.
-
----
-
-## 6. אילוצים וסיכונים טכניים
-
-1. **חלון ממוזער** — DWM thumbnail מקפיא את הפריים האחרון. המלצה: להשאיר חלונות restored (מאחורי חלונות אחרים זה בסדר — ה-thumbnail חי גם כשהחלון מכוסה). אופציה עתידית: מניעת minimize לחלונות במעקב.
-2. **SetForegroundWindow restrictions** — כשמשתמש לוחץ ב-UI שלנו, אנחנו ה-foreground process ומותר להעביר פוקוס. אבל `sessiondeck focus` שמגיע מתהליך רקע (hook) עלול להיחסם ע"י Windows (anti focus-stealing). לא קריטי: שלב 2 משנה רק צבעים. אם יידרש — יש workarounds מוכרים (AttachThreadInput וכו').
-3. **גרנולריות = חלון OS** — כמה sessions של Claude Code באותו חלון VSCode לא ניתנים להבחנה. מוסכמת עבודה: **session אחד = חלון VSCode אחד**.
-4. **Drag-in דורש global low-level mouse hook** — רכיב רגיש (ביצועים/יציבות); לכן Picker הוא המנגנון העיקרי, drag-in נדחה לשלב ב'.
-5. **חלונות elevated (admin)** — thumbnail יעבוד, אבל move/activate ייחסמו אם SessionDeck לא elevated. מתועד כמגבלה ידועה.
-6. **זיהוי לפי title** — title של VSCode משתנה עם הקובץ הפתוח (`file — workspace — Visual Studio Code`). ה-Matcher חייב regex על שם ה-workspace, לא השוואה מלאה.
+- No admin rights; no code injection into foreign windows.
+- Per-monitor DPI awareness (v2) from day one — a multi-monitor environment with mixed DPI is the target scenario.
 
 ---
 
-## 7. שלבי פיתוח
+## 6. Technical constraints and risks
 
-### שלב א' — MVP
-- Grid אוטומטי + DWM thumbnails חיים
-- **Reserved Zone (AppBar) — full / half, per-monitor** (הוקדם מ-שלב ב' בהחלטת אייל 2026-07-16 — חלק מהותי מהאפליקציה)
-- הוספה ב-Picker + הסרה
-- כותרת (auto מ-Windows) + מסגרת בצבע סטטי
-- Focus (לחיצה) + Pin ל-Stage בסיסי
-- CLI: `list`, `add --match`, `remove`, `border` (סטטי), `focus`, `pin`, `zone`
-- Persistence עם auto-save (F7)
+1. **A minimized window** — the DWM thumbnail freezes on the last frame. Recommendation: keep tracked windows restored (being behind other windows is fine — the thumbnail stays live even when the window is covered). A possible future option: preventing minimize for tracked windows.
+2. **SetForegroundWindow restrictions** — when the user clicks in our UI we are the foreground process and are allowed to move focus. But a `sessiondeck focus` coming from a background process (a hook) may be blocked by Windows (anti focus-stealing). Not critical: phase 2 only changes colors. If it becomes necessary — there are well-known workarounds (AttachThreadInput and friends).
+3. **Granularity = an OS window** — several Claude Code sessions in the same VSCode window can't be told apart. Working convention: **one session = one VSCode window**.
+4. **Drag-in requires a global low-level mouse hook** — a sensitive component (performance/stability); hence the Picker is the primary mechanism and drag-in was deferred to stage B.
+5. **Elevated (admin) windows** — the thumbnail will work, but move/activate will be blocked unless SessionDeck is elevated too. Documented as a known limitation.
+6. **Identification by title** — VSCode's title changes with the open file (`file — workspace — Visual Studio Code`). The Matcher must be a regex on the workspace name, not a full comparison.
 
-### שלב ב' — השלמת הכלי הגנרי
-- מסגרת מהבהבת + Blink Engine
+---
+
+## 7. Development stages
+
+### Stage A — MVP
+- An automatic grid + live DWM thumbnails
+- **Reserved Zone (AppBar) — full / half, per monitor** (brought forward from stage B by Eyal's decision 2026-07-16 — an essential part of the app)
+- Adding through the Picker + removal
+- Title (auto from Windows) + a static border color
+- Focus (click) + a basic Pin to Stage
+- CLI: `list`, `add --match`, `remove`, `border` (static), `focus`, `pin`, `zone`
+- Persistence with auto-save (F7)
+
+### Stage B — completing the generic tool
+- A blinking border + the Blink Engine
 - Drag-in (mouse hook)
-- תיאורים + עריכה מלאה ב-UI
-- Disconnected tiles + re-bind אוטומטי
-- עלייה אוטומטית עם Windows + שחזור מצב מלא (F9 — תלוי ב-re-bind)
-- `stage` / `set` / `status` ב-CLI
+- Descriptions + full editing in the UI
+- Disconnected tiles + automatic re-bind
+- Starting with Windows + full state restoration (F9 — depends on re-bind)
+- `stage` / `set` / `status` in the CLI
 
-### שלב ג' — Cards UI + אינטגרציית hooks (עודכן v0.5; ללא extension) — **ממומש v0.4.0 (2026-07-17)**
-- מבנה UI חדש: Window Cards + Session Cards לפי §2ב; סינון התצוגה ל-VSCode בלבד (המנוע נשאר גנרי)
-- CLI סשנים לפי §4ב; הסשנים נוצרים ומתעדכנים **מה-hooks בלבד**
-- מנוע סטטוסים + acknowledge בלחיצה; מיפוי סטטוס→צבע ב-config
-- סקריפט hooks (PowerShell) שנרשם ב-settings של Claude Code:
+### Stage C — the cards UI + hook integration (updated in v0.5; no extension) — **implemented in v0.4.0 (2026-07-17)**
+- A new UI structure: Window Cards + Session Cards per §2b; the display filtered to VSCode only (the engine stays generic)
+- The sessions CLI per §4b; sessions are created and updated **from the hooks only**
+- A status engine + acknowledge on click; the status→color mapping in config
+- A hooks script (PowerShell) registered in Claude Code's settings:
   - `SessionStart` → `session start` (idle)
   - `UserPromptSubmit` → working
-  - `Notification` (ממתין ל-permission/אינפוט) → waiting
-  - `Stop` (סיים turn) → done
+  - `Notification` (waiting for permission/input) → waiting
+  - `Stop` (turn finished) → done
   - `SessionEnd` → `session end`
-- לחיצה על Session Card בשלב זה: Focus לחלון בלבד (הפעלת הטאב הספציפי — שלב ד')
+- Clicking a Session Card at this stage: Focus the window only (activating the specific tab — stage D)
 
-**הערות מימוש (v0.4.0):** ה-Tile הגנרי הוחלף ב-WorkspaceCardView (המנוע — thumbnails, binding, zone/stage — נשמר); ה-crosshair picker הוסר מהסרגל לטובת בחירת תיקייה; נתוני ה-tiles משלבים א'-ב' נשמרים ב-config כשדה legacy ואינם מוצגים; רענון branch/Peacock כל ~10 שניות; סקריפט ה-hooks ב-`hooks/` עם הוראות התקנה.
-- מיפוי session→window לפי workspace name ב-title של VSCode
+**Implementation notes (v0.4.0):** the generic Tile was replaced by WorkspaceCardView (the engine — thumbnails, binding, zone/stage — was kept); the crosshair picker was removed from the toolbar in favour of picking a folder; tile data from stages A–B is kept in config as a legacy field and isn't displayed; branch/Peacock refresh every ~10 seconds; the hooks script lives in `hooks/` with installation instructions.
+- session→window mapping by the workspace name in VSCode's title
 
-### שלב ד' — VSCode Extension (נוסף v0.5) — **ממומש v0.5.0 (2026-07-19)**
-- ~~**Spike ראשון**: קורלציה `session_id` ↔ טאב~~ — **התייתר**: ה-extension של Claude Code חושף command פנימי `claude-vscode.editor.open(sessionId)` שעושה reveal-or-resume בעצמו (מחזיק את מיפוי sessionPanels). ה-fallback אם החתימה תישבר בגרסה עתידית: terminal עם `claude --resume <id>`.
-- סנכרון מה-extension ל-SessionDeck (דרך ה-pipe הקיים): טאבי Claude פתוחים (label+active), branch נוכחי (event-driven, עדיף על ה-poll של 10 שניות), נתיב workspace — נשלח בהפעלה ועל כל שינוי טאב/branch
-- לחיצה על Session Card → ‏Focus לחלון + הפעלת/פתיחת הטאב הספציפי ב-VSCode (`openSession` בערוץ ההפוך של ה-pipe); כשאין connector (‏VSCode עוד עולה) הבקשה ממתינה ונשלחת ב-sync הראשון (TTL ‏90 שניות)
-- פתיחה מחדש (resume) של סשן סגור מהתצוגה המורחבת — אותו מסלול
-- פתיחה "ממוקסמת" (config ‏`OpenSessionMaximized`, ברירת מחדל true): צמצום sidebar/panel/auxiliary bar לפני פתיחת הטאב
-- auto-acknowledge כשהמשתמש פותח את הטאב ישירות ב-VSCode — **ממומש (v0.6.0)**: כותרת הטאב = רשומת `ai-title` האחרונה ב-transcript, ולכן הקורלציה session↔tab אמינה; כשהטאב התואם פעיל והחלון בפוקוס — ‏acknowledge אוטומטי (גם כשהסטטוס משתנה בזמן שהטאב כבר פתוח)
+### Stage D — the VSCode extension (added in v0.5) — **implemented in v0.5.0 (2026-07-19)**
+- ~~**A first spike**: correlating `session_id` ↔ tab~~ — **moot**: Claude Code's extension exposes an internal command `claude-vscode.editor.open(sessionId)` that does reveal-or-resume by itself (it holds the sessionPanels map). The fallback if that signature breaks in a future version: a terminal with `claude --resume <id>`.
+- Syncing from the extension to SessionDeck (over the existing pipe): open Claude tabs (label+active), the current branch (event-driven, better than the 10-second poll), the workspace path — sent at startup and on every tab/branch change
+- Clicking a Session Card → Focus the window + activate/open that specific tab in VSCode (`openSession` on the pipe's reverse channel); with no connector (VSCode still starting) the request waits and is sent on the first sync (TTL 90 seconds)
+- Reopening (resuming) a closed session from the expanded view — the same path
+- "Maximized" opening (config `OpenSessionMaximized`, default true): collapsing the sidebar/panel/auxiliary bar before opening the tab
+- Auto-acknowledge when the user opens the tab directly in VSCode — **implemented (v0.6.0)**: the tab title is the last `ai-title` record in the transcript, which makes the session↔tab correlation reliable; when the matching tab is active and the window focused — an automatic acknowledge (including when the status changes while the tab is already open)
 
-**הערות מימוש (v0.5.0):** ה-extension‏ (`vscode-extension/`, ‏TypeScript, ‏VSIX מותקן ידנית) מחזיק connection מתמיד ל-pipe ‏(pipe server שודרג ל-multi-instance + מצב connector); שמות סשנים אוטומטיים נגזרים מה-transcript ‏(summary אחרון או prompt ראשון, ‏`TranscriptReader`) ומוצגים במקום "session xxxxxxxx"; סינון טאבי Claude ב-extension לפי viewType ‏`claudeVSCodePanel`; תג 📑 על סשן שפתוח כטאב הוא best-effort לפי השוואת label לכותרת; ‏CLI חדש: `session open --id <sid>`; סדר טאבים לא מסונכרן (הוחלט לוותר — הלוח ממיין לפי פעילות).
-
----
-
-## 8. החלטות שהתקבלו (2026-07-16)
-
-| # | החלטה | בחירה |
-|---|--------|-------|
-| 1 | יעד קיבוע | **שני מצבים**: Focus במקום הנוכחי (לחיצה) + Pin ל-Stage גלובלי (פעולה נפרדת) |
-| 2 | פריסת grid | אוטומטית, tiles אחידים, שינוי סדר בגרירה |
-| 3 | סטאק | C# / .NET 10 (LTS) + WPF — עודכן מ-.NET 8 כי תמיכתו מסתיימת 11/2026 |
-| 4 | הוספת חלון | Picker (MVP) + Drag-in (שלב ב') + CLI |
-| 5 | שם | WinGrid — סופי |
-| 6 | Auto-save | תמידי, ללא כפתור שמירה (F7) |
-| 7 | Startup | עלייה אוטומטית עם Windows + שחזור מצב מלא דרך re-bind (F9) |
-| 8 | חלון שנסגר | tile נשאר עם title/desc/color ללא שינוי; נוסף שדה **state** (connected/disconnected) + re-bind אוטומטי |
-| 9 | מיקום ה-repo | **`D:\Eyal\SessionDeck`** (במקור `D:\Eyal\WinGrid`; שם התיקייה שונה 2026-07-19 עם ה-rename) — repo git עצמאי, מחוץ לעץ ה-OneDrive. הערה: תחת `D:\Eyal\` חל סיווג "פרויקט אישי" בהגדרות של אייל — פרוטוקולי BPM לא חלים, כללי Git/safety כלליים כן |
-| 10 | Reserved Zone | **בשלב א' (MVP)** — חלק מהותי מהאפליקציה (החלטת אייל 2026-07-16) |
-| 11 | סכמת סטטוסים (2026-07-17, עודכן) | **working=כחול קבוע** (הוכרע — כתום שמור בלעדית ל-waiting), waiting=כתום מהבהב, done=ירוק מהבהב→קבוע ב-acknowledge, error=אדום מהבהב→קבוע, idle=אפור; המיפוי ב-config |
-| 12 | סשן שנסגר (2026-07-17) | ה-Session Card נעלם; זמין בתצוגה מורחבת של ה-Window Card עם אפשרות resume (שלב ד'); retention ~20 |
-| 13 | סקופ תצוגה (2026-07-17) | VSCode בלבד ב-UI; המנוע נשאר גנרי. תמיכה ב-terminals — אולי בעתיד, לא עכשיו |
-| 14 | שם (2026-07-17) | ~~נשאר WinGrid בינתיים~~ → הוחלף בהחלטה 19 |
-| 15 | אג'נדה v0.5 (2026-07-17) | האפליקציה = לוח בקרה לסשני Claude Code ב-VSCode; מבנה Cards לפי §2ב; שלבים ג'–ד' הוגדרו מחדש |
-| 16 | ניהול workspaces (2026-07-17) | workspace = ישות persistent; פעילים למעלה; הסתרת ישנים; כרטיסים רחבים עם min-size באזור גלילה |
-| 17 | תוכן כרטיס ראשי (2026-07-17) | שם פרויקט + branch נוכחי; custom title/description בשתי רמות הכרטיסים |
-| 18 | צבע כרטיס מ-VSCode (2026-07-17) | נלקח מ-settings.json של ה-workspace ‏(Peacock / titleBar.activeBackground) כשקיים |
-| 19 | שינוי שם — מוקדם (2026-07-17) | יבוצע לפני מימוש שלב ג', בשיטת **rename-in-place** (לא פרויקט חדש) |
-| 20 | השם (2026-07-17) | **SessionDeck** |
-| 21 | הוספת workspace (2026-07-17) | ערוץ ראשי: בחירת תיקייה; extension (שלב ד'); drag-in נשאר אך נחסם ללא-VSCode/כפולים; hook cwd כרשת ביטחון |
-
-## 9. שאלות פתוחות
-
-1. ~~**קורלציה session↔טאב (שלב ד')**~~ — **הוכרע (2026-07-19)**: פתיחה/הפעלה של טאב נעשית דרך `claude-vscode.editor.open(sessionId)` של Claude Code עצמו, כך שהקורלציה לא נדרשת בצד שלנו. נותר פתוח רק בכיוון ההפוך (טאב→session ל-auto-acknowledge) — כיום best-effort לפי label.
-2. **מקור מצב error (שלב ג')** — אין hook ייעודי; ייבדק מול מה שה-hooks מספקים בפועל (למשל SessionEnd reason).
-3. ~~**auto-acknowledge מפתיחת טאב ישירה ב-VSCode (שלב ד')**~~ — **הוכרע וממומש (2026-07-19, v0.6.0)**: התגלה שכותרת הטאב נשמרת ב-transcript כרשומת `ai-title` — קורלציה אמינה לפי session_id. ‏v0.6.0 מוסיף גם: כותרת טאב ככותרת ראשית (כותרת הסשן משנית), רשימת סשנים היסטוריים מתיקיית ה-transcripts בתצוגה מורחבת (עד 15, לא נשמרים ב-config), חסימת resume לסשן שה-transcript שלו לא קיים תחת ה-slug הנוכחי (מונע פתיחת שיחה חדשה בטעות אחרי שינוי שם תיקייה), מיון סשנים לפי פעילות, ‏RTL לטקסט שמתחיל בעברית, ‏hover על כרטיסי סשן.
-
-**היקף ה-rename ל-SessionDeck** (החלטות 19–20): **בוצע 2026-07-17 (v0.3.0)** — שם קבצי csproj/slnx, ‏RootNamespace/AssemblyName, ‏namespaces בקוד, שם ה-pipe (`sessiondeck`), ה-mutex, תיקיית ה-config (‏`%APPDATA%\SessionDeck` + מיגרציה אוטומטית של config קיים), ערך ה-HKCU Run (+מיגרציה), ואזכורים ב-SPEC/MANUAL_TESTS. ההיסטוריה של git נשמרה. שם התיקייה שונה ל-`D:\Eyal\SessionDeck` ‏(2026-07-19) — ה-rename הושלם במלואו.
-
-שאר שאלות האפיון הוכרעו (ראה §8); שאלות מימוש יוכרעו תוך כדי הפיתוח.
+**Implementation notes (v0.5.0):** the extension (`vscode-extension/`, TypeScript, VSIX installed by hand) holds a persistent connection to the pipe (the pipe server was upgraded to multi-instance + a connector mode); automatic session names are derived from the transcript (the last summary or the first prompt, `TranscriptReader`) and are shown instead of "session xxxxxxxx"; Claude tabs are filtered in the extension by the `claudeVSCodePanel` viewType; the 📑 tag on a session open as a tab is best-effort, by comparing the label to the title; a new CLI: `session open --id <sid>`; tab order isn't synced (deliberately dropped — the deck sorts by activity).
 
 ---
 
-## 10. הוראות קיקוף — ל-session המימוש (Claude Code ב-`D:\Eyal\WinGrid`)
+## 8. Decisions taken (2026-07-16)
 
-מסמך זה הוא ההנחיה המלאה למימוש. סדר העבודה שסוכם:
+| # | Decision | Choice |
+|---|----------|--------|
+| 1 | Pin target | **Two modes**: Focus in the current position (click) + Pin to a global Stage (a separate action) |
+| 2 | Grid layout | Automatic, uniform tiles, reordering by drag |
+| 3 | Stack | C# / .NET 10 (LTS) + WPF — updated from .NET 8, whose support ends 11/2026 |
+| 4 | Adding a window | Picker (MVP) + drag-in (stage B) + CLI |
+| 5 | Name | WinGrid — final |
+| 6 | Auto-save | Always, with no save button (F7) |
+| 7 | Startup | Starting with Windows + full state restoration through re-bind (F9) |
+| 8 | A window that closes | The tile stays with its title/desc/color unchanged; a **state** field was added (connected/disconnected) + automatic re-bind |
+| 9 | Repo location | **`D:\Eyal\SessionDeck`** (originally `D:\Eyal\WinGrid`; the folder was renamed 2026-07-19 along with the rename) — a standalone git repo, outside the OneDrive tree. Note: everything under `D:\Eyal\` is classified as a "personal project" in Eyal's settings — the BPM protocols don't apply, the general Git/safety rules do |
+| 10 | Reserved Zone | **In stage A (MVP)** — an essential part of the app (Eyal's decision 2026-07-16) |
+| 11 | Status scheme (2026-07-17, updated) | **working=steady blue** (settled — orange is reserved exclusively for waiting), waiting=blinking orange, done=blinking green→steady on acknowledge, error=blinking red→steady, idle=grey; the mapping in config |
+| 12 | A session that closes (2026-07-17) | The Session Card disappears; available in the Window Card's expanded view with a resume option (stage D); retention ~20 |
+| 13 | Display scope (2026-07-17) | VSCode only in the UI; the engine stays generic. Support for terminals — maybe in future, not now |
+| 14 | Name (2026-07-17) | ~~Staying WinGrid for now~~ → superseded by decision 19 |
+| 15 | The v0.5 agenda (2026-07-17) | The app = a control deck for Claude Code sessions in VSCode; the cards structure per §2b; stages C–D redefined |
+| 16 | Managing workspaces (2026-07-17) | A workspace is a persistent entity; active ones on top; old ones hideable; wide cards with a min-size in a scroll area |
+| 17 | Main card content (2026-07-17) | Project name + current branch; custom title/description on both card levels |
+| 18 | Card color from VSCode (2026-07-17) | Taken from the workspace's settings.json (Peacock / titleBar.activeBackground) when present |
+| 19 | Renaming — early (2026-07-17) | To be done before implementing stage C, by **rename-in-place** (not a new project) |
+| 20 | The name (2026-07-17) | **SessionDeck** |
+| 21 | Adding a workspace (2026-07-17) | Primary channel: picking a folder; the extension (stage D); drag-in stays but is blocked for non-VSCode/duplicates; the hook cwd as a safety net |
 
-1. **בוצע (2026-07-16):** אייל יצר את הפרויקט ב-Visual Studio — WPF Application, C#, .NET 10 LTS, solution+project באותה תיקייה (`WinGrid.slnx` + `WinGrid.csproj` ב-`D:\Eyal\WinGrid`).
-2. ה-session הראשון ב-`D:\Eyal\WinGrid` מתבקש "לבצע את קובץ ההנחיות" — כלומר לממש את **שלב א' (MVP)** לפי §7, בהתאם לכל הדרישות (§3–§6) וההחלטות (§8).
+## 9. Open questions
 
-הנחיות ל-session המימוש:
+1. ~~**session↔tab correlation (stage D)**~~ — **settled (2026-07-19)**: opening/activating a tab goes through Claude Code's own `claude-vscode.editor.open(sessionId)`, so the correlation isn't needed on our side. Only the reverse direction remains open (tab→session for auto-acknowledge) — currently best-effort by label.
+2. **The source of the error state (stage C)** — there is no dedicated hook; to be checked against what the hooks actually provide (SessionEnd's reason, for instance).
+3. ~~**auto-acknowledge from opening a tab directly in VSCode (stage D)**~~ — **settled and implemented (2026-07-19, v0.6.0)**: it turned out the tab title is stored in the transcript as an `ai-title` record — a reliable correlation by session_id. v0.6.0 also adds: the tab title as the primary title (the session title secondary), a list of historical sessions from the transcripts folder in the expanded view (up to 15, not stored in config), blocking resume for a session whose transcript doesn't exist under the current slug (preventing an accidental new conversation after a folder rename), sorting sessions by activity, RTL for text starting with Hebrew, and hover on session cards.
 
-- **Git**: `git init` אם טרם בוצע; ליצור `.gitignore` ל-.NET/VS (bin/, obj/, .vs/) **לפני** כל commit; לעבוד לפי כללי ה-Git של אייל — branch לפני עבודה, אף פעם לא על main, commit רק באישור מפורש.
-- **גרסה**: לנהל גרסה ב-csproj (`<Version>`) — bump בכל שינוי קוד, מתחיל מ-0.1.0.
-- **פרויקט אחד בלבד**: ה-UI וה-CLI הם אותו exe (ראה §4). שים לב: WPF הוא `OutputType=WinExe` — כדי שה-CLI ידפיס לקונסולה של ההורה יש להשתמש ב-`AttachConsole(ATTACH_PARENT_PROCESS)` בענף ה-CLI לפני כתיבה ל-stdout.
-- **סדר מימוש מומלץ בתוך ה-MVP**: (1) grid + DWM thumbnails עם picker; (2) focus/pin + stage; (3) Reserved Zone (AppBar); (4) pipe server + CLI; (5) persistence/auto-save.
-- **בדיקות ידניות** בסוף כל אבן דרך: להריץ, לצרף 2–3 חלונות VSCode אמיתיים, לוודא תצוגה חיה, focus, ו-zone שדוחף חלונות maximized.
-- מה שלא מוגדר כאן — החלטת מימוש חופשית; אם מתגלה סתירה או פער באפיון — לשאול את אייל ולעדכן מסמך זה.
+**The scope of the rename to SessionDeck** (decisions 19–20): **done 2026-07-17 (v0.3.0)** — the csproj/slnx file names, RootNamespace/AssemblyName, the namespaces in code, the pipe name (`sessiondeck`), the mutex, the config folder (`%APPDATA%\SessionDeck` + an automatic migration of an existing config), the HKCU Run value (+migration), and the references in SPEC/MANUAL_TESTS. Git history was preserved. The folder was renamed to `D:\Eyal\SessionDeck` (2026-07-19) — the rename is complete.
+
+The remaining spec questions are settled (see §8); implementation questions will be settled as development goes.
+
+---
+
+## 10. Kickoff instructions — for the implementation session (Claude Code in `D:\Eyal\WinGrid`)
+
+This document is the full brief for the implementation. The agreed order of work:
+
+1. **Done (2026-07-16):** Eyal created the project in Visual Studio — WPF Application, C#, .NET 10 LTS, solution+project in the same folder (`WinGrid.slnx` + `WinGrid.csproj` in `D:\Eyal\WinGrid`).
+2. The first session in `D:\Eyal\WinGrid` is asked to "execute the brief" — that is, to implement **stage A (MVP)** per §7, in line with every requirement (§3–§6) and decision (§8).
+
+Instructions for the implementation session:
+
+- **Git**: `git init` if it hasn't been done; create a `.gitignore` for .NET/VS (bin/, obj/, .vs/) **before** any commit; work by Eyal's Git rules — a branch before working, never on main, commit only on explicit approval.
+- **Version**: manage the version in the csproj (`<Version>`) — bump it on every code change, starting from 0.1.0.
+- **One project only**: the UI and the CLI are the same exe (see §4). Note: WPF is `OutputType=WinExe` — for the CLI to print to the parent's console you must use `AttachConsole(ATTACH_PARENT_PROCESS)` in the CLI branch before writing to stdout.
+- **Recommended implementation order inside the MVP**: (1) grid + DWM thumbnails with the picker; (2) focus/pin + stage; (3) Reserved Zone (AppBar); (4) pipe server + CLI; (5) persistence/auto-save.
+- **Manual checks** at the end of every milestone: run it, attach 2–3 real VSCode windows, confirm the live view, focus, and a zone that pushes maximized windows out.
+- Anything not defined here is a free implementation decision; if a contradiction or a gap in the spec turns up — ask Eyal and update this document.

@@ -1,132 +1,132 @@
-# SessionDeck — רשימת בדיקות ידניות (v0.6.0, שלבים ג'–ד')
+# SessionDeck — manual test checklist (v0.6.0, stages C–D)
 
-> מטרה: לבדוק פיזית את מה שאי אפשר לבדוק מרחוק. סמן ✔ ליד מה שעבר.
-> **הרצה:** `bin\Debug\net10.0-windows\SessionDeck.exe` (או F5 מ-Visual Studio).
-> **CLI מטרמינל:** `SessionDeck.exe <command>` מאותה תיקייה (`SessionDeck.exe help` לרשימה המלאה).
-> **קובץ ה-config:** `%APPDATA%\SessionDeck\config.json` — מכיל גם את ה-tiles הישנים משלבים א'-ב' (שדה legacy, לא מוצג).
+> Purpose: to check physically what can't be checked from a distance. Tick ✔ next to whatever passed.
+> **Running it:** `bin\Debug\net10.0-windows\SessionDeck.exe` (or F5 from Visual Studio).
+> **CLI from a terminal:** `SessionDeck.exe <command>` from that same folder (`SessionDeck.exe help` for the full list).
+> **The config file:** `%APPDATA%\SessionDeck\config.json` — it also holds the old tiles from stages A–B (a legacy field, not displayed).
 
-## 1. Workspace Cards — הוספה וקישור
+## 1. Workspace cards — adding and binding
 
-- [ ] "+ הוסף Workspace" → בחירת תיקיית פרויקט → נוצר כרטיס עם שם התיקייה.
-- [ ] אם יש חלון VSCode פתוח על אותו workspace — הכרטיס מתחבר אליו מיד (thumbnail חי).
-- [ ] `SessionDeck.exe add "D:\path\to\project"` — הוספה מה-CLI, אותה התנהגות.
-- [ ] הוספת אותה תיקייה פעמיים — נחסם עם הודעה.
-- [ ] כרטיס של פרויקט git מציג את ה-branch הנוכחי (⎇); החלפת branch ב-VSCode מתעדכנת תוך ~10 שניות.
-- [ ] פרויקט עם Peacock (‏`.vscode/settings.json`) — מסגרת הכרטיס והכותרת בצבע ה-Peacock.
-- [ ] סגירת חלון ה-VSCode — הכרטיס נשאר, "אין חלון VSCode פתוח"; פתיחה מחדש — מתחבר אוטומטית.
-- [ ] גרירת חלון VSCode ושחרור מעל SessionDeck — נוצר/מתחבר כרטיס; חלון שאינו VSCode — נחסם עם הודעה.
+- [ ] "+ Add workspace" → pick a project folder → a card is created, named after the folder.
+- [ ] If a VSCode window is already open on that workspace — the card binds to it immediately (live thumbnail).
+- [ ] `SessionDeck.exe add "D:\path\to\project"` — adding from the CLI, same behavior.
+- [ ] Adding the same folder twice — blocked with a message.
+- [ ] A git project's card shows the current branch (⎇); switching branch in VSCode updates within ~10 seconds.
+- [ ] A project with Peacock (`.vscode/settings.json`) — the card border and title take the Peacock color.
+- [ ] Closing the VSCode window — the card stays, showing "No VSCode window open"; reopening — it binds again automatically.
+- [ ] Dragging a VSCode window and dropping it onto SessionDeck — a card is created/bound; a non-VSCode window — blocked with a message.
 
-## 2. Session Cards — סטטוסים מה-hooks
+## 2. Session cards — statuses from the hooks
 
-התקן את ה-hooks לפי `hooks/README.md`, ואז פתח session של Claude Code בפרויקט כלשהו:
+Install the hooks per `hooks/README.md`, then open a Claude Code session in some project:
 
-- [ ] פתיחת session — נוצר תת-כרטיס אפור (idle) תחת ה-workspace (נוצר workspace אם לא היה).
-- [ ] שליחת prompt — המסגרת כחולה קבועה (working).
-- [ ] בקשת permission מ-Claude — כתום מהבהב (waiting).
-- [ ] סיום turn — ירוק מהבהב (done); לחיצה על הכרטיס — ירוק קבוע + פוקוס לחלון.
-- [ ] סגירת ה-session — הכרטיס נעלם; כפתור ▼ בכרטיס הראשי מציג אותו כסגור (עמום).
-- [ ] בדיקה ידנית בלי Claude Code — הרץ את הפקודות מסוף `hooks/README.md`.
-- [ ] `SessionDeck.exe session status --id <sid> --state error` — אדום מהבהב עד לחיצה.
+- [ ] Opening a session — a grey (idle) sub-card appears under the workspace (the workspace is created if it didn't exist).
+- [ ] Submitting a prompt — the border turns steady blue (working).
+- [ ] Claude asks for a permission — blinking orange (waiting).
+- [ ] Turn ends — blinking green (done); clicking the card — steady green + focus to the window.
+- [ ] Closing the session — the card disappears; the ▼ button on the main card shows it as closed (dimmed).
+- [ ] Manual check without Claude Code — run the commands at the end of `hooks/README.md`.
+- [ ] `SessionDeck.exe session status --id <sid> --state error` — blinking red until clicked.
 
-## 3. ניהול הלוח
+## 3. Managing the deck
 
-- [ ] לחיצה על כרטיס (לא על כפתור) — פוקוס לחלון ה-VSCode במקומו.
-- [ ] לחיצה על כרטיס **ללא חלון פתוח** — נפתח VSCode על תיקיית הפרויקט והכרטיס מתחבר אליו.
-- [ ] ▶ — החלון נפתח באזור הפתיחה (Stage) המוגדר בסרגל.
-- [ ] ✏ — עריכת כותרת/תיאור/צבע (כולל חזרה ל"צבע אוטומטי").
-- [ ] 🗕 — הכרטיס נעלם; טוגל "👁 מוסתרים" מציג אותו חזרה (מעומעם, והכפתור מתחלף ל-👁 "הצג חזרה בלוח").
-- [ ] כרטיסים פעילים (חלון פתוח / session חי) קופצים לראש הלוח.
-- [ ] הרבה כרטיסים — גלילה אנכית עובדת, הכרטיסים נשברים לשורות לפי רוחב החלון.
-- [ ] 🔍 (v0.6.9) — פותח/סוגר את שורת החיפוש; גם ✕ וגם Escape סוגרים. סגירה מבטלת את הסינון.
-- [ ] חיפוש טקסט — מסנן כרטיסים: workspace מוצג אם שדותיו (שם/נתיב/branch/תיאור) תואמים או שיש לו session תואם (כותרת/detail/id). ‏session תואם מוצג גם אם סגור.
-- [ ] "חפש גם בתוכן" — מסומן: גם sessions שקובץ ה-transcript שלהם מכיל את הטקסט נכללים; שורת הסטטוס מציגה כמה נמצאו.
+- [ ] Clicking a card (not a button) — focuses the VSCode window in place.
+- [ ] Clicking a card **with no open window** — VSCode opens on the project folder and the card binds to it.
+- [ ] ▶ — the window moves to the Stage area configured in the toolbar.
+- [ ] ✏ — edit title/description/color (including going back to "Automatic color").
+- [ ] 🗕 — the card disappears; the "👁 hidden" toggle brings it back (dimmed, and the menu item changes to "Show on the deck again").
+- [ ] Active cards (open window / live session) jump to the top of the deck.
+- [ ] Many cards — vertical scrolling works, cards wrap into rows by window width.
+- [ ] 🔍 (v0.6.9) — opens/closes the search row; both ✕ and Escape close it. Closing clears the filter.
+- [ ] Text search — filters cards: a workspace shows if its own fields (name/path/branch/description) match, or if it has a matching session (title/detail/id). A matching session shows even when closed.
+- [ ] "Search content too" — when ticked, sessions whose transcript file contains the text are included as well; the status bar reports how many were found.
 
 ## 4. Zone / Stage
 
-- [ ] Zone "חצי ימין" — חלון SessionDeck נצמד וה-work area מצטמצם; "כבוי" משחרר.
-- [ ] Zone "רבע שמאל" / "רבע ימין" (v0.6.30) — החלון תופס רבע רוחב מסך בצד המתאים; חלון maximized לא נכנס לרבע.
-- [ ] Zone מותאם (v0.6.30) — בחירת "מותאם שמאל…" פותחת דיאלוג גודל; קלט `2/7` נותן ~28.6% רוחב, `40%` ו-`0.4` עובדים, קלט לא חוקי מנטרל את "אישור". ביטול מחזיר את הבחירה הקודמת. קליק חוזר על הפריט הפעיל פותח שוב את הדיאלוג. הגודל מוצג בפריט הקומבו ושורד ריסטארט.
-- [ ] נעילת Zone (v0.6.30) — כשה-zone פעיל: גרירת ה-title bar לא מזיזה, אין resize מהמסגרת (הסמן לא משתנה), דאבל-קליק על הכותרת לא עושה maximize, ו-Win+Shift+חץ לא מעביר מסך. minimize ו-restore עובדים, והחלון חוזר בדיוק ל-zone. כיבוי ה-zone מחזיר גרירה/resize רגילים.
-- [ ] "אזור פתיחה" (Stage) — מסך/חצי + מוניטור משפיעים על ▶.
+- [ ] Zone "Right half" — the SessionDeck window docks and the work area shrinks; "Off" releases it.
+- [ ] Zone "Left quarter" / "Right quarter" (v0.6.30) — the window takes a quarter of the screen width on the matching side; a maximized window doesn't enter the quarter.
+- [ ] Custom zone (v0.6.30) — picking "Custom left…" opens a size dialog; `2/7` gives ~28.6% width, `40%` and `0.4` work, invalid input disables "OK". Cancel restores the previous selection. Clicking the already-active item reopens the dialog. The size is shown in the combo item and survives a restart.
+- [ ] Zone lock (v0.6.30) — while the zone is active: dragging the title bar doesn't move it, no resize from the frame (the cursor doesn't change), double-clicking the title doesn't maximize, and Win+Shift+Arrow doesn't move it to another screen. Minimize and restore work, and the window returns exactly to the zone. Turning the zone off restores normal drag/resize.
+- [ ] "Stage" — screen/half + monitor affect ▶.
 
-## 5. Persistence + Startup
+## 5. Persistence + startup
 
-- [ ] סגירה ופתיחה מחדש — כל ה-workspaces, הסשנים (כולל סגורים), הסטטוסים וה-acknowledge חוזרים.
-- [ ] `%APPDATA%\SessionDeck\config.json` קריא; שינוי צבע ב-`StatusStyles` (למשל working→purple) נטען אחרי restart.
-- [ ] טוגל "עלייה אוטומטית עם Windows" ב-⚙ יוצר/מוחק ערך registry ‏(`HKCU\...\Run\SessionDeck`).
+- [ ] Close and reopen — every workspace, session (closed ones included), status and acknowledgement comes back.
+- [ ] `%APPDATA%\SessionDeck\config.json` is readable; changing a color in `StatusStyles` (working→purple, say) is picked up after a restart.
+- [ ] The "Start with Windows" toggle in ⚙ creates/removes the registry value (`HKCU\...\Run\SessionDeck`).
 
-## 6. שלב ד' — VSCode Extension ‏(SessionDeck Connector)
+## 6. Stage D — the VSCode extension (SessionDeck Connector)
 
-דרישה מוקדמת: ה-VSIX מותקן (`code --install-extension vscode-extension\sessiondeck-connector-0.5.0.vsix`) **וכל חלונות ה-VSCode עברו Reload** ‏(Ctrl+Shift+P ‏→ "Developer: Reload Window") אחרי ההתקנה. לוג ה-extension: ‏Output ‏→ ערוץ "SessionDeck".
+Prerequisite: the VSIX is installed (`code --install-extension vscode-extension\sessiondeck-connector-0.5.0.vsix`) **and every VSCode window has been reloaded** (Ctrl+Shift+P → "Developer: Reload Window") afterwards. The extension's log: Output → the "SessionDeck" channel.
 
-- [ ] אחרי Reload — צ'יפ 📑 עם מספר טאבי ה-Claude הפתוחים מופיע בכותרת הכרטיס (tooltip מציג את שמותיהם); פתיחת/סגירת טאב Claude מעדכנת את המספר תוך ~שנייה.
-- [ ] החלפת branch ב-VSCode — ה-⎇ בכרטיס מתעדכן מיידית (לא רק אחרי ~10 שניות).
-- [ ] **לחיצה על Session Card עם טאב פתוח** — החלון מקבל פוקוס והטאב של אותו session נחשף.
-- [ ] **לחיצה על Session Card שהטאב שלו סגור** (אך ה-VSCode פתוח) — הטאב נפתח מחדש (resume) עם ההיסטוריה.
-- [ ] **לחיצה על סשן סגור** (תצוגה מורחבת ▼) — אותו דבר: הסשן קם לתחייה בטאב.
-- [ ] פתיחה "ממוקסמת": ה-sidebar, ה-panel התחתון וה-sidebar המשני נסגרים לפני פתיחת הטאב (כיבוי: `OpenSessionMaximized: false` ב-config).
-- [ ] **לחיצה על סשן כשה-VSCode סגור לגמרי** — ‏VSCode נפתח, ותוך ~שניות הטאב של הסשן נפתח מעצמו (pending open שממתין ל-connector).
-- [ ] סשנים מציגים שם אמיתי תוך ~10 שניות: **כותרת הטאב** (ai-title) ככותרת ראשית, ומתחתיה כותרת הסשן (מה-prompt הראשון) כמשנית כשהן שונות.
-- [ ] `SessionDeck.exe session open --id <sid>` — אותה התנהגות מה-CLI.
-- [ ] סגירת SessionDeck ופתיחתו מחדש — ה-extension מתחבר לבד תוך ~5 שניות (רואים בלוג "connected").
-- [ ] **auto-acknowledge (v0.6.0)**: סשן מהבהב ירוק → מעבר לטאב שלו ישירות ב-VSCode (בלי האפליקציה) — ההבהוב נפסק תוך ~שנייה. אם הטאב כבר פעיל והחלון בפוקוס כשהסשן מסיים — לא מתחיל הבהוב בכלל.
-- [ ] **סטטוס "ממתין" ב-UI של VSCode ‏(v0.6.17)**: קלוד שואל שאלה (AskUserQuestion) או מציג תוכנית לאישור (ExitPlanMode) בטאב של VSCode — הכרטיס עובר לכתום מהבהב תוך ~10 שניות **גם ש-`Notification`/`PostToolUse` לא נורים שם**, ושורת המשנה מציגה את טקסט השאלה. אחרי מענה — חוזר לכחול "working", ובסיום ל-ירוק "done".
-- [ ] **בקשת הרשאה ב-UI של VSCode ‏(v0.6.19)**: קלוד מבקש אישור ל-`Edit`/`Write`/`Read` ואתה לא עונה — הכרטיס עובר לכתום תוך ~15-25 שניות (זה המקרה שדווח 2026-07-20). אחרי אישור — חוזר לכחול.
-- [ ] **בקשת הרשאה ל-`Bash`/`PowerShell` ‏(v0.6.19)**: אותו דבר, אבל הסף 120 שניות — הכרטיס עובר לכתום תוך ~2-2.5 דקות.
-- [ ] **ללא התראות שווא (v0.6.19)**: ‏`Bash`/`PowerShell` שרץ **פחות** מ-2 דקות (build רגיל) או `Agent` שרץ דקות ארוכות — הכרטיס **נשאר כחול**.
-- [ ] **כותרת הכרטיס = כותרת הטאב (v0.6.25)**: כותרת כל כרטיס סשן זהה לתווית הטאב שלו ב-VSCode (בדק מוצגת מלאה, ב-VSCode חתוכה ל-`…`). כשקלוד משנה את שם הטאב — הכותרת בדק עוקבת תוך ~10 שניות. שם שניתן ידנית (‏`/rename` או עריכה בדק) גובר וממשיך לגבור.
-- [ ] **auto-acknowledge לסשן בלי ai-title ‏(v0.6.20)**: סשן ותיק שה-transcript שלו לא מכיל אף `ai-title` (VSCode מתייג את הטאב שלו לפי פרומפט) — פתיחת הטאב שלו ישירות ב-VSCode מפסיקה את ההבהוב. זה המקרה שדווח 2026-07-20.
-- [ ] **תווית דו-משמעית לא עושה ack שגוי (v0.6.20)**: שני סשנים פתוחים שנפתחו באותו פרומפט בדיוק — פתיחת הטאב לא משתיקה אף אחד מהם (עדיף כרטיס שממשיך להבהב מאשר התראה אמיתית שנעלמת בשקט).
-- [ ] **auto-acknowledge אחרי שינוי כותרת (v0.6.15)**: תוך כדי turn ארוך Claude משנה את שם הטאב (ai-title חדש) → הסשן מסיים בזמן שהטאב בפוקוס — ההבהוב נפסק לבד תוך ≤10 שניות גם אם הכותרת ב-SessionDeck עוד לא התעדכנה (drift בין תווית הטאב ל-TabTitle).
-- [ ] **auto-acknowledge ב-split groups (connector v0.6.6)**: שני טאבים של Claude בשתי קבוצות עורך (split) — רק הסשן של הטאב בקבוצה הממוקדת מקבל acknowledge, לא הטאב הפעיל בקבוצה השנייה.
-- [ ] **עזיבת הטאב מחזירה את ההיבהוב (v0.6.28)**: יושבים על הטאב של סשן א' → עוברים לטאב אחר (קובץ או סשן אחר) באותו חלון VSCode → סשן א' עובר ל-waiting/done — **הכרטיס מהבהב**. זה המקרה שדווח 2026-07-20: קודם ההיבהוב נפסק מיד כי הדק עוד "זכר" שהטאב של א' פעיל.
-- [ ] **התיישנות מצב הפוקוס (v0.6.28 + connector v0.6.7)**: הורגים את חלון ה-VSCode בכוח (Task Manager, בלי סגירה מסודרת) כשטאב Claude פעיל → תוך ~6 שניות הדק מפסיק להאמין שמסתכלים על אותו טאב, וסשן שעובר ל-waiting אחרי זה **כן** מהבהב.
-- [ ] **תצוגה מורחבת (▼, v0.6.0)**: מציגה גם סשנים היסטוריים מתיקיית ה-transcripts (עד 15 אחרונים), עם כותרות וזמנים; לחיצה עליהם עושה resume.
-- [ ] **סשן ישן שלא ניתן ל-resume** (למשל מלפני שינוי שם התיקייה) — לחיצה מציגה הודעה בשורת הסטטוס ולא פותחת טאב חדש ריק.
-- [ ] **RTL (v0.6.0)**: כותרות/תיאורים שמתחילים בעברית מיושרים לימין בכיוון RTL.
-- [ ] כותרות ארוכות נשברות לשורה נוספת (אין "..."); ‏hover על כרטיס סשן מבהיר את הרקע.
+- [ ] After the reload — a 📑 chip with the number of open Claude tabs appears in the card header (the tooltip lists their names); opening/closing a Claude tab updates the number within ~a second.
+- [ ] Switching branch in VSCode — the ⎇ on the card updates immediately (not only after ~10 seconds).
+- [ ] **Clicking a session card whose tab is open** — the window takes focus and that session's tab is revealed.
+- [ ] **Clicking a session card whose tab is closed** (but VSCode is open) — the tab is reopened (resume) with its history.
+- [ ] **Clicking a closed session** (expanded view ▼) — same thing: the session comes back to life in a tab.
+- [ ] "Maximized" opening: the sidebar, the bottom panel and the secondary sidebar close before the tab opens (disable with `OpenSessionMaximized: false` in config).
+- [ ] **Clicking a session while VSCode is fully closed** — VSCode opens, and within ~seconds the session's tab opens by itself (a pending open waiting for the connector).
+- [ ] Sessions show a real name within ~10 seconds: the **tab title** (ai-title) as the primary title, with the session title (from the first prompt) beneath it as secondary when they differ.
+- [ ] `SessionDeck.exe session open --id <sid>` — same behavior from the CLI.
+- [ ] Closing SessionDeck and reopening it — the extension reconnects on its own within ~5 seconds ("connected" appears in the log).
+- [ ] **auto-acknowledge (v0.6.0)**: a session blinking green → switch to its tab directly in VSCode (without touching the app) — the blink stops within ~a second. If the tab is already active and the window focused when the session finishes — no blink starts at all.
+- [ ] **"waiting" status in the VSCode UI (v0.6.17)**: Claude asks a question (AskUserQuestion) or presents a plan for approval (ExitPlanMode) in a VSCode tab — the card turns blinking orange within ~10 seconds **even though `Notification`/`PostToolUse` don't fire there**, and the sub-line shows the question text. After answering — back to blue "working", and at the end to green "done".
+- [ ] **A permission request in the VSCode UI (v0.6.19)**: Claude asks to approve `Edit`/`Write`/`Read` and you don't answer — the card turns orange within ~15-25 seconds (this is the case reported 2026-07-20). After approving — back to blue.
+- [ ] **A permission request for `Bash`/`PowerShell` (v0.6.19)**: same, but the threshold is 120 seconds — the card turns orange within ~2-2.5 minutes.
+- [ ] **No false alarms (v0.6.19)**: a `Bash`/`PowerShell` call running **less** than 2 minutes (an ordinary build) or an `Agent` running for many minutes — the card **stays blue**.
+- [ ] **Card title = tab title (v0.6.25)**: every session card's title matches its VSCode tab label (shown in full on the deck, truncated with `…` in VSCode). When Claude renames the tab — the deck title follows within ~10 seconds. A manually given name (`/rename` or editing on the deck) wins and keeps winning.
+- [ ] **auto-acknowledge for a session with no ai-title (v0.6.20)**: an older session whose transcript contains no `ai-title` (VSCode labels its tab from the prompt) — opening its tab directly in VSCode stops the blink. This is the case reported 2026-07-20.
+- [ ] **An ambiguous label doesn't ack the wrong session (v0.6.20)**: two open sessions started from the exact same prompt — opening the tab silences neither (a card that keeps blinking beats a real alert that vanishes quietly).
+- [ ] **auto-acknowledge after a title change (v0.6.15)**: mid-turn Claude renames the tab (a new ai-title) → the session finishes while the tab is focused — the blink stops by itself within ≤10 seconds even if SessionDeck's title hasn't updated yet (drift between the tab label and TabTitle).
+- [ ] **auto-acknowledge across split groups (connector v0.6.6)**: two Claude tabs in two editor groups (split) — only the session in the focused group gets acknowledged, not the active tab in the other group.
+- [ ] **Leaving the tab restores the blink (v0.6.28)**: you're sitting on session A's tab → you switch to another tab (a file, or another session) in the same VSCode window → session A moves to waiting/done — **the card blinks**. This is the case reported 2026-07-20: before, the blink stopped instantly because the deck still "remembered" A's tab as active.
+- [ ] **Focus state ages out (v0.6.28 + connector v0.6.7)**: kill the VSCode window by force (Task Manager, no clean close) while a Claude tab is active → within ~6 seconds the deck stops believing that tab is being watched, and a session that moves to waiting afterwards **does** blink.
+- [ ] **Expanded view (▼, v0.6.0)**: also shows historical sessions from the transcripts folder (the 15 most recent), with titles and timestamps; clicking them resumes.
+- [ ] **An old session that can't be resumed** (from before a folder rename, for instance) — clicking shows a message in the status bar and doesn't open an empty new tab.
+- [ ] **RTL (v0.6.0)**: titles/descriptions that start with Hebrew are right-aligned in RTL direction. Since v0.9.0 the UI chrome itself is English and LTR — this check is about data coming from outside the app (workspace/session/task names, descriptions, tooltips, search text and the git branch), which must still follow its own language.
+- [ ] Long titles wrap to another line (no "..."); hovering a session card lightens its background.
 
-## 6א. התראת Windows כשהדק עלול להיות מוסתר (v0.6.26)
+## 6a. A Windows notification when the deck may be hidden (v0.6.26)
 
-התנאי להתראה: **"התראות Windows" מסומן ב-⚙ (ברירת מחדל), וגם 📌 (always on top) כבוי וגם ה-Zone על "כבוי"** — אז הדק הוא חלון רגיל שאפשר לכסות. בכל שאר המצבים ההתנהגות לא משתנה.
+The condition for a notification: **"Windows notifications" is ticked in ⚙ (the default), and 📌 (always on top) is off, and the Zone is "Off"** — only then is the deck an ordinary window that something can cover. In every other state the behavior is unchanged.
 
-- [ ] 📌 כבוי + Zone "כבוי" + הדק **לא** בפוקוס → סשן עובר ל-waiting/done/error: עולה בלון של Windows עם שם ה-workspace והסשן, האייקון בשורת המשימות מקבל **נקודה צבעונית** (כתום/ירוק/אדום לפי הסטטוס), והכפתור מהבהב כתום פעם אחת.
-- [ ] הנקודה נשארת כל עוד יש סשן שדורש תשומת לב, גם אחרי שהבלון נעלם.
-- [ ] לחיצה על הבלון או על אייקון ה-tray → חלון הדק עולה לפנים (וקם מ-minimize).
-- [ ] **פוקוס = בלי התראה**: הדק בפוקוס וסשן מסיים — אין בלון, אין נקודה, אין הבהוב (רואים את ההבהוב בכרטיס ממילא).
-- [ ] **הגייט עובד**: מדליקים 📌 (או Zone ≠ כבוי) → הנקודה ואייקון ה-tray נעלמים מיד; סשן חדש שעובר ל-waiting לא מפיק בלון.
-- [ ] **בלי חזרות**: סשן שנשאר בכתום לאורך זמן מפיק בלון **פעם אחת** בלבד, גם כשמתרחשים עדכונים אחרים בדק.
-- [ ] **חימוש מחדש**: לוחצים על הכרטיס (acknowledge) והסשן חוזר אחר כך ל-waiting → בלון חדש כן עולה.
-- [ ] **אין בלון בהפעלה**: סגירת SessionDeck כשיש סשנים מהבהבים ופתיחה מחדש (בלי 📌 ובלי Zone) — לא נורית סדרת בלונים על סשנים משוחזרים.
-- [ ] כמה סשנים דורשים תשומת לב יחד → הבלון מציג את החמור ביותר + "ועוד N"; צבע הנקודה הוא של החמור ביותר (error > waiting > done).
-- [ ] אין אייקון tray שנשאר תקוע: אחרי acknowledge לכל הסשנים, או אחרי סגירת האפליקציה, האייקון נעלם.
-- [ ] **מתג "התראות Windows" ב-⚙**: מסומן כברירת מחדל (גם ב-config ישן שאין בו את השדה); hover מציג הסבר שכולל את התנאי של 📌 + Zone.
-- [ ] כיבוי המתג → הנקודה ואייקון ה-tray נעלמים מיד, וסשן חדש שעובר ל-waiting לא מפיק כלום. הדלקה חוזרת → הבאדג' חוזר, אבל **בלי** בלון על סשנים שכבר היו כתומים.
-- [ ] המצב נשמר: כיבוי המתג, restart לאפליקציה — המתג עדיין כבוי ב-⚙ ו-`WindowsNotifications: false` מופיע ב-`config.json`.
-- [ ] **ביטול התראה שטופלה מחוץ לדק (v0.6.27)**: סשן מהבהב מפיק בלון → פותחים את הטאב שלו **ישירות ב-VSCode** (בלי לגעת בדק) → ההבהוב נפסק, **וגם** הנקודה, אייקון ה-tray וההתראה עצמה נעלמים (כולל הרשומה במרכז ההתראות של Windows).
-- [ ] **שני סשנים, אחד טופל**: שניהם מהבהבים והבלון מציג "ועוד 1" → עונים לאחד ב-VSCode → ההתראה **נשארת** (עדיין יש סשן שממתין), הנקודה נשארת, ולא קופצת התראה חדשה. רק כשגם השני מטופל — הכול נעלם.
+- [ ] 📌 off + Zone "Off" + the deck **not** focused → a session moves to waiting/done/error: a Windows balloon appears with the workspace and session name, the taskbar icon gets a **colored dot** (orange/green/red by status), and the button flashes orange once.
+- [ ] The dot stays as long as some session needs attention, even after the balloon is gone.
+- [ ] Clicking the balloon or the tray icon → the deck window comes to the front (and restores from minimized).
+- [ ] **Focused = no notification**: the deck is focused and a session finishes — no balloon, no dot, no flash (the card's blink is visible anyway).
+- [ ] **The gate works**: turn 📌 on (or Zone ≠ Off) → the dot and the tray icon disappear immediately; a new session moving to waiting raises no balloon.
+- [ ] **No repeats**: a session that stays orange for a long time raises a balloon **once** only, even as other updates happen on the deck.
+- [ ] **Re-arming**: click the card (acknowledge) and let the session return to waiting later → a new balloon does appear.
+- [ ] **No balloon on startup**: close SessionDeck while sessions are blinking and reopen it (without 📌 and without a Zone) — no burst of balloons for the restored sessions.
+- [ ] Several sessions need attention at once → the balloon names the most severe + "and N more"; the dot's color is the most severe one (error > waiting > done).
+- [ ] No stuck tray icon: after acknowledging every session, or after closing the app, the icon disappears.
+- [ ] **The "Windows notifications" switch in ⚙**: ticked by default (including in an old config that lacks the field); hovering shows an explanation that includes the 📌 + Zone condition.
+- [ ] Turning the switch off → the dot and the tray icon disappear immediately, and a new session moving to waiting produces nothing. Turning it back on → the badge returns, but **without** a balloon for sessions that were already orange.
+- [ ] The state persists: turn the switch off, restart the app — it is still off in ⚙ and `WindowsNotifications: false` appears in `config.json`.
+- [ ] **Withdrawing a notification handled outside the deck (v0.6.27)**: a blinking session raises a balloon → open its tab **directly in VSCode** (without touching the deck) → the blink stops, **and so do** the dot, the tray icon and the notification itself (including its entry in the Windows notification center).
+- [ ] **Two sessions, one handled**: both blink and the balloon says "and 1 more" → answer one in VSCode → the notification **stays** (a session is still waiting), the dot stays, and no new notification pops. Only when the second is handled too does everything disappear.
 
-## 6ב. פאנל משימות מקובץ JSON חיצוני (v0.7.0, T-0116)
+## 6b. A tasks panel from an external JSON file (v0.7.0, T-0116)
 
-הפעלה: ⚙ ← "קובץ משימות (JSON)..." ← בחירת קובץ (חוזה הקובץ מתועד במשימה T-0116). שדה ריק = כבוי לחלוטין (ברירת המחדל — אין רצועה, אין watcher).
+Turning it on: ⚙ → "Tasks file (JSON)..." → pick a file (the file contract is documented in task T-0116, and behind the dialog's "📋 Copy spec" button). An empty field = fully off (the default — no strip, no watcher).
 
-- [ ] **Opt-in**: בלי נתיב מוגדר — שום שינוי UI (אין רצועה, אין כפתור 🗒 בכרטיסים).
-- [ ] הגדרת נתיב לקובץ תקין — רצועה מכווצת בצד ימין: ריבוע צבעוני למשימה (צבע לפי `statusColors`), נעוצות ראשונות עם מסגרת לבנה + קו הפרדה; hover מציג שם/סטטוס/תיאור.
-- [ ] **עדכון חי**: עריכת הקובץ בזמן ריצה — הרצועה מתעדכנת תוך ~שנייה (debounce + retry על קובץ נעול).
-- [ ] **שגיאת קובץ גלויה**: JSON שבור / קובץ שנמחק / ‏version שונה מ-1 — הרצועה מציגה ⚠ עם הסיבה (ובדף — מצב שגיאה במקום הרשימה). תיקון הקובץ — הרשימה חוזרת.
-- [ ] **שגיאת רשומה**: רשומה בלי `id` או `name` — מדולגת; שאר הרשימה נטענת ומוצג ⚠ קטן עם פירוט.
-- [ ] 📋 בראש הרצועה — מעבר ל**דף המשימות**: רשימה מלאה (שם, תיאור, סטטוס, כפתורי 🔗/▶), ומשמאל ריבועי סשנים חיים מקובצים לפי workspace (צבע מסגרת = סטטוס, מתעדכן חי כולל הבהוב). ✕ / Esc חוזרים ללוח.
-- [ ] **נטרול הדדי עם חיפוש**: בדף המשימות כפתור 🔍 מנוטרל; כששורת החיפוש פתוחה כפתור 📋 מנוטרל.
-- [ ] לחיצה על ריבוע משימה **בלי** `sessions` — נפתח סשן חדש ב-workspace שלה (אם מוגדר `newSessionPrompt` בקובץ — הטקסט ממתין בתיבת האינפוט עם ה-id והשם).
-- [ ] לחיצה על ריבוע משימה **עם** `sessions` — dropdown: "+ סשן חדש" ואז הסשנים; סשן חי (🟢) — פוקוס; סשן שאינו רץ (▶) — resume אמיתי (כולל פתיחת VSCode אם צריך).
-- [ ] 🔗 "פתח משימה" — פותח את ה-`url` (למשל obsidian://).
-- [ ] **כרטיסי workspace**: כפתור 🗒 עם מספר המשימות המקושרות (לפי `workspace` path); ‏0 — מוצג ומנוטרל; לחיצה — רשימת המשימות בתוך הכרטיס.
-- [ ] כיבוי (ניקוי הנתיב בדיאלוג) — כל ה-UI של המשימות נעלם, ה-watcher מפסיק.
+- [ ] **Opt-in**: with no path configured — no UI change at all (no strip, no 🗒 button on the cards).
+- [ ] Setting a path to a valid file — a collapsed strip on the right: a colored square per task (color from `statusColors`), pinned ones first with a white border + a separator line; hovering shows name/status/description.
+- [ ] **Live updates**: editing the file while running — the strip updates within ~a second (debounce + retry on a locked file).
+- [ ] **File errors are visible**: broken JSON / a deleted file / a version other than 1 — the strip shows ⚠ with the reason (and on the page — an error state instead of the list). Fix the file — the list returns.
+- [ ] **Record errors**: a record with no `id` or `name` — skipped; the rest of the list loads and a small ⚠ appears with the details.
+- [ ] 📋 at the top of the strip — switches to the **tasks page**: the full list (name, description, status, 🔗/▶ buttons), and on the left, live session squares grouped by workspace (border color = status, updating live including the blink). ✕ / Esc return to the deck.
+- [ ] **Mutual exclusion with search**: on the tasks page the 🔍 button is disabled; while the search row is open the 📋 button is disabled.
+- [ ] Clicking a task square **without** `sessions` — a new session opens in its workspace (if `newSessionPrompt` is set in the file — the text waits in the input box with the id and name filled in).
+- [ ] Clicking a task square **with** `sessions` — a dropdown: "+ New session" and then the sessions; a live session (🟢) — focus; a session that isn't running (▶) — a real resume (including launching VSCode if needed).
+- [ ] 🔗 "Open task" — opens the `url` (obsidian://, for instance).
+- [ ] **Workspace cards**: a 🗒 button with the number of linked tasks (matched by `workspace` path); 0 — shown and disabled; clicking — the task list inside the card.
+- [ ] Turning it off (clearing the path in the dialog) — all of the tasks UI disappears, the watcher stops.
 
-## 7. ידוע / מגבלות
+## 7. Known / limitations
 
-- תג 📑 על כרטיס סשן בודד (פתוח כטאב) הוא best-effort — לפי השוואת שם הטאב לכותרת הסשן.
-- `claude-vscode.editor.open` הוא command פנימי של Claude Code; אם ייעלם בגרסה עתידית — ה-extension נופל אוטומטית ל-terminal עם `claude --resume`.
-- `Notification` של Claude Code מכסה permission/אינפוט; אין אירוע error ייעודי (SPEC §9.2).
+- The 📑 tag on a single session card (open as a tab) is best-effort — based on comparing the tab name to the session title.
+- `claude-vscode.editor.open` is an internal Claude Code command; if it disappears in a future version — the extension falls back automatically to a terminal with `claude --resume`.
+- Claude Code's `Notification` covers permission/input; there is no dedicated error event (SPEC §9.2).
 
-*הפקודה הפנימית `SessionDeck.exe snapshot <path>.png` מרנדרת את ה-UI ל-PNG (בלי ה-thumbnails) — שימושית לדיבוג מרחוק.*
+*The internal command `SessionDeck.exe snapshot <path>.png` renders the UI to a PNG (without the thumbnails) — useful for remote debugging.*

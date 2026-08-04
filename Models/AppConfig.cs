@@ -109,7 +109,7 @@ public class TileConfig
     public int BlinkIntervalMs { get; set; } = 500;
 }
 
-/// <summary>A VSCode workspace on the deck (SPEC §2ב) — persistent entity; the OS window
+/// <summary>A VSCode workspace on the deck (SPEC §2b) — persistent entity; the OS window
 /// is only its live binding.</summary>
 public class WorkspaceConfig
 {
@@ -124,7 +124,7 @@ public class WorkspaceConfig
     public List<SessionConfig> Sessions { get; set; } = new();
 }
 
-/// <summary>A Claude Code session reported by the hooks (SPEC §2ב/§4ב).</summary>
+/// <summary>A Claude Code session reported by the hooks (SPEC §2b/§4b).</summary>
 public class SessionConfig
 {
     public string SessionId { get; set; } = "";

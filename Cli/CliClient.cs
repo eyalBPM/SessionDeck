@@ -85,7 +85,7 @@ public static class CliClient
                                                   no args = show state; --file sets the JSON, --off disables
         sessiondeck help
 
-        session commands (called by the Claude Code hooks — SPEC §4ב):
+        session commands (called by the Claude Code hooks — SPEC §4b):
         sessiondeck session start  --id <sid> --workspace <cwd path or name> [--title "..."] [--source <s>]
         sessiondeck session status --id <sid> --state working|waiting|done|error|idle [--detail "..."]
         sessiondeck session end    --id <sid> [--reason <r>]

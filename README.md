@@ -6,7 +6,7 @@ SessionDeck tiles every VSCode window into a live grid and shows each Claude Cod
 
 Under the hood it's a general-purpose window deck (any top-level window can be tiled, pinned and driven from a CLI), but the UI and workflows are deliberately scoped to VSCode + Claude Code.
 
-> Status: actively developed, `v0.7.8`. Windows-only by design.
+> Status: actively developed, `v0.9.1`. Windows-only by design.
 
 ---
 
@@ -121,8 +121,8 @@ sessiondeck session list   [--workspace <name>] [--all]
 
 ## Documentation
 
-- [`SPEC.md`](SPEC.md) — full development spec, decisions log and roadmap (Hebrew).
-- [`hooks/README.md`](hooks/README.md) — hook wiring and the waiting-detection heuristics (Hebrew).
+- [`SPEC.md`](SPEC.md) — full development spec, decisions log and roadmap.
+- [`hooks/README.md`](hooks/README.md) — hook wiring and the waiting-detection heuristics.
 - [`MANUAL_TESTS.md`](MANUAL_TESTS.md) — manual test checklist.
 - [`vscode-extension/README.md`](vscode-extension/README.md) — the companion extension.
 

@@ -36,7 +36,7 @@ public static class SessionStatusNames
 }
 
 /// <summary>
-/// A Claude Code session card (SPEC §2ב): status-colored border driven by the hooks,
+/// A Claude Code session card (SPEC §2b): status-colored border driven by the hooks,
 /// blink until acknowledge for done/error/waiting. No thumbnail by design.
 /// </summary>
 public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable

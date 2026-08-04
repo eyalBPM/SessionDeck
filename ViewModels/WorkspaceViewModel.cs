@@ -9,7 +9,7 @@ namespace SessionDeck.ViewModels;
 public enum BindState { Connected, Disconnected }
 
 /// <summary>
-/// A workspace card (SPEC §2ב): persistent entity representing a VSCode workspace.
+/// A workspace card (SPEC §2b): persistent entity representing a VSCode workspace.
 /// The OS window is only its live binding — the card survives window close/reopen.
 /// </summary>
 public sealed class WorkspaceViewModel : INotifyPropertyChanged
@@ -198,7 +198,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
     }
 
     private bool _expanded;
-    /// <summary>Expanded card shows closed sessions too (SPEC §2ב).</summary>
+    /// <summary>Expanded card shows closed sessions too (SPEC §2b).</summary>
     public bool Expanded
     {
         get => _expanded;

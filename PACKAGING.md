@@ -1,43 +1,43 @@
-# SessionDeck — תוכנית אריזה והפצה (יעד: v0.6.29)
+# SessionDeck — packaging and distribution plan (target: v0.6.29)
 
-> נכתב 2026-07-20. מיועד ל-session מימוש נפרד של Claude Code.
-> קרא את הקובץ הזה **במלואו** לפני שאתה נוגע בקוד.
+> Written 2026-07-20. Intended for a separate Claude Code implementation session.
+> Read this file **in full** before touching any code.
 
 ---
 
-## 0. מה המטרה
+## 0. The goal
 
-היום, מי שרוצה להתקין את SessionDeck צריך לעשות חמישה דברים ידניים:
+Today, installing SessionDeck takes five manual steps:
 
-1. להתקין .NET 10 SDK
+1. Install the .NET 10 SDK
 2. `git clone` + `dotnet build`
-3. להוסיף ידנית את `SessionDeck.exe` ל-PATH
-4. `npm install` + אריזת `.vsix` + `code --install-extension`
-5. לפתוח את `~/.claude/settings.json`, להדביק ~40 שורות JSON, **ולהחליף בתוכן את `D:\Eyal\SessionDeck` בנתיב שלו — בשבעה מקומות**
+3. Add `SessionDeck.exe` to PATH by hand
+4. `npm install` + package the `.vsix` + `code --install-extension`
+5. Open `~/.claude/settings.json`, paste ~40 lines of JSON, **and replace `D:\Eyal\SessionDeck` inside it with your own path — in seven places**
 
-שלב 5 הוא נקודת הכישלון. הוא גם שביר אצל אייל עצמו: ברגע שהפרויקט יזוז לתיקייה אחרת, ה-hooks יפסיקו לעבוד **בשקט, בלי הודעת שגיאה** (‏[`hooks/sessiondeck-hook.ps1:19`](hooks/sessiondeck-hook.ps1#L19) עושה `exit 0` כשהוא לא מוצא את ה-exe).
+Step 5 is the failure point. It is also fragile on Eyal's own machine: the moment the project moves to another folder, the hooks stop working **silently, with no error** ([`hooks/sessiondeck-hook.ps1:19`](hooks/sessiondeck-hook.ps1#L19) does `exit 0` when it can't find the exe).
 
-**היעד:** המשתמש מוריד zip אחד מ-GitHub Releases, מחלץ, מריץ `install.ps1`, וזהו.
+**The target:** the user downloads one zip from GitHub Releases, extracts it, runs `install.ps1`, done.
 
 ---
 
-## 1. החלטות שכבר התקבלו — אל תפתח מחדש
+## 1. Decisions already made — do not reopen
 
-| נושא | הוחלט |
+| Topic | Decided |
 |---|---|
-| תוכן ה-zip | **self-contained single-file** (~150MB). עובד על מחשב נקי בלי .NET מותקן. השיקול: 150MB בהורדה חד-פעמית זול יותר מתמיכה ב"למה זה לא נפתח". |
-| רישיון | MIT, ‏© BPM Ltd. כבר ב-`main`. |
-| נראות הריפו | **public** מאז 2026-08-02. (עד אז private — ההחלטה המקורית כאן.) |
-| ‏VS Marketplace / winget / Claude Code plugin | **עדיין לא מומשו.** החסם שבגללו נדחו — ריפו private — הוסר ב-2026-08-02. |
-| ‏`.vsix` ב-git | **נשאר ב-`.gitignore`.** מקומו ב-Release artifacts, לא ב-repo. |
+| Zip contents | **self-contained single-file** (~150MB). Works on a clean machine with no .NET installed. The reasoning: 150MB in a one-time download is cheaper than supporting "why won't this open". |
+| License | MIT, © BPM Ltd. Already on `main`. |
+| Repo visibility | **public** since 2026-08-02. (Private until then — the original decision here.) |
+| VS Marketplace / winget / Claude Code plugin | **Still not implemented.** The blocker that deferred them — a private repo — was removed on 2026-08-02. |
+| `.vsix` in git | **Stays in `.gitignore`.** Its place is in Release artifacts, not in the repo. |
 
 ---
 
-## 2. שלב 0 — להעתיק את `hooks/` לתיקיית ה-build
+## 2. Step 0 — copy `hooks/` into the build folder
 
-**זה תנאי מקדים לכל השאר.** נכון לעכשיו `hooks/sessiondeck-hook.ps1` לא מועתק ל-`bin/`, ולכן ה-exe לא יכול למצוא אותו אחרי התקנה.
+**This is a prerequisite for everything else.** As things stand `hooks/sessiondeck-hook.ps1` isn't copied to `bin/`, so the exe can't find it after an install.
 
-ב-[`SessionDeck.csproj`](SessionDeck.csproj), הוסף `ItemGroup` חדש:
+In [`SessionDeck.csproj`](SessionDeck.csproj), add a new `ItemGroup`:
 
 ```xml
 <ItemGroup>
@@ -47,35 +47,35 @@
 </ItemGroup>
 ```
 
-**אימות:** אחרי `dotnet build`, הקובץ `bin\Debug\net10.0-windows\hooks\sessiondeck-hook.ps1` קיים, **ועדיין עם UTF-8 BOM** (בדוק: `Format-Hex -Path <file> -Count 3` צריך להתחיל ב-`EF BB BF`). בלי ה-BOM, PowerShell 5.1 קורא את המחרוזות העבריות כ-ANSI והסקריפט נשבר — ראה [`hooks/README.md`](hooks/README.md).
+**Verification:** after `dotnet build`, the file `bin\Debug\net10.0-windows\hooks\sessiondeck-hook.ps1` exists, **and still carries its UTF-8 BOM** (check with `Format-Hex -Path <file> -Count 3`; it must start with `EF BB BF`). Without the BOM, PowerShell 5.1 reads the file's non-ASCII characters as ANSI — see [`hooks/README.md`](hooks/README.md).
 
 ---
 
-## 3. שלב 1 — הפקודה `sessiondeck install-hooks`
+## 3. Step 1 — the `sessiondeck install-hooks` command
 
-זה החלק העיקרי. הערכה: 2-3 שעות.
+This is the main part. Estimate: 2-3 hours.
 
-### 3.1 מה הפקודה עושה
+### 3.1 What the command does
 
 ```
 sessiondeck install-hooks [--settings <path>] [--dry-run]
 sessiondeck uninstall-hooks [--settings <path>]
 ```
 
-פותחת את `~/.claude/settings.json`, מגבה אותו, וממזגת לתוכו את שבעת ה-hooks של SessionDeck — כשהיא כותבת את **הנתיב האמיתי שבו הותקנה האפליקציה**, במקום `D:\Eyal\SessionDeck` הקבוע.
+Opens `~/.claude/settings.json`, backs it up, and merges SessionDeck's seven hooks into it — writing **the real path the app was installed to**, instead of the hard-coded `D:\Eyal\SessionDeck`.
 
-### 3.2 עיצוב קריטי — הפקודה לא עוברת דרך ה-pipe
+### 3.2 Critical design point — the command does not go through the pipe
 
-**קרא את זה לפני שאתה כותב שורה.**
+**Read this before writing a line.**
 
-[`Program.cs:14-15`](Program.cs#L14-L15) קובע ש**כל** ארגומנט פירושו "שלח דרך ה-pipe לאפליקציה שרצה":
+[`Program.cs:14-15`](Program.cs#L14-L15) makes **any** argument mean "send this through the pipe to the running app":
 
 ```csharp
 if (args.Length > 0)
     return Cli.CliClient.Run(args);
 ```
 
-אבל `install-hooks` צריכה לעבוד **כשהאפליקציה עדיין לא רצה** — זה בדיוק המצב בהתקנה. לכן היא חייבת להיתפס ב-`Main` **לפני** השורה הזאת, ולרוץ בתהליך ה-CLI עצמו:
+But `install-hooks` has to work **while the app has never run** — which is exactly the situation during an install. So it must be caught in `Main` **before** that line, and run inside the CLI process itself:
 
 ```csharp
 if (args.Length > 0)
@@ -88,98 +88,98 @@ if (args.Length > 0)
 }
 ```
 
-**לכן: אל תוסיף אותה ל-`switch` ב-[`CommandExecutor.cs:38-50`](Cli/CommandExecutor.cs#L38-L50).** כל מה ששם רץ על ה-UI thread של אפליקציה חיה. צור מחלקה חדשה `Cli/HookInstaller.cs`.
+**Therefore: do not add it to the `switch` in [`CommandExecutor.cs:38-50`](Cli/CommandExecutor.cs#L38-L50).** Everything there runs on a live app's UI thread. Create a new class, `Cli/HookInstaller.cs`.
 
-### 3.3 פתרון נתיבים
+### 3.3 Resolving paths
 
-| מה | איך |
+| What | How |
 |---|---|
-| נתיב ה-`.ps1` | `Path.Combine(AppContext.BaseDirectory, "hooks", "sessiondeck-hook.ps1")` — עובד גם ב-single-file publish (‏.NET 6+ מחזיר שם את תיקיית ה-exe). |
-| נתיב `settings.json` | `Path.Combine(Environment.GetFolderPath(SpecialFolder.UserProfile), ".claude", "settings.json")` — ניתן לדריסה ב-`--settings`. |
+| The `.ps1` path | `Path.Combine(AppContext.BaseDirectory, "hooks", "sessiondeck-hook.ps1")` — works under single-file publish too (.NET 6+ returns the exe's folder there). |
+| The `settings.json` path | `Path.Combine(Environment.GetFolderPath(SpecialFolder.UserProfile), ".claude", "settings.json")` — overridable with `--settings`. |
 
-אם ה-`.ps1` לא נמצא — **כשל עם הודעה ברורה**, אל תכתוב hooks שמצביעים לקובץ שלא קיים.
+If the `.ps1` isn't found — **fail with a clear message**; never write hooks pointing at a file that doesn't exist.
 
-### 3.4 אלגוריתם המיזוג — החלק המסוכן
+### 3.4 The merge algorithm — the dangerous part
 
-ל-`settings.json` של המשתמש כבר עשויים להיות hooks משלו. **אסור למחוק אותם.**
+The user's `settings.json` may already have hooks of their own. **They must not be deleted.**
 
-השתמש ב-`JsonNode` (‏`System.Text.Json.Nodes`) ולא ב-deserialize למחלקה — כדי לא לאבד שדות שאתה לא מכיר.
+Use `JsonNode` (`System.Text.Json.Nodes`) rather than deserializing into a class — so unknown fields are never lost.
 
-לכל אחד משבעת האירועים:
+For each of the seven events:
 
-1. השג (או צור) את המערך ב-`hooks.<Event>`
-2. **הסר** כל group שבתוך `hooks[]` שלו יש `command` שמכיל את המחרוזת `sessiondeck-hook.ps1` — זה מה שהופך את הפקודה לאידמפוטנטית ומטפל בשדרוגים שבהם הנתיב השתנה
-3. הסר groups שנשארו ריקים
-4. הוסף את ה-group שלנו
-5. אם המערך התרוקן לגמרי (רלוונטי ל-`uninstall`) — מחק את המפתח
+1. Get (or create) the array at `hooks.<Event>`
+2. **Remove** every group whose `hooks[]` contains a `command` holding the string `sessiondeck-hook.ps1` — this is what makes the command idempotent, and what handles upgrades where the path changed
+3. Remove groups left empty
+4. Add our group
+5. If the array emptied entirely (relevant to `uninstall`) — delete the key
 
-`uninstall-hooks` = אותו דבר בלי שלב 4.
+`uninstall-hooks` = the same thing without step 4.
 
-### 3.5 מבנה שבעת ה-Hooks
+### 3.5 The shape of the seven hooks
 
-חמישה בלי matcher — `SessionStart`, `UserPromptSubmit`, `Notification`, `Stop`, `SessionEnd`:
+Five without a matcher — `SessionStart`, `UserPromptSubmit`, `Notification`, `Stop`, `SessionEnd`:
 
 ```json
 { "hooks": [ { "type": "command", "command": "<CMD> <EventName>" } ] }
 ```
 
-שניים **עם** matcher — `PreToolUse`, `PostToolUse`:
+Two **with** a matcher — `PreToolUse`, `PostToolUse`:
 
 ```json
 { "matcher": "AskUserQuestion|ExitPlanMode",
   "hooks": [ { "type": "command", "command": "<CMD> <EventName>" } ] }
 ```
 
-כאשר `<CMD>` הוא:
+where `<CMD>` is:
 
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File "<resolved .ps1 path>"
 ```
 
-המקור המלא והמוסמך לטבלת ה-hooks — [`hooks/README.md`](hooks/README.md), סעיף "התקנה". **ודא שאתה תואם לו בדיוק**, כולל ה-matcher.
+The full, authoritative source for the hook table is [`hooks/README.md`](hooks/README.md), section "Installation". **Make sure you match it exactly**, matchers included.
 
-### 3.6 כתיבה בטוחה
+### 3.6 Writing safely
 
-1. **גיבוי לפני נגיעה:** העתק ל-`settings.json.sessiondeck-backup-<yyyyMMdd-HHmmss>`
-2. **כתיבה אטומית:** אותה תבנית כמו [`ConfigStore.cs:78-80`](Services/ConfigStore.cs#L78-L80) — כתוב ל-`.tmp` ואז `File.Move(..., overwrite: true)`
-3. **שמור עיצוב:** `new JsonSerializerOptions { WriteIndented = true }`
-4. **UTF-8 בלי BOM** — זה קובץ JSON, לא PowerShell
+1. **Back up before touching anything:** copy to `settings.json.sessiondeck-backup-<yyyyMMdd-HHmmss>`
+2. **Atomic write:** the same pattern as [`ConfigStore.cs:78-80`](Services/ConfigStore.cs#L78-L80) — write to `.tmp`, then `File.Move(..., overwrite: true)`
+3. **Preserve formatting:** `new JsonSerializerOptions { WriteIndented = true }`
+4. **UTF-8 without BOM** — it's a JSON file, not PowerShell
 
-### 3.7 מקרי קצה שחייבים לעבוד
+### 3.7 Edge cases that must work
 
-| מצב | התנהגות נדרשת |
+| Situation | Required behavior |
 |---|---|
-| `~/.claude/settings.json` לא קיים | צור אותו (וגם את התיקייה) עם `{ "hooks": { ... } }` |
-| הקובץ קיים אבל ריק / `{}` | הוסף את מפתח `hooks` |
-| כבר יש hooks של SessionDeck מנתיב **ישן** | הוחלפו בחדש. אין כפילויות. |
-| יש hooks של **כלי אחר** על אותו event | נשמרים כמו שהם, לצד שלנו |
-| הקובץ הוא JSON פגום | **כשל בלי לכתוב.** אמור למשתמש לתקן. אל תדרוס. |
-| הרצה שנייה ברצף | אין שינוי בקובץ (מלבד גיבוי חדש) |
+| `~/.claude/settings.json` doesn't exist | Create it (and the folder) with `{ "hooks": { ... } }` |
+| The file exists but is empty / `{}` | Add the `hooks` key |
+| SessionDeck hooks from an **old** path already exist | Replaced with the new ones. No duplicates. |
+| **Another tool's** hooks on the same event | Kept as they are, alongside ours |
+| The file is malformed JSON | **Fail without writing.** Tell the user to fix it. Do not overwrite. |
+| A second run back to back | No change to the file (other than a fresh backup) |
 
-### 3.8 בדיקות
+### 3.8 Tests
 
-בדיקות יחידה על אלגוריתם המיזוג — טבלת 3.7 היא רשימת מקרי הבדיקה. הזרק את נתיב ה-settings דרך `--settings` כדי לבדוק על קבצים זמניים.
+Unit tests on the merge algorithm — the table in 3.7 is the list of test cases. Inject the settings path through `--settings` so they run against temporary files.
 
-בדיקה ידנית מקצה לקצה:
+Manual end-to-end check:
 ```powershell
 Copy-Item ~/.claude/settings.json ~/settings-real-backup.json
-sessiondeck install-hooks --dry-run     # להסתכל על הפלט לפני
+sessiondeck install-hooks --dry-run     # look at the output first
 sessiondeck install-hooks
-sessiondeck install-hooks               # שוב — לוודא אפס שינוי
-sessiondeck uninstall-hooks             # לוודא חזרה נקייה למצב המקורי
+sessiondeck install-hooks               # again — confirm zero change
+sessiondeck uninstall-hooks             # confirm a clean return to the original state
 ```
 
 ---
 
-## 3ב. שלב 1ב — שני תיקונים שה-installer מחייב
+## 3b. Step 1b — two fixes the installer depends on
 
-**אל תדלג על הסעיף הזה.** בלי שני התיקונים האלה ה-installer ירוץ, ייראה מוצלח, וישבור שני דברים **בשקט**. שניהם קטנים.
+**Do not skip this section.** Without these two fixes the installer will run, look successful, and break two things **silently**. Both are small.
 
-### 3ב.1 — פקודת `sessiondeck quit`
+### 3b.1 — the `sessiondeck quit` command
 
-**הבעיה:** כדי להחליף את ה-exe צריך לעצור את האפליקציה שרצה, אבל אין פקודה לזה — ראה את רשימת הפקודות ב-[`CommandExecutor.cs:38-50`](Cli/CommandExecutor.cs#L38-L50). יש `activate`, `status`, `focus`, ואין `quit`.
+**The problem:** replacing the exe requires stopping the running app, and there is no command for it — see the command list in [`CommandExecutor.cs:38-50`](Cli/CommandExecutor.cs#L38-L50). There's `activate`, `status`, `focus`, but no `quit`.
 
-לכן `install.ps1` ייאלץ לעשות `Stop-Process -Force`. וזה הורס דבר אמיתי: [`MainWindow.xaml.cs:213-218`](MainWindow.xaml.cs#L213-L218) משחרר את ה-**AppBar** רק באירוע `Closing`:
+So `install.ps1` would have to `Stop-Process -Force`. And that destroys something real: [`MainWindow.xaml.cs:213-218`](MainWindow.xaml.cs#L213-L218) releases the **AppBar** only on the `Closing` event:
 
 ```csharp
 private void OnClosing(object? sender, CancelEventArgs e)
@@ -189,110 +189,110 @@ private void OnClosing(object? sender, CancelEventArgs e)
 }
 ```
 
-הריגה כפויה מדלגת על זה, וה-work area של Windows נשאר מצומצם: **חצי מסך נשאר "תפוס" אחרי שהאפליקציה כבר מתה**, בלי שום הסבר למשתמש. תקלה שאנשים לא יודעים לדווח עליה.
+A forced kill skips that, and Windows' work area stays shrunk: **half the screen stays "taken" after the app is already dead**, with no explanation to the user. The kind of fault people don't know how to report.
 
-**הפתרון:** הוסף `quit` ל-`switch` ב-[`CommandExecutor.cs`](Cli/CommandExecutor.cs) (זו פקודה רגילה שכן עוברת ב-pipe — בניגוד ל-`install-hooks`). היא צריכה לסגור את החלון דרך המסלול הרגיל כדי ש-`OnClosing` יירה. `install.ps1` יקרא לה, ויפול ל-`Stop-Process -Force` רק אחרי timeout של ~5 שניות.
+**The fix:** add `quit` to the `switch` in [`CommandExecutor.cs`](Cli/CommandExecutor.cs) (an ordinary command that does go through the pipe — unlike `install-hooks`). It must close the window through the normal path so `OnClosing` fires. `install.ps1` will call it, and fall back to `Stop-Process -Force` only after a ~5 second timeout.
 
-### 3ב.2 — רענון נתיב ה-startup
+### 3b.2 — refreshing the startup path
 
-**הבעיה:** [`StartupService.cs:37-38`](Services/StartupService.cs#L37-L38) כותב ל-registry את הנתיב **המוחלט** של ה-exe:
+**The problem:** [`StartupService.cs:37-38`](Services/StartupService.cs#L37-L38) writes the exe's **absolute** path into the registry:
 
 ```csharp
 key.SetValue(ValueName, $"\"{exe}\"");
 ```
 
-הערך מתעדכן רק כשמדליקים/מכבים את ההגדרה ידנית. אחרי שההתקנה תעבור ל-`%LOCALAPPDATA%\Programs\SessionDeck`, ה-registry ימשיך להצביע לנתיב הישן — ובעלייה הבאה Windows יפעיל את ה-build הישן, או כלום אם הוא נמחק.
+The value is only updated when the setting is toggled by hand. Once the install moves to `%LOCALAPPDATA%\Programs\SessionDeck`, the registry keeps pointing at the old path — and on the next boot Windows will launch the old build, or nothing at all if it was deleted.
 
-**זה יקרה כבר בהתקנה הראשונה, לא בעדכון.** ערך ה-Run הנוכחי של אייל מצביע ל-`D:\Eyal\SessionDeck\bin\...`.
+**This happens on the very first install, not on an upgrade.** Eyal's current Run value points at `D:\Eyal\SessionDeck\bin\...`.
 
-**הפתרון:** בעלייה, אם `IsEnabled()` והערך השמור לא תואם ל-`Environment.ProcessPath` — לכתוב אותו מחדש. המקום הטבעי הוא ליד `MigrateLegacyValue()` שכבר נקראת מ-[`Program.cs`](Program.cs). הוסף `RefreshPathIfStale()` ב-`StartupService` וקרא לה משם.
-
----
-
-## 4. שלב 2 — `install.ps1`
-
-קובץ חדש בשורש. קטן. סדר הפעולות:
-
-1. דורש PowerShell; **לא** דורש הרשאות admin (הכל תחת המשתמש)
-2. עוצר instance רץ של SessionDeck — **דרך `sessiondeck quit` (סעיף 3ב.1), לא `Stop-Process`.** נפילה ל-`Stop-Process -Force` רק אחרי timeout של ~5 שניות.
-3. מעתיק את תוכן ה-zip ל-`%LOCALAPPDATA%\Programs\SessionDeck`
-4. מוסיף את התיקייה ל-**user PATH** — רק אם היא לא שם כבר
-5. מתקין את ה-extension: `code --install-extension .\sessiondeck-connector-*.vsix`
-   - אם `code` לא ב-PATH → **אזהרה, לא כשל.** האפליקציה עובדת בלי ה-extension; רק הפעלת טאב ספציפי ותוויות הטאבים לא יעבדו.
-6. מריץ `install-hooks` מהנתיב שהותקן
-7. מפעיל את האפליקציה
-8. מדפיס סיכום: לאן הותקן, מה נוסף ל-PATH, איזה קובץ גיבוי נוצר, **ואת שלוש הגרסאות שהותקנו בפועל — אפליקציה, extension, hooks.**
-
-למה שלוש הגרסאות: שלושת החלקים מתעדכנים בנפרד ויכולים להיפרד. אם שלב 5 נכשל בשקט (אין `code` ב-PATH), האפליקציה תעבוד — רק הפעלת טאב ותוויות הטאבים יישברו. הדפסת הגרסאות הופכת אי-התאמה כזאת לגלויה במקום לבאג מסתורי.
-
-**שדרוג = הרצה חוזרת של אותו סקריפט.** כל השלבים אידמפוטנטיים, ולכן אין מסלול שדרוג נפרד.
-
-כדאי גם `uninstall.ps1` תואם.
+**The fix:** at startup, if `IsEnabled()` and the stored value doesn't match `Environment.ProcessPath` — rewrite it. The natural place is next to `MigrateLegacyValue()`, which [`Program.cs`](Program.cs) already calls. Add `RefreshPathIfStale()` to `StartupService` and call it from there.
 
 ---
 
-## 5. שלב 3 — בניית ה-Release
+## 4. Step 2 — `install.ps1`
+
+A new file at the root. Small. The order of operations:
+
+1. Requires PowerShell; does **not** require admin rights (everything is per-user)
+2. Stops a running SessionDeck instance — **through `sessiondeck quit` (§3b.1), not `Stop-Process`.** Fall back to `Stop-Process -Force` only after a ~5 second timeout.
+3. Copies the zip's contents to `%LOCALAPPDATA%\Programs\SessionDeck`
+4. Adds that folder to the **user PATH** — only if it isn't there already
+5. Installs the extension: `code --install-extension .\sessiondeck-connector-*.vsix`
+   - If `code` isn't on PATH → **a warning, not a failure.** The app works without the extension; only tab activation and live tab labels won't.
+6. Runs `install-hooks` from the installed path
+7. Starts the app
+8. Prints a summary: where it installed, what was added to PATH, which backup file was created, **and the three versions actually installed — app, extension, hooks.**
+
+Why three versions: the three parts update independently and can drift apart. If step 5 fails quietly (no `code` on PATH), the app will work — only tab activation and tab labels break. Printing the versions turns such a mismatch into something visible instead of a mysterious bug.
+
+**An upgrade = running the same script again.** Every step is idempotent, so there is no separate upgrade path.
+
+A matching `uninstall.ps1` is worth having too.
+
+---
+
+## 5. Step 3 — building the release
 
 ```powershell
-# 1. bump ל-0.6.29 ב-SessionDeck.csproj
+# 1. bump to 0.6.29 in SessionDeck.csproj
 
-# 2. האפליקציה — self-contained, single file
+# 2. the app — self-contained, single file
 dotnet publish -c Release -r win-x64 --self-contained `
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 
-# 3. ה-extension
+# 3. the extension
 cd vscode-extension; npm install; npx @vscode/vsce package; cd ..
 
-# 4. לארוז: תוכן ה-publish (כולל hooks\) + ה-vsix + install.ps1 + uninstall.ps1
-#    לתוך SessionDeck-0.6.29-win-x64.zip
+# 4. package: the publish output (including hooks\) + the vsix + install.ps1 + uninstall.ps1
+#    into SessionDeck-0.6.29-win-x64.zip
 
-# 5. לפרסם
+# 5. publish
 gh release create v0.6.29 SessionDeck-0.6.29-win-x64.zip --title "v0.6.29" --notes "..."
 ```
 
-**‏`gh` נמצא ב-`C:\Program Files\GitHub CLI\gh.exe`** ומאומת כ-`eyalBPM`. אם `gh` לא מזוהה בטרמינל — פתח טרמינל חדש (PATH נטען פעם אחת בפתיחת חלון).
+**`gh` lives at `C:\Program Files\GitHub CLI\gh.exe`** and is authenticated as `eyalBPM`. If `gh` isn't recognized in the terminal — open a new one (PATH is loaded once, when the window opens).
 
-**אימות אמיתי:** חלץ את ה-zip למכונה או VM **בלי .NET מותקן**, הרץ `install.ps1`, ובדוק שסשן Claude Code חדש מייצר כרטיס ב-SessionDeck. זו הבדיקה היחידה שמוכיחה שהאריזה עובדת.
-
----
-
-## 5ב. תהליך העדכון
-
-**אין מסלול שדרוג נפרד.** עדכון = הורדת ה-zip החדש והרצת אותו `install.ps1`. כל השלבים אידמפוטנטיים: הקבצים נדרסים, ה-PATH הוא no-op, ה-extension מתעדכן, ו-`install-hooks` כותב מחדש את הנתיבים.
-
-**מה שורד עדכון:** כל הגדרות המשתמש — `config.json`, ה-workspaces, המתגים, ה-stage וה-zone. כולם ב-`%APPDATA%\SessionDeck`, מחוץ לתיקיית ההתקנה. אם גרסה עתידית תשנה סכימת config, המיגרציה היא באחריות האפליקציה בעלייה (יש כבר תקדים — `MigrateLegacyValue`).
-
-**מה שלא ייפגע כי טיפלנו בו:** ה-AppBar (סעיף 3ב.1) ורישום ה-startup (סעיף 3ב.2).
-
-**‏Hooks שנורים תוך כדי העדכון** — סשני Claude Code פתוחים ימשיכו לירות hooks בזמן שה-exe מוחלף. זה בטוח: [`sessiondeck-hook.ps1:19`](hooks/sessiondeck-hook.ps1#L19) עושה `exit 0` כשהוא לא מוצא את ה-exe. הכרטיסים פשוט יפסידו כמה עדכוני סטטוס ויתקנו את עצמם בסריקה הבאה.
-
-### מה שלא נפתר — הודעה על עדכון
-
-**אין auto-update ואין התראה.** מאז שהריפו הפך ל-public (2026-08-02) יש לפחות עמוד ציבורי להסתכל בו — [דף ה-Releases](https://github.com/eyalBPM/SessionDeck/releases) — אבל אף אחד לא נדחף לשם מעצמו. בפועל: אייל עדיין צריך להודיע לאנשים ידנית.
-
-**זו החלטה מודעת, לא פספוס.** לשימוש פנימי בקנה מידה של כמה אנשים, מנגנון עדכון הוא overhead לא מוצדק. הצעד הזול היחיד שכן שווה: **שהאפליקציה תציג את מספר הגרסה שלה במקום גלוי** (‏tooltip ב-toolbar או תפריט ⚙), כדי שכשמישהו מדווח על באג יהיה אפשר לדעת על איזו גרסה הוא מסתכל.
-
-עכשיו כשהריפו ציבורי, שני מסלולים נפתחו ושווה לשקול אותם: בדיקת גרסה מול `releases/latest` ב-API (זול, בלי auto-update מלא), ו-winget שנותן `winget upgrade` בחינם.
+**Real verification:** extract the zip onto a machine or VM **with no .NET installed**, run `install.ps1`, and check that a fresh Claude Code session produces a card in SessionDeck. That is the only test that proves the packaging works.
 
 ---
 
-## 6. כללי עבודה לסשן המימוש
+## 5b. The update process
 
-- **ענף:** `feat/packaging-installer`. אל תעבוד על `main`.
-- **Version bump חובה** — `<Version>` ב-[`SessionDeck.csproj`](SessionDeck.csproj) מ-`0.6.28` ל-`0.6.29`.
-- **אין commit ואין push בלי אישור מפורש של אייל.**
-- קבצי zip / publish זמניים → הוסף דפוס ל-`.gitignore` **לפני** שאתה יוצר אותם (‏`*.zip`, ‏`publish/`).
-- עדכן את [`README.md`](README.md) בסוף: להחליף את סעיף ההתקנה הידני בהוראות ה-Release, ולהסיר את השורה תחת "Known limitations" שאומרת שההתקנה ידנית.
+**There is no separate upgrade path.** Updating = downloading the new zip and running the same `install.ps1`. Every step is idempotent: files are overwritten, the PATH edit is a no-op, the extension updates, and `install-hooks` rewrites the paths.
 
-## 7. Definition of Done
+**What survives an update:** all user settings — `config.json`, the workspaces, the toggles, the stage and the zone. They all live in `%APPDATA%\SessionDeck`, outside the install folder. If a future version changes the config schema, migration is the app's job at startup (there is already a precedent — `MigrateLegacyValue`).
 
-- [ ] `hooks/` מועתק לפלט ה-build, עם BOM שלם
-- [ ] `install-hooks` ממזג נכון את כל שבעת מקרי הקצה בטבלה 3.7
-- [ ] `sessiondeck quit` סוגר נקי — **ואחריו ה-work area של Windows חזר למלוא גודלו** (בדוק עם zone פעיל: מקסם חלון ווודא שהוא תופס את כל המסך)
-- [ ] אחרי התקנה לתיקייה חדשה, ערך ה-Run ב-registry מצביע ל-exe החדש
-- [ ] `install.ps1` מדפיס בסוף את שלוש הגרסאות
-- [ ] הרצה כפולה של `install-hooks` לא משנה כלום
-- [ ] `uninstall-hooks` מחזיר את הקובץ למצבו המקורי
-- [ ] `install.ps1` מתקין מקצה לקצה על מכונה נקייה בלי .NET
-- [ ] Release ‏`v0.6.29` פורסם עם ה-zip
-- [ ] README מעודכן
+**What won't break, because we handled it:** the AppBar (§3b.1) and the startup registration (§3b.2).
+
+**Hooks firing mid-update** — open Claude Code sessions will keep firing hooks while the exe is being replaced. That is safe: [`sessiondeck-hook.ps1:19`](hooks/sessiondeck-hook.ps1#L19) does `exit 0` when it can't find the exe. The cards simply miss a few status updates and correct themselves on the next scan.
+
+### What isn't solved — telling people about an update
+
+**There is no auto-update and no notification.** Since the repo went public (2026-08-02) there is at least a public page to look at — [the Releases page](https://github.com/eyalBPM/SessionDeck/releases) — but nobody is pushed there on their own. In practice: Eyal still has to tell people by hand.
+
+**That is a conscious decision, not an oversight.** For internal use at the scale of a few people, an update mechanism is unjustified overhead. The one cheap step that is worth it: **have the app show its version number somewhere visible** (a toolbar tooltip or the ⚙ menu), so that when someone reports a bug you can tell which version they're looking at.
+
+Now that the repo is public, two routes have opened and are worth considering: a version check against `releases/latest` in the API (cheap, without full auto-update), and winget, which gives `winget upgrade` for free.
+
+---
+
+## 6. Working rules for the implementation session
+
+- **Branch:** `feat/packaging-installer`. Do not work on `main`.
+- **A version bump is mandatory** — `<Version>` in [`SessionDeck.csproj`](SessionDeck.csproj) from `0.6.28` to `0.6.29`.
+- **No commit and no push without Eyal's explicit approval.**
+- Temporary zip / publish files → add a pattern to `.gitignore` **before** creating them (`*.zip`, `publish/`).
+- Update [`README.md`](README.md) at the end: replace the manual install section with the release instructions, and remove the line under "Known limitations" saying installation is manual.
+
+## 7. Definition of done
+
+- [ ] `hooks/` is copied to the build output, BOM intact
+- [ ] `install-hooks` merges correctly in all seven edge cases in table 3.7
+- [ ] `sessiondeck quit` closes cleanly — **and afterwards Windows' work area is back to full size** (check with an active zone: maximize a window and confirm it fills the screen)
+- [ ] After installing to a new folder, the Run value in the registry points at the new exe
+- [ ] `install.ps1` prints the three versions at the end
+- [ ] Running `install-hooks` twice changes nothing
+- [ ] `uninstall-hooks` returns the file to its original state
+- [ ] `install.ps1` installs end to end on a clean machine with no .NET
+- [ ] Release `v0.6.29` published with the zip
+- [ ] README updated

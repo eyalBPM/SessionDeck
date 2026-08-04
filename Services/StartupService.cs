@@ -25,7 +25,7 @@ public static class StartupService
 
     /// <summary>The Run value stores an absolute exe path, so after a reinstall to a new
     /// folder it keeps launching the stale build (or nothing). Rewrite it on startup
-    /// whenever it no longer matches the running exe (PACKAGING.md §3ב.2).</summary>
+    /// whenever it no longer matches the running exe (PACKAGING.md §3b.2).</summary>
     public static void RefreshPathIfStale()
     {
         if (Environment.ProcessPath is not { } exe) return;

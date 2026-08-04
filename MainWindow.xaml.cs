@@ -333,7 +333,7 @@ public partial class MainWindow : Window
         if (!_initializing) _configStore.QueueSave();
     }
 
-    // ---- workspaces: add / remove / metadata (SPEC §2ב) ----
+    // ---- workspaces: add / remove / metadata (SPEC §2b) ----
 
     /// <summary>Primary add flow (SPEC decision 21.1): pick a project folder.</summary>
     public (WorkspaceViewModel?, string?) AddWorkspaceFromPath(string path)
@@ -1110,7 +1110,7 @@ public partial class MainWindow : Window
         catch { return false; }
     }
 
-    // ---- sessions engine (SPEC §4ב — driven by the hooks only) ----
+    // ---- sessions engine (SPEC §4b — driven by the hooks only) ----
 
     /// <summary>Extra hook-payload data attached to any session command (all optional).</summary>
     public sealed record HookInfo(string? Detail = null, string? Transcript = null, string? Source = null,

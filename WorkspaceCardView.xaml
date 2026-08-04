@@ -178,7 +178,7 @@
                 </Grid>
             </Grid>
 
-            <!-- session cards (SPEC §2ב): status-colored borders, no thumbnails -->
+            <!-- session cards (SPEC §2b): status-colored borders, no thumbnails -->
             <StackPanel DockPanel.Dock="Bottom" Margin="8,2,8,8">
             <Button Content="+ New session" Click="NewSession_Click" Cursor="Hand"
                     HorizontalAlignment="Left" Padding="10,2" Margin="0,2,0,3"
