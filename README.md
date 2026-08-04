@@ -4,9 +4,11 @@
 
 SessionDeck tiles every VSCode window into a live grid and shows each Claude Code session inside it as a status card — grey when idle, blue while working, blinking orange when Claude is waiting for you, green when it's done. One click focuses the window, activates the right tab, and clears the alert.
 
+**Built for one setup, on purpose:** Claude Code running inside **VSCode** — through its [Claude Code extension](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) — on **Windows 10/11**. A session is a VSCode tab here, and that assumption runs through the whole tool.
+
 ![The SessionDeck window: four workspace cards, each with a live thumbnail and its sessions](assets/screenshots/deck.png)
 
-> Status: actively developed, `v0.9.3`. Windows-only by design. MIT licensed.
+> Status: actively developed, `v0.9.3`. MIT licensed.
 
 ---
 
@@ -78,7 +80,9 @@ The UI is English and left-to-right, but anything that comes from **outside** th
 
 ## Getting started
 
-**Requirements:** Windows 10/11, VSCode with the Claude Code extension. No .NET runtime needed — the release build is self-contained.
+**Requirements:** Windows 10/11, and VSCode with the Claude Code extension. No .NET runtime needed — the release build is self-contained.
+
+A note on what depends on what: the **hooks** are what colour the cards, and they work anywhere Claude Code runs — a session in a terminal will appear on the deck with a live status like any other. What needs the VSCode extension is everything that treats a session as a *tab*: revealing it on click, the live tab titles, and the auto-acknowledge when you answer a session in VSCode without touching the deck. Neither macOS nor Linux is supported, and the window layer (DWM thumbnails, the AppBar zone) is Windows-specific enough that this is unlikely to change.
 
 1. Download `SessionDeck-<version>-win-x64.zip` from [Releases](https://github.com/eyalBPM/SessionDeck/releases) and extract it anywhere.
 2. Run the installer (no admin rights required — everything is per-user):
