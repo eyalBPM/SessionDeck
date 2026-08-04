@@ -4,27 +4,47 @@
 
 SessionDeck tiles every VSCode window into a live grid and shows each Claude Code session inside it as a status card — grey when idle, blue while working, blinking orange when Claude is waiting for you, green when it's done. One click focuses the window, activates the right tab, and clears the alert.
 
-Under the hood it's a general-purpose window deck (any top-level window can be tiled, pinned and driven from a CLI), but the UI and workflows are deliberately scoped to VSCode + Claude Code.
+**Built for one setup, on purpose:** Claude Code running inside **VSCode** — through its [Claude Code extension](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) — on **Windows 10/11**. A session is a VSCode tab here, and that assumption runs through the whole tool.
 
-> Status: actively developed, `v0.9.3`. Windows-only by design.
+![The SessionDeck window: four workspace cards, each with a live thumbnail and its sessions](assets/screenshots/deck.png)
+
+> Status: actively developed, `v0.9.3`. MIT licensed.
 
 ---
 
-## Why
+## The problem
 
-When you run several Claude Code sessions at once, the expensive thing isn't the work — it's noticing that a session stopped and is waiting for you. SessionDeck turns that into a glance: a blinking orange border means *some* session needs an answer, and clicking it takes you straight there.
+Running one Claude Code session is easy. Running five is not — and the expensive part isn't the work, it's *noticing*. A session finishes, or stops to ask permission, and then sits there while you are heads-down in another window. The cost is the minutes between "Claude stopped" and "you looked".
+
+SessionDeck turns that into a glance. A blinking orange border means *some* session needs an answer:
+
+![A session card blinking orange while Claude waits for permission](assets/screenshots/blink.gif)
+
+Click it, and the deck focuses the VSCode window, reveals that session's tab, and stops the blink. If you answer the session directly in VSCode instead, the deck notices and stops blinking on its own.
 
 ## Features
 
 - **Live window grid** — real DWM thumbnails (`DwmRegisterThumbnail`), rendered by the Windows compositor. No screen capture, no code injection, near-zero CPU.
-- **Workspace cards** — one card per VSCode workspace. Workspaces are persistent: a card survives closing the window and re-binds automatically when a matching window reappears.
-- **Session cards** — one sub-card per Claude Code session, with a status-coloured border driven by Claude Code hooks (`idle` / `working` / `waiting` / `done` / `error`). Status → colour/blink mapping lives in config, not in code.
-- **Click to resume** — clicking a session card focuses the VSCode window, activates that session's tab (via the companion extension), and acknowledges the blink.
-- **Windows notifications** — when the whole deck is quiet and something needs attention, it escalates to a native notification, and withdraws it when the cause is gone.
-- **Reserved Zone** — SessionDeck can claim a quarter, half, all, or any custom fraction (e.g. 2/7) of a monitor as an AppBar, so maximized windows and snap never cover it. While zoned, the window is locked in place (no move/resize/maximize) until the zone is turned off.
-- **Stage / Pin** — define a target rectangle once, then pin any window to it from the UI or the CLI.
+- **Workspace cards** — one card per VSCode workspace, showing the project name and the current git branch. Workspaces are persistent: a card survives closing the window and re-binds automatically when a matching window reappears.
+- **Session cards** — one sub-card per Claude Code session, with a status-coloured border driven by Claude Code hooks (`idle` / `working` / `waiting` / `done` / `error`). The status → colour/blink mapping lives in config, not in code.
+- **Click to resume** — clicking a session card focuses the VSCode window, activates that session's tab (via the companion extension), and acknowledges the blink. A closed session resumes with its full history.
+- **Windows notifications** — when the deck itself might be buried, a session that needs attention escalates to a native notification and a taskbar badge — and both withdraw the moment the cause is gone, including when you handle it outside the deck.
+- **Reserved Zone** — SessionDeck can claim a quarter, half, all, or any custom fraction (e.g. `2/7`) of a monitor as an AppBar, so maximized windows and snap never cover it. While zoned, the window is locked in place until the zone is turned off.
+- **Stage / Pin** — define a target rectangle once, then send any window to it from the UI or the CLI.
 - **Full CLI** — everything is scriptable over a named pipe, with a <100ms round trip so hooks stay cheap.
 - **Starts with Windows** and restores the complete layout, zone and stage.
+
+### A tasks panel, if you want one
+
+Point SessionDeck at a JSON file and it grows a read-only tasks panel: a collapsed strip beside the deck, and a full page listing your tasks next to your live sessions. Click a task to open a session in its workspace — a new one, or a resume of a session already linked to it.
+
+![The tasks page: tasks on the right, live sessions grouped by workspace on the left](assets/screenshots/tasks-page.png)
+
+SessionDeck only ever reads the file, and reloads within a second of any change. The producer owns the content, the ordering and the status colours — the panel is deliberately agnostic about where your tasks come from. The full contract is behind the dialog's **📋 Copy spec** button. Leave the path empty and the feature does not exist.
+
+### Toolbar toggles
+
+Toggles are flags for *your* processes. Each one is a toolbar button whose 1/0 state is written to a file any script can read, so you can gate a watcher, a deploy or a hook on a click. SessionDeck neither knows nor cares what a toggle drives.
 
 ## How it works
 
@@ -35,10 +55,12 @@ Claude Code hooks ──> sessiondeck-hook.ps1 ──> sessiondeck session statu
                                                         ▼
 VSCode windows ──DWM thumbnails──>  SessionDeck (WPF)  <──── VSCode extension (tab activate / tab labels)
                                                         │
-                              transcript scanner (fallback "waiting" detection)
+                              transcript scanner (independent "waiting" detection)
 ```
 
-Hooks alone aren't enough: inside the **VSCode Claude Code UI** the `Notification` and `PostToolUse` hooks never actually fire, so a session waiting on a permission prompt would stay blue forever. SessionDeck therefore also scans the session transcript for a `tool_use` with no matching `tool_result` — an independent signal that Claude has stopped. Per-tool thresholds were calibrated on 11,000+ real tool calls and chosen for false-alarm rate (`Read`/`Edit` at 15s ≈ 0.1%, `Bash` at 120s ≈ 1%, `Agent` excluded entirely at 37%). See [`hooks/README.md`](hooks/README.md) for the full table.
+Hooks give the leading edge — immediate and certain. But `PermissionRequest` has no matching "resolved" event, so nothing tells the deck when you *answered*. SessionDeck therefore also scans the session transcript for a `tool_use` with no matching `tool_result` — the only signal that sees a call finish.
+
+Per-tool thresholds were calibrated on 11,000+ real tool calls and chosen for **false-alarm rate**, not coverage: `Read`/`Edit`/`Write` at 15s (0.04–0.12%), `Bash`/`PowerShell` at 120s (~1%), and `Agent` excluded entirely — 37% of subagent runs legitimately exceed two minutes, so no threshold there is both useful and quiet. A false alarm teaches you to ignore the deck, which costs more than a missed one. See [`hooks/README.md`](hooks/README.md) for the full table and the reasoning.
 
 ## Architecture
 
@@ -54,9 +76,13 @@ Hooks alone aren't enough: inside the **VSCode Claude Code UI** the `Notificatio
 
 No admin rights, no injection into foreign processes, per-monitor DPI aware (v2).
 
+The UI is English and left-to-right, but anything that comes from **outside** the app — workspace, session and task names, descriptions, tooltips, your search text, branch names — follows its own language, so Hebrew or Arabic content renders right-to-left inside an otherwise LTR window.
+
 ## Getting started
 
-**Requirements:** Windows 10/11, VSCode with the Claude Code extension. No .NET runtime needed — the release build is self-contained.
+**Requirements:** Windows 10/11, and VSCode with the Claude Code extension. No .NET runtime needed — the release build is self-contained.
+
+A note on what depends on what: the **hooks** are what colour the cards, and they work anywhere Claude Code runs — a session in a terminal will appear on the deck with a live status like any other. What needs the VSCode extension is everything that treats a session as a *tab*: revealing it on click, the live tab titles, and the auto-acknowledge when you answer a session in VSCode without touching the deck. Neither macOS nor Linux is supported, and the window layer (DWM thumbnails, the AppBar zone) is Windows-specific enough that this is unlikely to change.
 
 1. Download `SessionDeck-<version>-win-x64.zip` from [Releases](https://github.com/eyalBPM/SessionDeck/releases) and extract it anywhere.
 2. Run the installer (no admin rights required — everything is per-user):
@@ -69,7 +95,7 @@ That's it. The script installs to `%LOCALAPPDATA%\Programs\SessionDeck`, adds it
 
 **Upgrading** = download the newer zip and run `install.ps1` again; every step is idempotent. Your settings in `%APPDATA%\SessionDeck` survive. Uninstall with `uninstall.ps1`.
 
-### From source (developers)
+### From source
 
 ```powershell
 git clone https://github.com/eyalBPM/SessionDeck.git
@@ -91,10 +117,6 @@ npx @vscode/vsce package
 code --install-extension .\sessiondeck-connector-*.vsix
 ```
 
-**Cutting a release** (maintainer): bump `<Version>` in `SessionDeck.csproj`, commit on `main`, run `.\release.ps1`. It syncs the hook-script version header, publishes self-contained, runs the installer tests against the published exe, repackages the extension only if it changed, zips and creates the GitHub release. `-DryRun` does everything except push and publish.
-
-Release policy: **one release per `major.minor` line**. A patch bump (`0.6.33` → `0.6.34`) *replaces* that line's release on GitHub (old release + tag deleted, notes cover the whole line); a minor bump (`0.6` → `0.7`) opens a new release. Only the highest version is marked *latest* — patching an old line never steals the latest flag.
-
 ## CLI
 
 ```
@@ -106,6 +128,8 @@ sessiondeck focus <target>               # activate the window in place
 sessiondeck pin <target>                 # move it to the Stage, then activate
 sessiondeck stage --monitor <n> --half left|right | --full | --rect x,y,w,h
 sessiondeck zone  --monitor <n> --half left|right | --quarter left|right | --custom left|right [--size 2/7|40%|0.4] | --full | --off
+sessiondeck toggle list | get <id> | set <id> on|off
+sessiondeck tasks [--file <path> | --off]
 sessiondeck status
 sessiondeck quit                         # close the running app cleanly
 sessiondeck install-hooks [--settings <path>] [--dry-run]   # register the Claude Code hooks
@@ -113,23 +137,25 @@ sessiondeck uninstall-hooks              # remove them (both run locally, no app
 
 sessiondeck session start  --id <session_id> --workspace <name> [--title "..."]
 sessiondeck session status --id <session_id> --state working|waiting|done|error|idle
+sessiondeck session open   --id <session_id>
 sessiondeck session end    --id <session_id>
 sessiondeck session list   [--workspace <name>] [--all]
 ```
 
 `<target>` is a stable numeric workspace id or `--match "<regex>"`. Exit code 0 on success, non-zero with a message on stderr otherwise.
 
+## Known limitations
+
+- **An inactive VSCode tab has no thumbnail.** VSCode and DWM don't render it, so session cards are text plus a coloured border. A hard platform limit, not a missing feature.
+- **A minimized window freezes its thumbnail** on the last frame — keep tracked windows restored. Being covered by other windows is fine.
+- Claude Code exposes no dedicated `error` hook beyond a failed turn; the `error` state exists in the model and the CLI but is mapped conservatively.
+- There is no auto-update. The app shows its version in the ⚙ menu so a bug report can name one.
+
 ## Documentation
 
 - [`CLAUDE.md`](CLAUDE.md) — how to build, test and release it, plus the settled design decisions.
 - [`hooks/README.md`](hooks/README.md) — hook wiring and the waiting-detection heuristics.
 - [`vscode-extension/README.md`](vscode-extension/README.md) — the companion extension.
-
-## Known limitations
-
-- A **minimized** window freezes its DWM thumbnail on the last frame — keep tracked windows restored (being covered by other windows is fine).
-- **Inactive VSCode tabs have no thumbnail.** VSCode/DWM don't render them, so session cards are text + border only. This is a hard platform limit, not a missing feature.
-- Claude Code exposes no dedicated `error` hook; the `error` state exists in the model and CLI but is mapped conservatively.
 
 ## License
 
