@@ -6,7 +6,7 @@ using SessionDeck.Interop;
 namespace SessionDeck.Cli;
 
 /// <summary>
-/// `sessiondeck install-hooks` / `uninstall-hooks` (PACKAGING.md §3). Merges the seven
+/// `sessiondeck install-hooks` / `uninstall-hooks` (PACKAGING.md §3). Merges the eleven
 /// SessionDeck hooks into ~/.claude/settings.json, pointing at the hook script that ships
 /// next to the installed exe. Runs entirely in the CLI process — never through the pipe —
 /// because it must work before the app has ever started.
@@ -23,10 +23,14 @@ public static class HookInstaller
         ("SessionStart", null),
         ("UserPromptSubmit", null),
         ("Notification", null),
+        ("PermissionRequest", null),
         ("Stop", null),
+        ("StopFailure", null),
         ("SessionEnd", null),
         ("PreToolUse", "AskUserQuestion|ExitPlanMode"),
         ("PostToolUse", "AskUserQuestion|ExitPlanMode"),
+        ("Elicitation", null),
+        ("ElicitationResult", null),
     };
 
     public static int Run(string[] args)

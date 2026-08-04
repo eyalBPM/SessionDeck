@@ -1,5 +1,5 @@
 ﻿# SessionDeck hook bridge for Claude Code (SPEC stage C).
-# Version: 0.7.8  (parsed by install.ps1 — keep in sync with SessionDeck.csproj; release.ps1 syncs automatically)
+# Version: 0.8.0  (parsed by install.ps1 — keep in sync with SessionDeck.csproj; release.ps1 syncs automatically)
 # Called by Claude Code hooks with the event name as argument; the hook payload
 # (session_id, cwd, transcript_path, permission_mode + event-specific fields)
 # arrives as JSON on stdin. Everything the payload provides is forwarded to
@@ -39,6 +39,22 @@ function Get-Trimmed([string]$s, [int]$max = 400) {
     return $s
 }
 
+# A readable subject for a permission dialog: the tool plus whatever argument identifies
+# the operation. tool_input differs per tool, so probe the usual keys in order.
+function Get-PermissionSubject($p) {
+    $tool = $p.tool_name
+    if (-not $tool) { return $null }
+    $arg = $null
+    if ($p.tool_input) {
+        foreach ($key in 'command', 'file_path', 'path', 'url', 'pattern') {
+            $value = $p.tool_input.$key
+            if ($value) { $arg = [string]$value; break }
+        }
+    }
+    if ($arg) { return "${tool}: $arg" }
+    return $tool
+}
+
 $cliArgs = $null
 switch ($HookEvent) {
     'SessionStart' {
@@ -55,8 +71,37 @@ switch ($HookEvent) {
         $message = Get-Trimmed $payload.message
         if ($message)                 { $cliArgs += @('--detail', $message) }
     }
+    # The official permission hook — fires the moment the approval dialog opens, in the
+    # VSCode UI too (verified 2026-08-04, Claude Code 2.1.220), where Notification does
+    # not. It carries no "resolved" counterpart, so --permission-dialog hands the clearing
+    # to the transcript scanner (see MainWindow.SetSessionStatus).
+    'PermissionRequest' {
+        $cliArgs = @('session', 'status', '--id', $sid, '--state', 'waiting')
+        $detail = Get-Trimmed (Get-PermissionSubject $payload)
+        if (-not $detail)             { $detail = 'ממתין לאישור הרשאה' }
+        $cliArgs += @('--detail', $detail, '--permission-dialog')
+    }
     'Stop' {
         $cliArgs = @('session', 'status', '--id', $sid, '--state', 'done')
+    }
+    # The turn died on an API error. Until this event existed SessionDeck had no hook for
+    # its 'error' state at all and the card just went quiet (SPEC §9.2).
+    'StopFailure' {
+        $cliArgs = @('session', 'status', '--id', $sid, '--state', 'error')
+        $reason = Get-Trimmed ($payload.error, $payload.reason, $payload.message | Where-Object { $_ } | Select-Object -First 1)
+        if ($reason)                  { $cliArgs += @('--detail', $reason) }
+    }
+    # An MCP server is asking the user for input — a real block that produces no tool_use,
+    # so the transcript scanner cannot see it. Unlike PermissionRequest this one does have
+    # a resolved event, so it clears itself.
+    'Elicitation' {
+        $cliArgs = @('session', 'status', '--id', $sid, '--state', 'waiting')
+        $detail = Get-Trimmed ($payload.message, $payload.prompt | Where-Object { $_ } | Select-Object -First 1)
+        if (-not $detail)             { $detail = 'שרת MCP ממתין לקלט' }
+        $cliArgs += @('--detail', $detail)
+    }
+    'ElicitationResult' {
+        $cliArgs = @('session', 'status', '--id', $sid, '--state', 'working')
     }
     # Question forms (AskUserQuestion) and plan approvals (ExitPlanMode) don't fire
     # Notification — without these the deck keeps showing "working" while Claude is

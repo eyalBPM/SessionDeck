@@ -1081,7 +1081,7 @@ public partial class MainWindow : Window
 
     /// <summary>Extra hook-payload data attached to any session command (all optional).</summary>
     public sealed record HookInfo(string? Detail = null, string? Transcript = null, string? Source = null,
-                                  string? Mode = null, string? Reason = null)
+                                  string? Mode = null, string? Reason = null, bool PermissionDialog = false)
     {
         public static readonly HookInfo Empty = new();
     }
@@ -1233,6 +1233,12 @@ public partial class MainWindow : Window
         session.Status = status;
         if (prev != status)
             LogService.Info("status", $"session={sessionId} {SessionStatusNames.ToName(prev)}→{SessionStatusNames.ToName(status)} ws=\"{ws.DisplayTitle}\"");
+        // PermissionRequest fires when the dialog opens, but Claude Code has no matching
+        // "resolved" event — so hand the clearing to the transcript scanner, which sees the
+        // tool_result arrive. Safe because the tool_use is already in the transcript when
+        // the hook lands (measured 2026-08-04: written ~0.5s before it fires).
+        if (status == SessionStatus.Waiting && info.PermissionDialog)
+            session.WaitingFromTranscript = true;
         ApplyHookInfo(session, info);
         LearnTranscriptDir(ws, info);
         RefreshPhantom(session);

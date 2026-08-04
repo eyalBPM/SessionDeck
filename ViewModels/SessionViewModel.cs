@@ -75,9 +75,11 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     /// Claude Code picked isn't knowable from here (issue 2026-07-20). Runtime only.</summary>
     public IReadOnlyList<string> LabelCandidates { get; set; } = Array.Empty<string>();
 
-    /// <summary>The "waiting" status was inferred from an unanswered question in the
-    /// transcript rather than from a hook — so it may only be cleared the same way, when
-    /// the answer shows up. Runtime only (issue 2026-07-20).</summary>
+    /// <summary>The "waiting" status may only be cleared by the transcript scanner, when
+    /// the answer shows up. Set for waits the scanner inferred itself (issue 2026-07-20)
+    /// and for the PermissionRequest hook, which has no "dialog closed" counterpart to
+    /// resolve it (T-0318). Waits from any other hook are cleared by their own hook.
+    /// Runtime only.</summary>
     public bool WaitingFromTranscript { get; set; }
 
     /// <summary>Last unanswered tool call seen in the transcript, kept between scans so a

@@ -13,6 +13,9 @@ TestResults/
 publish/
 *.zip
 
+# Claude Code local settings (per-machine hook probes etc.)
+.claude/settings.local.json
+
 # OS
 Thumbs.db
 desktop.ini
