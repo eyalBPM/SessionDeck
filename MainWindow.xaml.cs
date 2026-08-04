@@ -618,20 +618,32 @@ public partial class MainWindow : Window
         // user was still blocked. Hold — but only until a scan has actually read the file
         // since the dialog opened, otherwise a fast Deny (answered before the scanner
         // caught up) would leave the card orange for the rest of the turn.
-        if (session.PermissionDialogScanMark is { } mark && call == null)
+        if (session.PermissionDialogScanMark is { } mark)
         {
-            if (session.TranscriptScannedAt == mark) return false;    // no scan yet — hold
-            // A scan has seen the file and there is no pending call: either it resolved,
-            // or it is a subagent's call, which is filtered out (isSidechain) and will
-            // never appear. Release through the normal clear path.
-            session.PermissionDialogScanMark = null;
-            session.WaitingFromTranscript = true;
+            if (call != null)
+            {
+                // Corroborated. Pin the privilege to this call only.
+                session.PermissionDialogCallAt = call.StartedAtUtc;
+                session.PermissionDialogScanMark = null;
+            }
+            else if (session.TranscriptScannedAt == mark) return false;   // no scan yet — hold
+            else
+            {
+                // A scan read the file and there is no pending call: answered before the
+                // scanner caught up, or a subagent's call, which is filtered out
+                // (isSidechain) and never appears. Release via the normal clear path.
+                session.PermissionDialogScanMark = null;
+                session.WaitingFromTranscript = true;
+            }
         }
 
-        // A hook-confirmed dialog needs no ageing — that guesswork is exactly what the
-        // hook replaces.
-        bool blocked = call != null &&
-                       (call.IsAsk || session.PermissionDialogScanMark != null || IsAgedPermissionDialog(call));
+        // A hook-confirmed dialog needs no ageing — that guesswork is what the hook
+        // replaces — but the privilege belongs to that one call. Letting it ride on the
+        // session pinned the card orange onto every later call (v0.8.1).
+        bool hookConfirmed = call != null && session.PermissionDialogCallAt == call.StartedAtUtc;
+        if (!hookConfirmed) session.PermissionDialogCallAt = null;
+
+        bool blocked = call != null && (call.IsAsk || hookConfirmed || IsAgedPermissionDialog(call));
 
         if (blocked)
         {

@@ -90,6 +90,12 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     /// and PendingCall can be trusted. Runtime only (T-0318).</summary>
     public DateTime? PermissionDialogScanMark { get; set; }
 
+    /// <summary>StartedAtUtc of the pending call a PermissionRequest hook was matched to.
+    /// The ageing thresholds are skipped for that call — the hook already proved it is a
+    /// dialog — but only for it: without this the privilege leaked to whatever call came
+    /// next and pinned the card orange for the rest of the turn. Runtime only.</summary>
+    public DateTime? PermissionDialogCallAt { get; set; }
+
     /// <summary>Last unanswered tool call seen in the transcript, kept between scans so a
     /// permission dialog can be aged past the threshold. The transcript stops changing
     /// while a dialog is open, so re-reading the file would never notice — the clock has
