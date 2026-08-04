@@ -165,12 +165,12 @@ async function openClaudePanel(sessionId: string | undefined, maximize: boolean,
                 setTimeout(() => term.sendText(prompt, false), 3000);
             }
             void vscode.window.showWarningMessage(
-                'SessionDeck: פתיחת הסשן דרך Claude Code נכשלה — ייתכן שה-API הפנימי השתנה בעדכון. ' +
-                'בוצע fallback לטרמינל. פרטים: Output ← SessionDeck.');
+                'SessionDeck: opening the session through Claude Code failed — its internal API may have changed in an update. ' +
+                'Fell back to the terminal. Details: Output → SessionDeck.');
         } catch (e2) {
             out.appendLine(`terminal fallback failed too: ${e2}`);
             void vscode.window.showErrorMessage(
-                'SessionDeck: פתיחת הסשן נכשלה לחלוטין (גם ה-fallback לטרמינל). פרטים: Output ← SessionDeck.');
+                'SessionDeck: opening the session failed completely (the terminal fallback failed too). Details: Output → SessionDeck.');
         }
     }
 }

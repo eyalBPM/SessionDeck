@@ -35,18 +35,18 @@ public static class TasksFileService
             try
             {
                 if (!File.Exists(path))
-                    return TasksLoadResult.Error($"הקובץ לא נמצא: {path}");
+                    return TasksLoadResult.Error($"File not found: {path}");
                 return Parse(File.ReadAllText(path));
             }
             catch (IOException ex)
             {
                 if (i + 1 >= attempts)
-                    return TasksLoadResult.Error($"הקובץ נעול לקריאה (גם אחרי {attempts} נסיונות): {ex.Message}");
+                    return TasksLoadResult.Error($"File is locked for reading (even after {attempts} attempts): {ex.Message}");
                 Thread.Sleep(400);
             }
             catch (UnauthorizedAccessException ex)
             {
-                return TasksLoadResult.Error($"אין הרשאת קריאה לקובץ: {ex.Message}");
+                return TasksLoadResult.Error($"No read permission for the file: {ex.Message}");
             }
         }
     }
@@ -60,12 +60,12 @@ public static class TasksFileService
         }
         catch (JsonException ex)
         {
-            return TasksLoadResult.Error($"‏JSON לא תקין: {ex.Message}");
+            return TasksLoadResult.Error($"Invalid JSON: {ex.Message}");
         }
         if (doc == null)
-            return TasksLoadResult.Error("‏JSON ריק");
+            return TasksLoadResult.Error("Empty JSON");
         if (doc.Version != SupportedVersion)
-            return TasksLoadResult.Error($"גרסת קובץ לא נתמכת (version={doc.Version}; נתמכת: {SupportedVersion})");
+            return TasksLoadResult.Error($"Unsupported file version (version={doc.Version}; supported: {SupportedVersion})");
 
         // Record-level validation: skip broken entries, keep the rest, and say so.
         var warnings = new List<string>();
@@ -74,9 +74,9 @@ public static class TasksFileService
         {
             var t = doc.Tasks[i];
             if (string.IsNullOrWhiteSpace(t.Id))
-                warnings.Add($"רשומה {i + 1}: חסר id — דולגה");
+                warnings.Add($"Record {i + 1}: no id — skipped");
             else if (string.IsNullOrWhiteSpace(t.Name))
-                warnings.Add($"‏{t.Id}: חסר name — דולגה");
+                warnings.Add($"{t.Id}: no name — skipped");
             else
                 valid.Add(t);
         }

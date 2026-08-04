@@ -17,9 +17,8 @@
             <DockPanel>
                 <Border DockPanel.Dock="Top" MinHeight="32" Padding="10,0"
                         BorderBrush="#FF2E2E2E" BorderThickness="0,0,0,1">
-                    <TextBlock Text="סשנים פעילים" Foreground="#FF9A9A9A" FontSize="12"
-                               FontWeight="SemiBold" VerticalAlignment="Center"
-                               FlowDirection="RightToLeft"/>
+                    <TextBlock Text="Active sessions" Foreground="#FF9A9A9A" FontSize="12"
+                               FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </Border>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding Workspaces}" Margin="8,6">
@@ -88,23 +87,24 @@
         <!-- header: back + title + freshness — spans only the task-list column -->
         <Border DockPanel.Dock="Top" Background="#FF1B1B1B" MinHeight="32" Padding="8,0"
                 BorderBrush="#FF2E2E2E" BorderThickness="0,0,0,1">
-            <!-- RTL-ordered header (feedback 2026-07-27): title sits at the right next to
-                 the ✕, freshness at the left. The ✕ is icon-only, matching the toolbar
-                 icon buttons (⚙/🔍/📌/👁); the full label + Esc hint live in its tooltip. -->
+            <!-- Header reading order (feedback 2026-07-27, flipped to LTR with the English UI):
+                 title at the left, ✕ at the far right, freshness filling the space between
+                 them. The ✕ is icon-only, matching the toolbar icon buttons (⚙/🔍/📌/👁);
+                 the full label + Esc hint live in its tooltip. -->
             <DockPanel LastChildFill="True">
                 <Button DockPanel.Dock="Right" Content="✕" Click="Back_Click"
                         Background="Transparent" Foreground="White" FontSize="14"
                         BorderThickness="0" Padding="8,2" Margin="0,2" Cursor="Hand"
-                        ToolTip="חזרה ללוח (Esc)"/>
-                <TextBlock DockPanel.Dock="Right" Text="📋 משימות" Foreground="White"
+                        ToolTip="Back to the deck (Esc)"/>
+                <TextBlock DockPanel.Dock="Left" Text="📋 Tasks" Foreground="White"
                            FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
-                           Margin="0,0,4,0" FlowDirection="RightToLeft"/>
+                           Margin="0,0,4,0"/>
                 <!-- Freshness fills whatever is left of the title; on narrow windows it
                      trims with "…" instead of hard-clipping mid-number. -->
                 <TextBlock Text="{Binding TasksPanel.GeneratedText}" Foreground="#FF888888"
-                           FontSize="11" VerticalAlignment="Center" Margin="8,0,14,0"
-                           HorizontalAlignment="Left"
-                           FlowDirection="RightToLeft" TextTrimming="CharacterEllipsis"
+                           FontSize="11" VerticalAlignment="Center" Margin="14,0,8,0"
+                           HorizontalAlignment="Right"
+                           TextTrimming="CharacterEllipsis"
                            ToolTip="{Binding TasksPanel.GeneratedText}"/>
             </DockPanel>
         </Border>
@@ -120,8 +120,10 @@
                     </Style.Triggers>
                 </Style>
             </Border.Style>
+            <!-- the warning quotes ids/names from the external file: direction follows the text -->
             <TextBlock Text="{Binding TasksPanel.WarningText}" Foreground="#FFE0A030" FontSize="11"
-                       TextWrapping="Wrap" FlowDirection="RightToLeft"/>
+                       TextWrapping="Wrap"
+                       FlowDirection="{Binding TasksPanel.WarningText, Converter={StaticResource Rtl}}"/>
         </Border>
 
         <!-- center/right: the task list, or the file-level error state -->
@@ -177,8 +179,8 @@
                     </Style>
                 </StackPanel.Style>
                 <TextBlock Text="⚠" FontSize="34" Foreground="#FFE0A030" TextAlignment="Center"/>
-                <TextBlock Text="קובץ המשימות לא נטען" Foreground="White" FontSize="15"
-                           TextAlignment="Center" Margin="0,6,0,0" FlowDirection="RightToLeft"/>
+                <TextBlock Text="The tasks file could not be loaded" Foreground="White" FontSize="15"
+                           TextAlignment="Center" Margin="0,6,0,0"/>
                 <TextBlock Text="{Binding TasksPanel.ErrorText}" Foreground="#FFAAAAAA" FontSize="12"
                            TextWrapping="Wrap" TextAlignment="Center" Margin="0,6,0,0"
                            FlowDirection="{Binding TasksPanel.ErrorText, Converter={StaticResource Rtl}}"/>

@@ -31,8 +31,10 @@
                 </DockPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top"
                             Margin="8,0,0,0">
+                    <!-- status text comes from the external file: direction follows its content -->
                     <TextBlock Text="{Binding Status}" Foreground="{Binding StatusBrush}" FontSize="11"
-                               VerticalAlignment="Center">
+                               VerticalAlignment="Center"
+                               FlowDirection="{Binding Status, Converter={StaticResource Rtl}}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Style.Triggers>
@@ -60,7 +62,7 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-            <StackPanel Orientation="Horizontal" Margin="0,5,0,0" FlowDirection="RightToLeft">
+            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                 <StackPanel.Resources>
                     <!-- BasedOn keeps the app-wide rounded template -->
                     <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -73,7 +75,7 @@
                 </StackPanel.Resources>
                 <Button x:Name="TargetButton" Content="{Binding TargetButtonText}"
                         Click="Target_Click"
-                        ToolTip="פתיחת סשן במשימה — סשן קיים או חדש ב-workspace שלה">
+                        ToolTip="Open a session for this task — an existing one, or a new one in its workspace">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                             <Style.Triggers>
@@ -84,7 +86,7 @@
                         </Style>
                     </Button.Style>
                 </Button>
-                <Button Content="🔗 פתח משימה" Click="Url_Click"
+                <Button Content="🔗 Open task" Click="Url_Click"
                         ToolTip="{Binding Url}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">

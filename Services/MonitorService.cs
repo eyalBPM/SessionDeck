@@ -4,7 +4,7 @@ namespace SessionDeck.Services;
 
 public sealed record MonitorEntry(int Index, string Device, RECT Bounds, RECT WorkArea, bool Primary)
 {
-    public string DisplayName => $"מסך {Index + 1}{(Primary ? " (ראשי)" : "")}";
+    public string DisplayName => $"Monitor {Index + 1}{(Primary ? " (primary)" : "")}";
 }
 
 public static class MonitorService

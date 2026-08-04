@@ -5,7 +5,7 @@ using SessionDeck.Models;
 namespace SessionDeck;
 
 /// <summary>
-/// Width input for the custom zone modes (SPEC §F4). Returns the text as typed;
+/// Width input for the custom zone modes. Returns the text as typed;
 /// the caller stores it verbatim and resolves it via <see cref="ZoneSizeParser"/>.
 /// </summary>
 public partial class ZoneSizeDialog : Window
@@ -27,7 +27,7 @@ public partial class ZoneSizeDialog : Window
     {
         if (PreviewText == null || OkButton == null) return;   // during InitializeComponent
         bool ok = ZoneSizeParser.TryParse(SizeBox.Text, out double f);
-        PreviewText.Text = ok ? $"= {f * 100:0.#}% מרוחב המסך" : "ערך לא חוקי";
+        PreviewText.Text = ok ? $"= {f * 100:0.#}% of the screen width" : "Invalid value";
         OkButton.IsEnabled = ok;
     }
 

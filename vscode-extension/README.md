@@ -1,11 +1,11 @@
 # SessionDeck Connector
 
-חלק משלב ד' של SessionDeck (ראה `../SPEC.md` §7). ה-extension:
+The companion extension for [SessionDeck](../README.md). It:
 
-- שולח ל-SessionDeck ‏(named pipe ‏`\\.\pipe\sessiondeck`) snapshot של נתיב ה-workspace, ה-branch הנוכחי וטאבי ה-Claude Code הפתוחים — בהפעלה ועל כל שינוי.
-- מקבל מ-SessionDeck פקודות `openSession` ומפעיל/פותח מחדש את הטאב של הסשן דרך `claude-vscode.editor.open` של Claude Code (עם fallback ל-`claude --resume` בטרמינל).
+- Sends SessionDeck (named pipe `\\.\pipe\sessiondeck`) a snapshot of the workspace path, the current branch and the open Claude Code tabs — on startup and on every change.
+- Receives `openSession` commands from SessionDeck and activates/reopens the session's tab through Claude Code's `claude-vscode.editor.open` (with a fallback to `claude --resume` in the terminal).
 
-## בנייה והתקנה
+## Build and install
 
 ```powershell
 cd vscode-extension
@@ -15,4 +15,4 @@ npx vsce package --allow-missing-repository
 code --install-extension sessiondeck-connector-<version>.vsix
 ```
 
-אחרי התקנה יש לבצע **Reload Window** בכל חלונות ה-VSCode. לוג: ‏Output → ערוץ "SessionDeck". סנכרון ידני: ‏Command Palette → "SessionDeck: Sync Now".
+After installing, run **Reload Window** in every VSCode window. Log: Output → the "SessionDeck" channel. Manual sync: Command Palette → "SessionDeck: Sync Now".

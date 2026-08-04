@@ -50,43 +50,44 @@
                 <!-- icon strip wraps icon-by-icon when the window gets too narrow; being
                      right-docked it is measured before the combos, so ToolbarLayout_Changed
                      caps its MaxWidth to whatever the widest left group leaves free.
-                     RTL flow + reversed child order so the LEFTMOST icons overflow to the
-                     next row first and ⚙ (rightmost) always stays on the top row -->
+                     This panel's RightToLeft is a LAYOUT device, not a language one (the strip
+                     is icons only): reversed child order makes the LEFTMOST icons overflow to
+                     the next row first, so ⚙ (rightmost) always stays on the top row -->
                 <WrapPanel x:Name="IconStrip" DockPanel.Dock="Right" VerticalAlignment="Center"
                            Margin="12,0,0,0" FlowDirection="RightToLeft">
-                    <Button x:Name="SettingsButton" Content="⚙" FontSize="15" ToolTip="הגדרות"
+                    <Button x:Name="SettingsButton" Content="⚙" FontSize="15" ToolTip="Settings"
                             Background="Transparent" Foreground="White" BorderThickness="0"
                             Padding="8,2" Margin="0,2" Cursor="Hand" Click="Settings_Click">
                         <Button.ContextMenu>
-                            <ContextMenu FlowDirection="RightToLeft">
-                                <MenuItem x:Name="StartupMenuItem" Header="עלייה אוטומטית עם Windows"
+                            <ContextMenu>
+                                <MenuItem x:Name="StartupMenuItem" Header="Start with Windows"
                                           IsCheckable="True" Click="StartupMenuItem_Click"/>
-                                <MenuItem x:Name="MaximizeSessionMenuItem" Header="צמצום הפנלים ב-VSCode בפתיחת session"
+                                <MenuItem x:Name="MaximizeSessionMenuItem" Header="Collapse the VSCode panels when opening a session"
                                           IsCheckable="True" Click="MaximizeSessionMenuItem_Click"
-                                          ToolTip="בלחיצה על session מהלוח: סגור את הפנלים הצדדיים והתחתון כך שהטאב יתפוס את כל האזור"/>
-                                <MenuItem x:Name="NotificationsMenuItem" Header="התראות Windows"
+                                          ToolTip="When a session is clicked on the deck: close the side and bottom panels so the tab fills the whole area"/>
+                                <MenuItem x:Name="NotificationsMenuItem" Header="Windows notifications"
                                           IsCheckable="True" Click="NotificationsMenuItem_Click"
-                                          ToolTip="כשדולק: סשן שדורש תשומת לב מפיק התראת Windows, נקודה צבעונית על האייקון בשורת המשימות והבהוב חד-פעמי.&#10;פועל רק כשגם 📌 וגם ה-Zone כבויים — בכל מצב אחר הדק גלוי ממילא, וההבהוב בכרטיס מספיק.&#10;גם אז, כשהדק בפוקוס לא תוצג התראה."/>
+                                          ToolTip="When on: a session that needs attention raises a Windows notification, a colored dot on the taskbar icon and a single flash.&#10;Active only while both 📌 and the Zone are off — in any other state the deck is visible anyway, and the card blink is enough.&#10;Even then, no notification is shown while the deck has focus."/>
                                 <Separator/>
-                                <MenuItem Header="קובץ משימות (JSON)..." Click="TasksFileMenuItem_Click"
-                                          ToolTip="פאנל משימות read-only הניזון מקובץ JSON חיצוני (למשל export של TaskDeck). ריק = כבוי"/>
-                                <MenuItem Header="מתגים (Flags)..." Click="TogglesMenuItem_Click"
-                                          ToolTip="כפתורי toggle ב-toolbar שמצבם נכתב לקובץ flag — לשליטה בתהליכים חיצוניים"/>
+                                <MenuItem Header="Tasks file (JSON)..." Click="TasksFileMenuItem_Click"
+                                          ToolTip="A read-only tasks panel fed by an external JSON file (a TaskDeck export, for instance). Empty = off"/>
+                                <MenuItem Header="Toggles (flags)..." Click="TogglesMenuItem_Click"
+                                          ToolTip="Toolbar toggle buttons whose state is written to a flag file — for driving external processes"/>
                                 <Separator/>
                                 <MenuItem x:Name="VersionMenuItem" IsEnabled="False"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
                     <ToggleButton x:Name="SearchToggleButton" Content="🔍" FontSize="13"
-                                  ToolTip="חיפוש וסינון"
+                                  ToolTip="Search and filter"
                                   Style="{StaticResource IconToggle}"
                                   Checked="SearchToggle_Changed" Unchecked="SearchToggle_Changed"/>
                     <ToggleButton x:Name="PinTopToggle" Content="📌" FontSize="13"
-                                  ToolTip="נעץ: החלון תמיד עליון (Always on Top)"
+                                  ToolTip="Pin: keep the window always on top"
                                   Style="{StaticResource IconToggle}"
                                   Checked="PinTop_Changed" Unchecked="PinTop_Changed"/>
                     <ToggleButton x:Name="ShowHiddenToggle" Content="👁" FontSize="13"
-                                  ToolTip="הצג גם workspaces מוסתרים"
+                                  ToolTip="Show hidden workspaces too"
                                   Style="{StaticResource IconToggle}"
                                   Checked="ShowHidden_Changed" Unchecked="ShowHidden_Changed"/>
                     <!-- divider between user flags and the built-in toolbar toggles;
@@ -130,11 +131,11 @@
                            SizeChanged="ToolbarLayout_Changed">
                     <StackPanel x:Name="AddGroup" Orientation="Horizontal" Margin="0,3">
                         <Button x:Name="AddWorkspaceButton" Click="AddWorkspace_Click"
-                                Style="{StaticResource AccentButton}" FlowDirection="RightToLeft"
-                                ToolTip="בחר תיקיית פרויקט להוספה ללוח">
+                                Style="{StaticResource AccentButton}"
+                                ToolTip="Pick a project folder to add to the deck">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="+" FontWeight="SemiBold" Margin="0,0,6,0"/>
-                                <TextBlock Text="הוסף Workspace"/>
+                                <TextBlock Text="Add workspace"/>
                             </StackPanel>
                         </Button>
                         <Border x:Name="ToolbarDiv1" Width="1" Height="20" Background="#FF3E3E3E"
@@ -144,8 +145,8 @@
                     <WrapPanel x:Name="ZoneStageWrap" SizeChanged="ToolbarLayout_Changed">
                         <StackPanel x:Name="ZoneGroup" Orientation="Horizontal" Margin="0,3">
                             <TextBlock Text="Zone:" Foreground="#FFBBBBBB" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="ZoneMonitorCombo" Width="112" SelectionChanged="ZoneUi_Changed"/>
-                            <ComboBox x:Name="ZoneModeCombo" Width="140" Margin="4,0,0,0" SelectionChanged="ZoneUi_Changed"
+                            <ComboBox x:Name="ZoneMonitorCombo" Width="140" SelectionChanged="ZoneUi_Changed"/>
+                            <ComboBox x:Name="ZoneModeCombo" Width="152" Margin="4,0,0,0" SelectionChanged="ZoneUi_Changed"
                                       DropDownClosed="ZoneModeCombo_DropDownClosed"/>
                             <Border x:Name="ToolbarDiv2" Width="1" Height="20" Background="#FF3E3E3E"
                                     Margin="14,0" VerticalAlignment="Center"/>
@@ -153,8 +154,8 @@
 
                         <StackPanel x:Name="StageGroup" Orientation="Horizontal" Margin="0,3">
                             <TextBlock Text="Stage:" Foreground="#FFBBBBBB" Margin="0,0,6,0" VerticalAlignment="Center"
-                                       ToolTip="לאן החלון ייפתח בלחיצה על ▶ (Stage)"/>
-                            <ComboBox x:Name="StageMonitorCombo" Width="112" SelectionChanged="StageUi_Changed"/>
+                                       ToolTip="Where a window lands when ▶ (Stage) is clicked"/>
+                            <ComboBox x:Name="StageMonitorCombo" Width="140" SelectionChanged="StageUi_Changed"/>
                             <ComboBox x:Name="StageModeCombo" Width="118" Margin="4,0,0,0" SelectionChanged="StageUi_Changed"/>
                         </StackPanel>
                     </WrapPanel>
@@ -167,17 +168,18 @@
         <Border x:Name="SearchRow" DockPanel.Dock="Top" Background="#FF1B1B1B" Padding="8,5"
                 Visibility="Collapsed">
             <DockPanel LastChildFill="True">
-                <Button DockPanel.Dock="Right" Content="✕" ToolTip="סגור את שורת החיפוש"
+                <Button DockPanel.Dock="Right" Content="✕" ToolTip="Close the search row"
                         Background="Transparent" Foreground="#FFAAAAAA" BorderThickness="0"
                         Padding="8,2" Cursor="Hand" Click="SearchClose_Click"/>
-                <CheckBox x:Name="SearchContentCheck" DockPanel.Dock="Right" Content="חפש גם בתוכן"
+                <CheckBox x:Name="SearchContentCheck" DockPanel.Dock="Right" Content="Search content too"
                           Foreground="#FFCCCCCC" VerticalAlignment="Center" Margin="14,0,6,0"
-                          FlowDirection="RightToLeft"
                           Checked="SearchContent_Changed" Unchecked="SearchContent_Changed"
-                          ToolTip="חפש גם בתוך קבצי ה-transcript של הסשנים (jsonl)"/>
+                          ToolTip="Search inside the sessions' transcript files (jsonl) as well"/>
+                <!-- the query is user input and is often Hebrew: direction follows what is typed -->
                 <TextBox x:Name="SearchBox" VerticalContentAlignment="Center" FontSize="13"
                          Background="#FF2A2A2A" Foreground="White" BorderBrush="#FF444444"
                          CaretBrush="White" Padding="6,3"
+                         FlowDirection="{Binding Text, RelativeSource={RelativeSource Self}, Converter={StaticResource Rtl}}"
                          TextChanged="Search_Changed" KeyDown="SearchBox_KeyDown"/>
             </DockPanel>
         </Border>
@@ -188,10 +190,9 @@
             <DockPanel LastChildFill="True">
                 <!-- session-status summary (feature 2026-07-19): a dot per (status, blinking)
                      group, colored like the session borders; empty groups are not shown.
-                     RTL panel so the most urgent group renders rightmost. -->
+                     LTR panel so the most urgent group comes first in reading order. -->
                 <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding StatusSummary}"
-                              VerticalAlignment="Center" Margin="12,0,0,0"
-                              FlowDirection="RightToLeft">
+                              VerticalAlignment="Center" Margin="12,0,0,0">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal"/>
@@ -236,8 +237,7 @@
                     </ScrollViewer>
                     <TextBlock x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
                                Foreground="#FF666666" FontSize="15" TextAlignment="Center"
-                               FlowDirection="RightToLeft"
-                               Text="הלוח ריק&#10;לחץ על ״+ הוסף Workspace״ ובחר תיקיית פרויקט,&#10;או הפעל session של Claude Code עם ה-hooks (ראה תיקיית hooks)"/>
+                               Text="The deck is empty&#10;Click “+ Add workspace” and pick a project folder,&#10;or start a Claude Code session with the hooks installed (see the hooks folder)"/>
                 </Grid>
             </DockPanel>
             <!-- tasks page: swapped with DeckView (T-0116 revised design — page, not expand) -->

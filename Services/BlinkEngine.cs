@@ -11,7 +11,7 @@ public interface IBlinkable
 }
 
 /// <summary>
-/// One shared DispatcherTimer for all blinking borders (SPEC §5 — never a timer per card).
+/// One shared DispatcherTimer for all blinking borders — never a timer per card.
 /// Each target's phase is derived from the wall clock and its own interval, so different
 /// intervals coexist on the same tick.
 /// </summary>

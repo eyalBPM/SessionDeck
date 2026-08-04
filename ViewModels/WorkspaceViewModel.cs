@@ -9,7 +9,7 @@ namespace SessionDeck.ViewModels;
 public enum BindState { Connected, Disconnected }
 
 /// <summary>
-/// A workspace card (SPEC §2ב): persistent entity representing a VSCode workspace.
+/// A workspace card: a persistent entity representing a VSCode workspace.
 /// The OS window is only its live binding — the card survives window close/reopen.
 /// </summary>
 public sealed class WorkspaceViewModel : INotifyPropertyChanged
@@ -17,7 +17,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
     public int Id { get; init; }
 
     private string _path = "";
-    /// <summary>Folder path; empty for drag-in adds until a hook reports cwd (SPEC decision 21).</summary>
+    /// <summary>Folder path; empty for drag-in adds until a hook reports cwd (decision 21).</summary>
     public string Path
     {
         get => _path;
@@ -50,7 +50,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
         set { if (_description != value) { _description = value; Raise(); } }
     }
 
-    // ---- card color (SPEC decision 18): manual override > Peacock > default ----
+    // ---- card color (decision 18): manual override > Peacock > default ----
 
     private string? _customColor;
     public string? CustomColor
@@ -85,7 +85,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
         Raise(nameof(CardBrush));
     }
 
-    // ---- git branch (SPEC decision 17) ----
+    // ---- git branch (decision 17) ----
 
     private string _branch = "";
     public string Branch
@@ -102,7 +102,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
     public IReadOnlyList<string> ClaudeTabLabels => _claudeTabLabels;
     public int ClaudeTabCount => _claudeTabLabels.Count;
     public bool HasClaudeTabs => _claudeTabLabels.Count > 0;
-    public string ClaudeTabsTooltip => "טאבים פתוחים של Claude Code:" + Environment.NewLine +
+    public string ClaudeTabsTooltip => "Open Claude Code tabs:" + Environment.NewLine +
                                        string.Join(Environment.NewLine, _claudeTabLabels);
 
     public void SetClaudeTabs(List<string> labels)
@@ -170,7 +170,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
         set { if (_processName != value) { _processName = value; Raise(); } }
     }
 
-    /// <summary>Regex matching this workspace's VSCode window title (SPEC §6.6).</summary>
+    /// <summary>Regex matching this workspace's VSCode window title.</summary>
     public string TitlePattern => WorkspaceMetadata.BuildTitlePattern(_name);
 
     private BindState _state = BindState.Disconnected;
@@ -180,7 +180,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
         set { if (_state != value) { _state = value; Raise(); Raise(nameof(IsActive)); } }
     }
 
-    // ---- deck management (SPEC decision 16) ----
+    // ---- deck management (decision 16) ----
 
     private bool _hidden;
     public bool Hidden
@@ -198,7 +198,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
     }
 
     private bool _expanded;
-    /// <summary>Expanded card shows closed sessions too (SPEC §2ב).</summary>
+    /// <summary>Expanded card shows closed sessions too (decision 12).</summary>
     public bool Expanded
     {
         get => _expanded;

@@ -1,4 +1,4 @@
-# SessionDeck installer (PACKAGING.md stage 2).
+# SessionDeck installer.
 # Run from the extracted release zip. No admin rights required - everything is per-user.
 # Upgrading = re-running this same script over a newer zip; every step is idempotent.
 # PowerShell 5.1 compatible.
@@ -33,7 +33,7 @@ if (-not (Test-Path (Join-Path $src 'SessionDeck.exe'))) {
 }
 
 # --- 1. Stop a running instance (clean quit first: a forced kill skips the AppBar
-#        release and leaves the Windows work area shrunken - PACKAGING.md 3b.1) ---
+#        release and leaves the Windows work area shrunken) ---
 if (Get-Process SessionDeck -ErrorAction SilentlyContinue) {
     Write-Host "Stopping the running SessionDeck instance..."
     Invoke-SessionDeck (Join-Path $src 'SessionDeck.exe') 'quit' | Out-Null
@@ -115,7 +115,7 @@ Write-Host "Starting SessionDeck..."
 Start-Process -FilePath $exe
 
 # --- 7. Summary: the three parts update independently and can drift apart -
-#        printing all three versions makes a mismatch visible (PACKAGING.md stage 2) ---
+#        printing all three versions makes a mismatch visible ---
 $appVersion = ((Get-Item $exe).VersionInfo.ProductVersion -split '\+')[0]
 $hookScript = Join-Path $InstallDir 'hooks\sessiondeck-hook.ps1'
 $hooksVersion = $null

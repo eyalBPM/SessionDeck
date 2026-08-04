@@ -3,9 +3,9 @@ using SessionDeck.Interop;
 namespace SessionDeck.Services;
 
 /// <summary>
-/// Global WinEvent hooks (no polling — SPEC §5): title changes, window destruction,
+/// Global WinEvent hooks (no polling): title changes, window destruction,
 /// window appearance (create/show, for auto re-bind) and end of a move-drag
-/// (for drag-in, SPEC §F5). Must be started on a thread with a message pump
+/// (for drag-in). Must be started on a thread with a message pump
 /// (the UI thread); callbacks arrive there.
 /// </summary>
 public sealed class WindowTracker : IDisposable

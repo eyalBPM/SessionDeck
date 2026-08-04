@@ -7,7 +7,7 @@ using SessionDeck.Services;
 namespace SessionDeck.Cli;
 
 /// <summary>
-/// CLI mode: same exe launched with arguments (SPEC §4). Attaches to the parent console
+/// CLI mode: same exe launched with arguments. Attaches to the parent console
 /// (WinExe has none of its own), forwards argv to the running instance's pipe, prints the
 /// response and returns its exit code. Target run time &lt;100ms — critical for hooks.
 /// </summary>
@@ -85,7 +85,7 @@ public static class CliClient
                                                   no args = show state; --file sets the JSON, --off disables
         sessiondeck help
 
-        session commands (called by the Claude Code hooks — SPEC §4ב):
+        session commands (called by the Claude Code hooks):
         sessiondeck session start  --id <sid> --workspace <cwd path or name> [--title "..."] [--source <s>]
         sessiondeck session status --id <sid> --state working|waiting|done|error|idle [--detail "..."]
         sessiondeck session end    --id <sid> [--reason <r>]

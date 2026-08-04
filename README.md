@@ -6,7 +6,7 @@ SessionDeck tiles every VSCode window into a live grid and shows each Claude Cod
 
 Under the hood it's a general-purpose window deck (any top-level window can be tiled, pinned and driven from a CLI), but the UI and workflows are deliberately scoped to VSCode + Claude Code.
 
-> Status: actively developed, `v0.7.8`. Windows-only by design.
+> Status: actively developed, `v0.9.2`. Windows-only by design.
 
 ---
 
@@ -80,7 +80,7 @@ dotnet build -c Release          # requires the .NET 10 SDK
 
 The first launch starts the UI and the pipe server. Any later invocation with arguments acts as a CLI client against it.
 
-**Wire up the hooks** — `SessionDeck.exe install-hooks` merges the seven hooks into `~/.claude/settings.json`, pointing at the hook script next to the exe (backup + idempotent; `uninstall-hooks` reverts). See [`hooks/README.md`](hooks/README.md) for what each hook does.
+**Wire up the hooks** — `SessionDeck.exe install-hooks` merges the eleven hooks into `~/.claude/settings.json`, pointing at the hook script next to the exe (backup + idempotent; `uninstall-hooks` reverts). See [`hooks/README.md`](hooks/README.md) for what each hook does.
 
 **Build the VSCode extension** (enables tab activation and live tab labels). The `.vsix` is not checked in:
 
@@ -121,9 +121,8 @@ sessiondeck session list   [--workspace <name>] [--all]
 
 ## Documentation
 
-- [`SPEC.md`](SPEC.md) — full development spec, decisions log and roadmap (Hebrew).
-- [`hooks/README.md`](hooks/README.md) — hook wiring and the waiting-detection heuristics (Hebrew).
-- [`MANUAL_TESTS.md`](MANUAL_TESTS.md) — manual test checklist.
+- [`CLAUDE.md`](CLAUDE.md) — how to build, test and release it, plus the settled design decisions.
+- [`hooks/README.md`](hooks/README.md) — hook wiring and the waiting-detection heuristics.
 - [`vscode-extension/README.md`](vscode-extension/README.md) — the companion extension.
 
 ## Known limitations

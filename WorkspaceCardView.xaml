@@ -4,7 +4,9 @@
              xmlns:local="clr-namespace:SessionDeck"
              xmlns:services="clr-namespace:SessionDeck.Services">
     <UserControl.Resources>
-        <!-- Hebrew-leading text renders RTL + right-aligned (issue 2026-07-19) -->
+        <!-- Hebrew-leading text renders RTL + right-aligned (issue 2026-07-19). Titles,
+             descriptions and tab names come from outside the app, so they stay
+             direction-aware even though the UI chrome itself is English. -->
         <services:FlowDirectionConverter x:Key="Rtl"/>
     </UserControl.Resources>
     <UserControl.Style>
@@ -62,8 +64,10 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
+                                    <!-- branch names come from git and are not always Latin -->
                                     <TextBlock Foreground="#FFDDDDDD" FontSize="11" MaxWidth="280"
-                                               TextTrimming="CharacterEllipsis">
+                                               TextTrimming="CharacterEllipsis"
+                                               FlowDirection="{Binding Branch, Converter={StaticResource Rtl}}">
                                         <Run Text="&#x2387;"/> <Run Text="{Binding Branch}"/>
                                     </TextBlock>
                                 </Border>
@@ -118,7 +122,7 @@
                                 <!-- ToolTip lives in the style (not on the element) so the
                                      open-state trigger can swap it (T-0236) -->
                                 <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                    <Setter Property="ToolTip" Value="משימות מקושרות ל-workspace"/>
+                                    <Setter Property="ToolTip" Value="Tasks linked to this workspace"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding TasksEnabled}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -130,23 +134,23 @@
                                         <!-- pressed look while the inline list is open (T-0236) -->
                                         <DataTrigger Binding="{Binding TasksExpanded}" Value="True">
                                             <Setter Property="Background" Value="#FF2E4A66"/>
-                                            <Setter Property="ToolTip" Value="הסתר את המשימות"/>
+                                            <Setter Property="ToolTip" Value="Hide the tasks"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="▶" Click="Pin_Click" ToolTip="פתח את החלון באזור הפתיחה המוגדר"/>
+                        <Button Content="▶" Click="Pin_Click" ToolTip="Move the window to the configured Stage area"/>
                         <Button x:Name="ExpandButton" Content="▼" Click="Expand_Click">
                             <Button.Style>
                                 <!-- glyph swap stays in code-behind (SyncExpandGlyph); the style
                                      adds the matching pressed look + tooltip swap (T-0236) -->
                                 <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                    <Setter Property="ToolTip" Value="הצג גם סשנים סגורים"/>
+                                    <Setter Property="ToolTip" Value="Show closed sessions too"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Expanded}" Value="True">
                                             <Setter Property="Background" Value="#FF2E4A66"/>
-                                            <Setter Property="ToolTip" Value="הסתר סשנים סגורים"/>
+                                            <Setter Property="ToolTip" Value="Hide closed sessions"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -154,19 +158,19 @@
                         </Button>
                         <!-- all card actions live in one ⋯ menu (feedback 2026-07-19) -->
                         <Button x:Name="MenuButton" Content="⋯" FontWeight="Bold" Click="Menu_Click"
-                                ToolTip="פעולות">
+                                ToolTip="Actions">
                             <Button.ContextMenu>
-                                <ContextMenu FlowDirection="RightToLeft">
-                                    <MenuItem Header="עריכה" Click="Edit_Click"/>
-                                    <MenuItem x:Name="CopyPathMenuItem" Header="העתק נתיב ללוח"
+                                <ContextMenu>
+                                    <MenuItem Header="Edit" Click="Edit_Click"/>
+                                    <MenuItem x:Name="CopyPathMenuItem" Header="Copy path to clipboard"
                                               Click="CopyPath_Click"/>
-                                    <MenuItem x:Name="HideMenuItem" Header="הסתרה" Click="Hide_Click"/>
-                                    <MenuItem x:Name="CloseWindowMenuItem" Header="סגירת חלון"
+                                    <MenuItem x:Name="HideMenuItem" Header="Hide" Click="Hide_Click"/>
+                                    <MenuItem x:Name="CloseWindowMenuItem" Header="Close window"
                                               Click="CloseWindow_Click"/>
                                     <Separator/>
-                                    <MenuItem Header="סגירת כרטיס" Click="Remove_Click"
+                                    <MenuItem Header="Remove card" Click="Remove_Click"
                                               Foreground="#FFCC7777"
-                                              ToolTip="הסרת ה-workspace מהלוח (לא סוגר את החלון)"/>
+                                              ToolTip="Removes the workspace from the deck (does not close the window)"/>
                                 </ContextMenu>
                             </Button.ContextMenu>
                         </Button>
@@ -174,12 +178,12 @@
                 </Grid>
             </Grid>
 
-            <!-- session cards (SPEC §2ב): status-colored borders, no thumbnails -->
+            <!-- session cards: status-colored borders, no thumbnails -->
             <StackPanel DockPanel.Dock="Bottom" Margin="8,2,8,8">
-            <Button Content="+ New Session" Click="NewSession_Click" Cursor="Hand"
+            <Button Content="+ New session" Click="NewSession_Click" Cursor="Hand"
                     HorizontalAlignment="Left" Padding="10,2" Margin="0,2,0,3"
                     Background="#FF2E4A66" Foreground="White" BorderThickness="0"
-                    ToolTip="פתח שיחת Claude Code חדשה ב-workspace הזה"/>
+                    ToolTip="Open a new Claude Code conversation in this workspace"/>
             <ItemsControl ItemsSource="{Binding Sessions}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -240,7 +244,7 @@
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                                             Margin="8,0,0,0">
                                     <TextBlock Text="📑" FontSize="11" Margin="0,0,6,0"
-                                               ToolTip="פתוח כטאב ב-VSCode">
+                                               ToolTip="Open as a tab in VSCode">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Style.Triggers>
@@ -284,7 +288,7 @@
             <!-- live DWM thumbnail of the bound VSCode window -->
             <Grid Height="170">
                 <Border x:Name="ThumbArea" Background="#FF0D0D0D" Margin="8,6,8,2" CornerRadius="4"/>
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" FlowDirection="RightToLeft">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -295,9 +299,9 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <TextBlock Text="🔌 אין חלון VSCode פתוח" Foreground="#FF888888" FontSize="14"
+                    <TextBlock Text="🔌 No VSCode window open" Foreground="#FF888888" FontSize="14"
                                HorizontalAlignment="Center"/>
-                    <TextBlock Text="לחץ כדי לפתוח את הפרויקט ב-VSCode" Foreground="#FF555555" FontSize="11"
+                    <TextBlock Text="Click to open the project in VSCode" Foreground="#FF555555" FontSize="11"
                                HorizontalAlignment="Center" Margin="0,3,0,0"/>
                 </StackPanel>
             </Grid>

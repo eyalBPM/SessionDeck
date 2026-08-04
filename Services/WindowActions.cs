@@ -35,7 +35,7 @@ public static class WindowActions
         }
     }
 
-    /// <summary>Focus: bring the real window to front at its current position (SPEC §F3).</summary>
+    /// <summary>Focus: bring the real window to front at its current position.</summary>
     public static void Focus(IntPtr hwnd)
     {
         if (NativeMethods.IsIconic(hwnd))
@@ -48,7 +48,7 @@ public static class WindowActions
     public static void Close(IntPtr hwnd)
         => NativeMethods.PostMessage(hwnd, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
 
-    /// <summary>Pin: move the real window to the stage rect and activate it (SPEC §F3).</summary>
+    /// <summary>Pin: move the real window to the stage rect and activate it.</summary>
     public static void MoveTo(IntPtr hwnd, RECT rect)
     {
         if (NativeMethods.IsIconic(hwnd) || NativeMethods.IsZoomed(hwnd))

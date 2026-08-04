@@ -6,7 +6,7 @@ using SessionDeck.Models;
 namespace SessionDeck.Services;
 
 /// <summary>
-/// Persistence with permanent auto-save (SPEC §F7): every change is queued and flushed
+/// Persistence with permanent auto-save: every change is queued and flushed
 /// after a ~1s debounce; writes are atomic (temp file + rename). No "save" button exists.
 /// </summary>
 public sealed class ConfigStore

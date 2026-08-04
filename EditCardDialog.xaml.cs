@@ -7,7 +7,7 @@ using SessionDeck.ViewModels;
 namespace SessionDeck;
 
 /// <summary>
-/// Card editing (SPEC decision 17 — custom title/description on both card levels).
+/// Card editing (decision 17 in CLAUDE.md — custom title/description on both card levels).
 /// Workspace mode also edits the card color (auto Peacock vs. manual override).
 /// Applies to the view-model on OK; the caller persists.
 /// </summary>
@@ -20,8 +20,8 @@ public partial class EditCardDialog : Window
         _ws = ws;
         InitializeComponent();
 
-        Title = $"עריכת workspace — {ws.Name}";
-        AutoTitleCheck.Content = "כותרת אוטומטית (שם התיקייה)";
+        Title = $"Edit workspace — {ws.Name}";
+        AutoTitleCheck.Content = "Automatic title (folder name)";
         AutoTitleCheck.IsChecked = string.IsNullOrEmpty(ws.CustomTitle);
         TitleBox.Text = ws.DisplayTitle;
         DescBox.Text = ws.Description;
@@ -56,9 +56,8 @@ public partial class EditCardDialog : Window
         bool manualColor = AutoColorCheck.IsChecked != true;
         if (manualColor && !ColorUtil.TryParse(ColorBox.Text, out _))
         {
-            MessageBox.Show(this, $"צבע לא חוקי: \"{ColorBox.Text}\"", "עריכת כרטיס",
-                MessageBoxButton.OK, MessageBoxImage.Warning,
-                MessageBoxResult.OK, MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
+            MessageBox.Show(this, $"Invalid color: \"{ColorBox.Text}\"", "Edit card",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 

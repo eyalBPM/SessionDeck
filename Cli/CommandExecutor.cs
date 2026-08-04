@@ -9,7 +9,7 @@ namespace SessionDeck.Cli;
 /// <summary>
 /// Executes CLI argv against the live app state. Always invoked on the UI thread
 /// (the pipe handler dispatches here). Session commands are the hooks' entry point
-/// (SPEC §4ב) — they must stay fast and atomic.
+/// — they must stay fast and atomic.
 /// </summary>
 public sealed class CommandExecutor
 {
@@ -160,7 +160,7 @@ public sealed class CommandExecutor
         return ok ? Ok($"pinned workspace {ws.Id} to stage") : Err(msg);
     }
 
-    // ---- session commands (SPEC §4ב — called by the Claude Code hooks) ----
+    // ---- session commands (called by the Claude Code hooks) ----
 
     private PipeResponse Session(ParsedArgs a)
     {
@@ -236,7 +236,7 @@ public sealed class CommandExecutor
         if (sub == "list")
         {
             if (Vm.CustomToggles.Count == 0)
-                return Ok("(no toggles — add them via the settings menu: מתגים (Flags))");
+                return Ok("(no toggles — add them from the settings menu: Toggles (flags))");
             return Ok(string.Join(Environment.NewLine,
                 Vm.CustomToggles.Select(t => $"{t.Id}  {(t.Enabled ? "on " : "off")}  {t.Name}")));
         }
@@ -421,7 +421,7 @@ public sealed class CommandExecutor
         return Ok("");
     }
 
-    /// <summary>Clean shutdown for the installer (PACKAGING.md §3ב.1): Close() runs
+    /// <summary>Clean shutdown for the installer: Close() runs
     /// OnClosing, which saves config and releases the AppBar — a forced kill skips that
     /// and leaves the Windows work area permanently shrunken. The close is deferred so
     /// the pipe response reaches the client before the pipe server is disposed.</summary>

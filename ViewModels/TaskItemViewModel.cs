@@ -26,7 +26,7 @@ public sealed class TaskItemViewModel
     /// <summary>The workspace/sessions button exists when there is anywhere to go.</summary>
     public bool HasTarget => HasWorkspace || Sessions.Count > 0;
 
-    public string TargetButtonText => Sessions.Count > 0 ? $"▶ סשנים ({Sessions.Count})" : "▶ סשן חדש";
+    public string TargetButtonText => Sessions.Count > 0 ? $"▶ Sessions ({Sessions.Count})" : "▶ New session";
 
     /// <summary>Status color resolved from the document's statusColors map at build time;
     /// a status without a color (or no status) renders neutral.</summary>
@@ -39,9 +39,9 @@ public sealed class TaskItemViewModel
         get
         {
             var lines = new List<string> { $"‏{Id} — {Name}" };
-            if (HasStatus) lines.Add($"סטטוס: {Status}");
+            if (HasStatus) lines.Add($"Status: {Status}");
             if (HasDescription) lines.Add(Description);
-            if (Pinned) lines.Add("📌 נעוצה");
+            if (Pinned) lines.Add("📌 Pinned");
             return string.Join(Environment.NewLine, lines);
         }
     }

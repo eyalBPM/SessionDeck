@@ -95,7 +95,7 @@ public static class ZoneSizeParser
 }
 
 /// <summary>Legacy stage A/B generic tile — carried through the config untouched so
-/// pre-cards data is never lost, but no longer shown in the UI (SPEC decision 15).</summary>
+/// pre-cards data is never lost, but no longer shown in the UI (decision 15).</summary>
 public class TileConfig
 {
     public int Id { get; set; }
@@ -109,7 +109,7 @@ public class TileConfig
     public int BlinkIntervalMs { get; set; } = 500;
 }
 
-/// <summary>A VSCode workspace on the deck (SPEC §2ב) — persistent entity; the OS window
+/// <summary>A VSCode workspace on the deck — a persistent entity; the OS window
 /// is only its live binding.</summary>
 public class WorkspaceConfig
 {
@@ -124,7 +124,7 @@ public class WorkspaceConfig
     public List<SessionConfig> Sessions { get; set; } = new();
 }
 
-/// <summary>A Claude Code session reported by the hooks (SPEC §2ב/§4ב).</summary>
+/// <summary>A Claude Code session reported by the hooks.</summary>
 public class SessionConfig
 {
     public string SessionId { get; set; } = "";
@@ -147,7 +147,7 @@ public class SessionConfig
 }
 
 /// <summary>Session status → border style. Lives in config so the mapping can change
-/// without touching hooks or code (SPEC decision 11).</summary>
+/// without touching hooks or code (decision 11).</summary>
 public class StatusStyle
 {
     public string Color { get; set; } = "gray";
@@ -201,7 +201,7 @@ public class AppConfig
     public int NextWorkspaceId { get; set; } = 1;
     public List<WorkspaceConfig> Workspaces { get; set; } = new();
     public Dictionary<string, StatusStyle> StatusStyles { get; set; } = new();
-    public int ClosedSessionRetention { get; set; } = 20;     // per workspace (SPEC decision 12)
+    public int ClosedSessionRetention { get; set; } = 20;     // per workspace (decision 12)
     public bool OpenSessionMaximized { get; set; } = true;    // stage D: collapse VSCode panels on session open
     public bool ShowHidden { get; set; }
     public bool AlwaysOnTop { get; set; }                     // 📌 pin toggle (feature 2026-07-19)
@@ -249,7 +249,7 @@ public class AppConfig
     public WindowBounds? Window { get; set; }
     public bool AutoRemoveDisconnected { get; set; }          // legacy tile option, unused since v0.4
 
-    /// <summary>Default status→style mapping (SPEC decision 11). Missing entries are
+    /// <summary>Default status→style mapping (decision 11). Missing entries are
     /// filled in on load, so a hand-edited config only needs the overrides.</summary>
     public static Dictionary<string, StatusStyle> DefaultStatusStyles() => new()
     {

@@ -9,7 +9,7 @@ public static class WindowEnumerator
 {
     /// <summary>
     /// Top-level windows eligible for tiling: visible, titled, not tool windows,
-    /// not cloaked (UWP ghosts), and not SessionDeck itself (SPEC §F5).
+    /// not cloaked (UWP ghosts), and not SessionDeck itself.
     /// </summary>
     public static List<CandidateWindow> GetCandidates()
     {
