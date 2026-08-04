@@ -1,4 +1,4 @@
-# Tests for `sessiondeck install-hooks` / `uninstall-hooks` (PACKAGING.md 3.7/3.8).
+# Tests for `sessiondeck install-hooks` / `uninstall-hooks`.
 # Runs the built exe against temp settings files via --settings - no app instance needed.
 # Usage: powershell -NoProfile -File tests\install-hooks.tests.ps1 [-Exe <path>]
 [CmdletBinding()]

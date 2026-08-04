@@ -3,7 +3,7 @@ using Microsoft.Win32;
 namespace SessionDeck.Services;
 
 /// <summary>
-/// Start with Windows (SPEC §F9): per-user Run key, no admin. Full state is then
+/// Start with Windows: per-user Run key, no admin. Full state is then
 /// restored from the profile via matcher re-bind.
 /// </summary>
 public static class StartupService
@@ -25,7 +25,8 @@ public static class StartupService
 
     /// <summary>The Run value stores an absolute exe path, so after a reinstall to a new
     /// folder it keeps launching the stale build (or nothing). Rewrite it on startup
-    /// whenever it no longer matches the running exe (PACKAGING.md §3b.2).</summary>
+    /// whenever it no longer matches the running exe — otherwise an install to a new
+    /// folder leaves Windows launching the old build, or nothing at all.</summary>
     public static void RefreshPathIfStale()
     {
         if (Environment.ProcessPath is not { } exe) return;

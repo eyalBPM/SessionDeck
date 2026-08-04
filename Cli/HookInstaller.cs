@@ -6,7 +6,7 @@ using SessionDeck.Interop;
 namespace SessionDeck.Cli;
 
 /// <summary>
-/// `sessiondeck install-hooks` / `uninstall-hooks` (PACKAGING.md §3). Merges the eleven
+/// `sessiondeck install-hooks` / `uninstall-hooks`. Merges the eleven
 /// SessionDeck hooks into ~/.claude/settings.json, pointing at the hook script that ships
 /// next to the installed exe. Runs entirely in the CLI process — never through the pipe —
 /// because it must work before the app has ever started.
@@ -128,7 +128,7 @@ public static class HookInstaller
         return 0;
     }
 
-    /// <summary>Applies the merge from PACKAGING.md §3.4 in place. Only touches
+    /// <summary>Applies the merge in place. Only touches
     /// SessionDeck's own groups — hooks of other tools are preserved verbatim.</summary>
     private static void Merge(JsonObject root, bool install, string scriptPath)
     {

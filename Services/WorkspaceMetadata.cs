@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace SessionDeck.Services;
 
 /// <summary>
-/// Reads workspace metadata straight from the folder (SPEC decisions 17-18):
+/// Reads workspace metadata straight from the folder (decisions 17-18):
 /// git branch from .git/HEAD, card color from .vscode/settings.json (Peacock).
 /// All reads are best-effort — a workspace without git or Peacock is normal.
 /// </summary>
@@ -24,7 +24,7 @@ public static class WorkspaceMetadata
     }
 
     /// <summary>VSCode window title contains " - {workspace} - Visual Studio Code"
-    /// (or starts with "{workspace} - " when no editor is open) — SPEC §6.6.</summary>
+    /// (or starts with "{workspace} - " when no editor is open).</summary>
     public static string BuildTitlePattern(string workspaceName)
         => $"(^|- ){Regex.Escape(workspaceName)} - Visual Studio Code";
 
@@ -65,7 +65,7 @@ public static class WorkspaceMetadata
     };
 
     /// <summary>Card color from .vscode/settings.json: "peacock.color", else
-    /// "workbench.colorCustomizations"."titleBar.activeBackground" (SPEC decision 18).</summary>
+    /// "workbench.colorCustomizations"."titleBar.activeBackground" (decision 18).</summary>
     public static string? ReadPeacockColor(string workspacePath)
     {
         try

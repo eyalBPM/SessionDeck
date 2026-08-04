@@ -61,7 +61,7 @@ public sealed class VscodeConnection
 }
 
 /// <summary>
-/// Named-pipe server (SPEC §4). Two client kinds share the pipe, distinguished by the
+/// Named-pipe server. Two client kinds share the pipe, distinguished by the
 /// first line: CLI requests ({"Argv":[...]} → one response line, then close) and VSCode
 /// connectors ({"Type":"vscode-sync",...} → connection stays open; further syncs flow in,
 /// commands are pushed out). Multiple instances so a persistent connector never blocks CLI.

@@ -1,5 +1,5 @@
-﻿# SessionDeck hook bridge for Claude Code (SPEC stage C).
-# Version: 0.9.1  (parsed by install.ps1 — keep in sync with SessionDeck.csproj; release.ps1 syncs automatically)
+﻿# SessionDeck hook bridge for Claude Code.
+# Version: 0.9.2  (parsed by install.ps1 — keep in sync with SessionDeck.csproj; release.ps1 syncs automatically)
 # Called by Claude Code hooks with the event name as argument; the hook payload
 # (session_id, cwd, transcript_path, permission_mode + event-specific fields)
 # arrives as JSON on stdin. Everything the payload provides is forwarded to
@@ -85,7 +85,7 @@ switch ($HookEvent) {
         $cliArgs = @('session', 'status', '--id', $sid, '--state', 'done')
     }
     # The turn died on an API error. Until this event existed SessionDeck had no hook for
-    # its 'error' state at all and the card just went quiet (SPEC §9.2).
+    # its 'error' state at all and the card just went quiet.
     'StopFailure' {
         $cliArgs = @('session', 'status', '--id', $sid, '--state', 'error')
         $reason = Get-Trimmed ($payload.error, $payload.reason, $payload.message | Where-Object { $_ } | Select-Object -First 1)

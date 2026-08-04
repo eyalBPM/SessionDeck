@@ -7,7 +7,7 @@ using SessionDeck.ViewModels;
 namespace SessionDeck;
 
 /// <summary>
-/// Card editing (SPEC decision 17 — custom title/description on both card levels).
+/// Card editing (decision 17 in CLAUDE.md — custom title/description on both card levels).
 /// Workspace mode also edits the card color (auto Peacock vs. manual override).
 /// Applies to the view-model on OK; the caller persists.
 /// </summary>

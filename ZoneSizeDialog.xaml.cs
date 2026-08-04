@@ -5,7 +5,7 @@ using SessionDeck.Models;
 namespace SessionDeck;
 
 /// <summary>
-/// Width input for the custom zone modes (SPEC §F4). Returns the text as typed;
+/// Width input for the custom zone modes. Returns the text as typed;
 /// the caller stores it verbatim and resolves it via <see cref="ZoneSizeParser"/>.
 /// </summary>
 public partial class ZoneSizeDialog : Window

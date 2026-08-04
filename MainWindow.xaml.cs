@@ -38,7 +38,7 @@ public partial class MainWindow : Window
     private bool _syncingUi;
     private bool _zoneSizePrompted;   // suppresses the DropDownClosed re-prompt after SelectionChanged already asked
 
-    // Legacy stage A/B tile data — round-tripped so nothing is lost (SPEC decision 15).
+    // Legacy pre-cards tile data — round-tripped so nothing is lost (decision 15).
     private List<TileConfig> _legacyTiles = new();
     private int _legacyNextTileId = 1;
     private bool _legacyAutoRemove;
@@ -114,7 +114,7 @@ public partial class MainWindow : Window
         _legacyNextTileId = config.NextTileId;
         _legacyAutoRemove = config.AutoRemoveDisconnected;
 
-        // Status→style mapping (SPEC decision 11): config overrides on top of defaults.
+        // Status→style mapping (decision 11): config overrides on top of defaults.
         _statusStyles = AppConfig.DefaultStatusStyles();
         foreach (var (key, style) in config.StatusStyles)
             _statusStyles[key.ToLowerInvariant()] = style;
@@ -256,7 +256,7 @@ public partial class MainWindow : Window
         _notifier.Dispose();
     }
 
-    // ---- persistence (SPEC §F7) ----
+    // ---- persistence ----
 
     private AppConfig BuildConfig()
     {
@@ -333,9 +333,9 @@ public partial class MainWindow : Window
         if (!_initializing) _configStore.QueueSave();
     }
 
-    // ---- workspaces: add / remove / metadata (SPEC §2b) ----
+    // ---- workspaces: add / remove / metadata ----
 
-    /// <summary>Primary add flow (SPEC decision 21.1): pick a project folder.</summary>
+    /// <summary>Primary add flow (decision 21.1): pick a project folder.</summary>
     public (WorkspaceViewModel?, string?) AddWorkspaceFromPath(string path)
     {
         if (!Directory.Exists(path))
@@ -382,7 +382,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Branch + Peacock color straight from the folder (SPEC decisions 17-18).</summary>
+    /// <summary>Branch + Peacock color straight from the folder (decisions 17-18).</summary>
     private static void RefreshMetadata(WorkspaceViewModel ws)
     {
         if (ws.Path.Length == 0) return;
@@ -786,7 +786,7 @@ public partial class MainWindow : Window
         return null;
     }
 
-    /// <summary>Actives (bound window / live session) float to the top (SPEC decision 16).
+    /// <summary>Actives (bound window / live session) float to the top (decision 16).
     /// Stable in-place sort via Move so DWM thumbnails survive.</summary>
     public void SortWorkspaces()
     {
@@ -955,7 +955,7 @@ public partial class MainWindow : Window
         }, cts.Token);
     }
 
-    // ---- window binding (engine reuse; VSCode-only per SPEC decision 13) ----
+    // ---- window binding (engine reuse; VSCode-only per decision 13) ----
 
     private void RebindAll()
     {
@@ -1054,7 +1054,7 @@ public partial class MainWindow : Window
         SetStatus($"\"{ws.DisplayTitle}\" bound to window: {title}");
     }
 
-    /// <summary>Drag-in (SPEC decision 21.3, secondary channel): only VSCode windows,
+    /// <summary>Drag-in (decision 21.3, secondary channel): only VSCode windows,
     /// blocked when the workspace is already on the deck.</summary>
     private void HandleDragIn(IntPtr hwnd)
     {
@@ -1095,7 +1095,7 @@ public partial class MainWindow : Window
         SetStatus($"Workspace \"{name}\" added (drag-and-drop; the path fills in from the first hook)");
     }
 
-    /// <summary>"file - {workspace} - Visual Studio Code" → workspace segment (SPEC §6.6).</summary>
+    /// <summary>"file - {workspace} - Visual Studio Code" → workspace segment.</summary>
     private static string WorkspaceNameFromTitle(string title)
     {
         var parts = title.Split(" - ");
@@ -1110,7 +1110,7 @@ public partial class MainWindow : Window
         catch { return false; }
     }
 
-    // ---- sessions engine (SPEC §4b — driven by the hooks only) ----
+    // ---- sessions engine (driven by the hooks only) ----
 
     /// <summary>Extra hook-payload data attached to any session command (all optional).</summary>
     public sealed record HookInfo(string? Detail = null, string? Transcript = null, string? Source = null,
@@ -1187,7 +1187,7 @@ public partial class MainWindow : Window
         return oneLine.Length <= 300 ? oneLine : oneLine[..299] + "…";
     }
 
-    /// <summary>Workspace resolution for hooks (SPEC decision 21.4 — cwd is the safety net):
+    /// <summary>Workspace resolution for hooks (decision 21.4 — cwd is the safety net):
     /// by path → by name (adopting the path into a pathless workspace) → auto-create.</summary>
     private WorkspaceViewModel? ResolveOrCreateWorkspace(string workspaceArg, out string? error)
     {
@@ -1321,7 +1321,7 @@ public partial class MainWindow : Window
         session.Closed = true;
         session.EndedAt = DateTime.Now;
 
-        // Retention (SPEC decision 12): keep only the last N closed sessions per workspace.
+        // Retention (decision 12): keep only the last N closed sessions per workspace.
         var closed = ws.Sessions.Where(s => s.Closed).OrderByDescending(s => s.EndedAt ?? DateTime.MinValue).ToList();
         foreach (var extra in closed.Skip(Math.Max(0, Vm.ClosedSessionRetention)))
             ws.Sessions.Remove(extra);
@@ -1605,7 +1605,7 @@ public partial class MainWindow : Window
         return (true, "");
     }
 
-    // ---- focus / pin / stage (SPEC §F3) ----
+    // ---- focus / pin / stage ----
 
     public (bool, string) FocusWorkspace(WorkspaceViewModel ws)
     {
@@ -1771,7 +1771,7 @@ public partial class MainWindow : Window
         _ => SessionStatusNames.ToName(status),
     };
 
-    /// <summary>Stage definition from the CLI (SPEC §F3): monitor + full/half, or a custom rect.</summary>
+    /// <summary>Stage definition from the CLI: monitor + full/half, or a custom rect.</summary>
     public void SetStage(int monitor, StageMode mode, RECT? rect)
     {
         Vm.StageMonitor = Math.Clamp(monitor, 0, _monitors.Count - 1);
@@ -1781,7 +1781,7 @@ public partial class MainWindow : Window
         QueueSave();
     }
 
-    // ---- Reserved Zone (SPEC §F4) ----
+    // ---- Reserved Zone ----
 
     public void ApplyZone(int monitor, ZoneMode mode, bool save = true, string? customSize = null)
     {
@@ -1942,7 +1942,7 @@ public partial class MainWindow : Window
         QueueSave();
     }
 
-    // ---- settings (SPEC §F9) ----
+    // ---- settings ----
 
     private void Settings_Click(object sender, RoutedEventArgs e)
     {

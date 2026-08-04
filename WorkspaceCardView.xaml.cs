@@ -13,7 +13,7 @@ namespace SessionDeck;
 /// <summary>
 /// One workspace card: chrome (Peacock-colored border, header, session cards) drawn by WPF;
 /// the live preview of the bound VSCode window is drawn by the DWM compositor into
-/// ThumbArea's client rect (SPEC §F1 — zero-CPU, no injection).
+/// ThumbArea's client rect (zero-CPU, no injection).
 /// </summary>
 public partial class WorkspaceCardView : UserControl
 {
@@ -165,7 +165,7 @@ public partial class WorkspaceCardView : UserControl
         a.Left == b.Left && a.Top == b.Top && a.Right == b.Right && a.Bottom == b.Bottom;
 
     /// <summary>ThumbArea rect in the main window's client coordinates (device px), letterboxed
-    /// to the source window's aspect ratio (SPEC §F1).</summary>
+    /// to the source window's aspect ratio.</summary>
     private RECT ComputeDestRect(IntPtr mainHwnd, out SIZE srcSize)
     {
         Point tl = ThumbArea.PointToScreen(new Point(0, 0));
@@ -276,7 +276,7 @@ public partial class WorkspaceCardView : UserControl
     {
         if (Vm is not { } vm) return;
         HideMenuItem.Header = vm.Hidden ? "Show on the deck again" : "Hide";
-        CopyPathMenuItem.IsEnabled = vm.Path.Length > 0; // drag-in adds have no path yet (SPEC decision 21)
+        CopyPathMenuItem.IsEnabled = vm.Path.Length > 0; // drag-in adds have no path yet (decision 21)
         CloseWindowMenuItem.IsEnabled = vm.State == BindState.Connected;
         MenuButton.ContextMenu.PlacementTarget = MenuButton;
         MenuButton.ContextMenu.IsOpen = true;

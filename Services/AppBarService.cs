@@ -5,7 +5,7 @@ using SessionDeck.Models;
 namespace SessionDeck.Services;
 
 /// <summary>
-/// Reserved Zone via the AppBar API (SPEC §F4): the main window docks to a monitor edge
+/// Reserved Zone via the AppBar API: the main window docks to a monitor edge
 /// and the OS shrinks the work area — maximized/snapped windows stay out, the mouse moves freely.
 /// </summary>
 public sealed class AppBarService

@@ -1,4 +1,4 @@
-# SessionDeck — wiring into the Claude Code hooks (stage C)
+# SessionDeck — wiring into the Claude Code hooks
 
 `sessiondeck-hook.ps1` translates Claude Code hook events into `sessiondeck session ...` commands, and forwards **everything the payload provides** to SessionDeck:
 
@@ -140,7 +140,7 @@ if ((Test-Path $flag) -and ((Get-Content $flag -Raw).Trim() -eq '0')) { exit 0 }
 
 - The script is fire-and-forget: every failure is swallowed (`exit 0`) so it can never disrupt a session; PowerShell 5.1 compatible.
 - The file is saved as **UTF-8 with BOM**. Its user-facing strings are ASCII since v0.9.0, but the comments still contain non-ASCII characters, and PS 5.1 reads a BOM-less .ps1 as ANSI — keep the same encoding when editing.
-- `error` state: since `StopFailure` it has a dedicated hook (an update to SPEC §9.2, which was written when it didn't).
+- `error` state: `StopFailure` gives it a dedicated hook. Claude Code exposes no generic error event, so anything that isn't a failed turn stays unmapped.
   The state is still available from the CLI (`--state error`) for other scripts; SessionEnd's `reason` is stored and displayed.
 - Manual check without Claude Code:
   ```powershell
