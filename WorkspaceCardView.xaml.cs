@@ -275,7 +275,7 @@ public partial class WorkspaceCardView : UserControl
     private void Menu_Click(object sender, RoutedEventArgs e)
     {
         if (Vm is not { } vm) return;
-        HideMenuItem.Header = vm.Hidden ? "הצג חזרה בלוח" : "הסתרה";
+        HideMenuItem.Header = vm.Hidden ? "Show on the deck again" : "Hide";
         CopyPathMenuItem.IsEnabled = vm.Path.Length > 0; // drag-in adds have no path yet (SPEC decision 21)
         CloseWindowMenuItem.IsEnabled = vm.State == BindState.Connected;
         MenuButton.ContextMenu.PlacementTarget = MenuButton;

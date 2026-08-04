@@ -44,7 +44,7 @@ public partial class MainWindow
         if (result.FileError is { } err)
         {
             LogService.Info("tasks", $"load failed: {err}");
-            SetStatus("קובץ המשימות: " + err);
+            SetStatus("Tasks file: " + err);
         }
         else
         {
@@ -108,7 +108,7 @@ public partial class MainWindow
         if (dialog.ShowDialog() != true) return;
         ApplyTasksFile(dialog.PathText);
         QueueSave();
-        SetStatus(Vm.TasksFilePath == null ? "פאנל המשימות כובה" : $"קובץ המשימות: {Vm.TasksFilePath}");
+        SetStatus(Vm.TasksFilePath == null ? "The tasks panel is off" : $"Tasks file: {Vm.TasksFilePath}");
     }
 
     // ---- task activation (T-0116 click behavior) ----
@@ -120,7 +120,7 @@ public partial class MainWindow
     {
         if (!task.HasTarget)
         {
-            SetStatus($"‏\"{task.Name}\" — למשימה אין workspace או sessions");
+            SetStatus($"\"{task.Name}\" — the task has no workspace and no sessions");
             return;
         }
         if (task.Sessions.Count == 0)
@@ -129,8 +129,10 @@ public partial class MainWindow
             return;
         }
 
-        var menu = new ContextMenu { FlowDirection = FlowDirection.RightToLeft };
-        var newItem = new MenuItem { Header = "+ סשן חדש" };
+        // LTR menu with English items; each item's own direction still follows its header
+        // (App.xaml MenuItem style), so a Hebrew session title renders RTL inside it.
+        var menu = new ContextMenu();
+        var newItem = new MenuItem { Header = "+ New session" };
         newItem.Click += (_, _) => StartTaskNewSession(task);
         newItem.IsEnabled = task.HasWorkspace;
         menu.Items.Add(newItem);
@@ -145,7 +147,7 @@ public partial class MainWindow
             var item = new MenuItem
             {
                 Header = (live ? "🟢 " : "▶ ") + title,
-                ToolTip = live ? "סשן פעיל — מעבר אליו" : "סשן לא רץ — פתיחה מחדש (resume)",
+                ToolTip = live ? "Live session — switch to it" : "Session not running — reopen it (resume)",
             };
             string capturedSid = sid;
             item.Click += (_, _) => OpenTaskSession(task, capturedSid);
@@ -164,7 +166,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            SetStatus($"פתיחת הקישור נכשלה: {ex.Message}");
+            SetStatus($"Opening the link failed: {ex.Message}");
         }
     }
 
@@ -180,7 +182,7 @@ public partial class MainWindow
         }
         if (!task.HasWorkspace)
         {
-            SetStatus($"‏\"{task.Name}\" — הסשן לא מוכר ולמשימה אין workspace לפתוח בו");
+            SetStatus($"\"{task.Name}\" — unknown session, and the task has no workspace to open it in");
             return;
         }
         if (Vm.FindByPath(task.WorkspacePath) is { } ws)
@@ -191,12 +193,12 @@ public partial class MainWindow
                 _pendingOpens[WorkspaceMetadata.NormalizePath(ws.Path)] = (sessionId, null, DateTime.Now);
             else if (!conn.TrySend(new { Cmd = "openSession", SessionId = sessionId, Maximize = Vm.OpenSessionMaximized }))
                 _connectors.Remove(conn);
-            SetStatus($"פותח סשן של \"{task.Name}\" ב-VSCode…");
+            SetStatus($"Opening a session of \"{task.Name}\" in VSCode…");
             return;
         }
         if (!Directory.Exists(task.WorkspacePath))
         {
-            SetStatus($"‏\"{task.Name}\" — תיקיית ה-workspace לא קיימת: {task.WorkspacePath}");
+            SetStatus($"\"{task.Name}\" — the workspace folder does not exist: {task.WorkspacePath}");
             return;
         }
         // Workspace isn't on the deck — launch VSCode directly; the extension connects and
@@ -204,17 +206,17 @@ public partial class MainWindow
         if (WindowActions.LaunchVsCode(task.WorkspacePath))
         {
             _pendingOpens[WorkspaceMetadata.NormalizePath(task.WorkspacePath)] = (sessionId, null, DateTime.Now);
-            SetStatus($"פותח VSCode עבור \"{task.Name}\" — הסשן יקום כשהחיבור יעלה");
+            SetStatus($"Launching VSCode for \"{task.Name}\" — the session will start once the connector is up");
         }
         else
-            SetStatus($"‏\"{task.Name}\" — פתיחת VSCode נכשלה");
+            SetStatus($"\"{task.Name}\" — launching VSCode failed");
     }
 
     private void StartTaskNewSession(TaskItemViewModel task)
     {
         if (!task.HasWorkspace)
         {
-            SetStatus($"‏\"{task.Name}\" — למשימה אין workspace לפתוח בו סשן");
+            SetStatus($"\"{task.Name}\" — the task has no workspace to open a session in");
             return;
         }
         string? prompt = BuildNewSessionPrompt(task);
@@ -225,16 +227,16 @@ public partial class MainWindow
         }
         if (!Directory.Exists(task.WorkspacePath))
         {
-            SetStatus($"‏\"{task.Name}\" — תיקיית ה-workspace לא קיימת: {task.WorkspacePath}");
+            SetStatus($"\"{task.Name}\" — the workspace folder does not exist: {task.WorkspacePath}");
             return;
         }
         if (WindowActions.LaunchVsCode(task.WorkspacePath))
         {
             _pendingOpens[WorkspaceMetadata.NormalizePath(task.WorkspacePath)] = (null, prompt, DateTime.Now);
-            SetStatus($"פותח VSCode עבור \"{task.Name}\" — סשן חדש ייפתח כשהחיבור יעלה");
+            SetStatus($"Launching VSCode for \"{task.Name}\" — a new session will open once the connector is up");
         }
         else
-            SetStatus($"‏\"{task.Name}\" — פתיחת VSCode נכשלה");
+            SetStatus($"\"{task.Name}\" — launching VSCode failed");
     }
 
     /// <summary>newSessionPrompt from the file's envelope with &lt;id&gt;/&lt;name&gt;

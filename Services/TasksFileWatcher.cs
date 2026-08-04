@@ -33,7 +33,7 @@ public sealed class TasksFileWatcher : IDisposable
         {
             // No folder to watch — report once; a later fix requires re-applying the path.
             _dispatcher.BeginInvoke(() =>
-                _onLoaded(TasksLoadResult.Error($"התיקייה של הקובץ לא קיימת: {dir ?? _path}")));
+                _onLoaded(TasksLoadResult.Error($"The file's folder does not exist: {dir ?? _path}")));
             return;
         }
 

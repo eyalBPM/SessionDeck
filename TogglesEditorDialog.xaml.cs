@@ -29,8 +29,8 @@ public partial class TogglesEditorDialog : Window
         public bool IdLocked { get; init; }
 
         public string IdHint => IdLocked
-            ? "המזהה נקבע ביצירה ואינו ניתן לשינוי — תהליכים חיצוניים מסתמכים על הנתיב הזה"
-            : "שם קובץ ה-flag. ייקבע סופית עם האישור";
+            ? "The id is set on creation and cannot be changed — external processes rely on this path"
+            : "The flag file name. Fixed once you confirm";
 
         private string _id = "";
         public string Id
@@ -80,7 +80,7 @@ public partial class TogglesEditorDialog : Window
         string id = ToggleStore.Sanitize(row.Id.Trim());
         if (id.Length == 0)
         {
-            Warn("קודם תן למתג מזהה (id) — הוא שם קובץ ה-flag");
+            Warn("Give the toggle an id first — it is the flag file name");
             return;
         }
         string path = Path.Combine(ToggleStore.Dir, id);
@@ -89,8 +89,8 @@ public partial class TogglesEditorDialog : Window
         DetailsId.Text = id;
         DetailsPath.Text = path;
         DetailsState.Text = File.Exists(path)
-            ? $"{(ToggleStore.Read(id, row.DefaultOn) ? "1 (דלוק)" : "0 (כבוי)")}"
-            : $"אין עדיין קובץ — ברירת המחדל ({(row.DefaultOn ? "1 / דלוק" : "0 / כבוי")}) תיכתב עם האישור";
+            ? $"{(ToggleStore.Read(id, row.DefaultOn) ? "1 (on)" : "0 (off)")}"
+            : $"No file yet — the default ({(row.DefaultOn ? "1 / on" : "0 / off")}) will be written on OK";
         DetailsCli.Text = $"sessiondeck toggle get {id}\r\n" +
                           $"sessiondeck toggle set {id} on\r\n" +
                           $"sessiondeck toggle set {id} off";
@@ -140,7 +140,7 @@ public partial class TogglesEditorDialog : Window
         }
         catch
         {
-            Warn("ההעתקה ללוח נכשלה — נסה שוב");
+            Warn("Copying to the clipboard failed — try again");
         }
     }
 
@@ -158,12 +158,12 @@ public partial class TogglesEditorDialog : Window
             if (id.Length == 0 && name.Length == 0) continue;
             if (id.Length == 0)
             {
-                Warn($"מתג \"{name}\" חסר מזהה (id) — המזהה הוא שם קובץ ה-flag");
+                Warn($"Toggle \"{name}\" has no id — the id is the flag file name");
                 return;
             }
             if (!seen.Add(id))
             {
-                Warn($"המזהה \"{id}\" מופיע יותר מפעם אחת");
+                Warn($"The id \"{id}\" appears more than once");
                 return;
             }
             result.Add(new CustomToggleConfig
@@ -178,8 +178,8 @@ public partial class TogglesEditorDialog : Window
         DialogResult = true;
     }
 
-    // RtlReading: the message text is Hebrew, so the OS dialog must lay out RTL too.
+    // LTR: the message frame is English. A Hebrew toggle name embedded in it still renders
+    // correctly — the bidi algorithm handles the RTL run inside an LTR paragraph.
     private void Warn(string message)
-        => MessageBox.Show(this, message, "מתגים (Flags)", MessageBoxButton.OK, MessageBoxImage.Warning,
-            MessageBoxResult.OK, MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
+        => MessageBox.Show(this, message, "Toggles (flags)", MessageBoxButton.OK, MessageBoxImage.Warning);
 }

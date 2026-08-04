@@ -171,7 +171,7 @@ public static class TranscriptReader
                             string? id = block.TryGetProperty("id", out var i) ? i.GetString() : null;
                             if (name == null || id == null || resolved.Contains(id)) continue;
                             bool isAsk = AskTools.Contains(name);
-                            string detail = isAsk ? AskDetail(name, block) : $"ממתין לאישור הרשאה: {name}";
+                            string detail = isAsk ? AskDetail(name, block) : $"Waiting for permission: {name}";
                             pending[id] = new PendingCall(name, detail, stamp, isAsk);
                             order.Add(id);
                         }
@@ -211,7 +211,7 @@ public static class TranscriptReader
     /// <summary>Card text for a pending question: the question itself when available.</summary>
     private static string AskDetail(string toolName, JsonElement block)
     {
-        if (toolName == "ExitPlanMode") return "ממתין לאישור התוכנית";
+        if (toolName == "ExitPlanMode") return "Waiting for plan approval";
         try
         {
             if (block.TryGetProperty("input", out var input) &&
@@ -223,7 +223,7 @@ public static class TranscriptReader
                 return text;
         }
         catch { }
-        return "ממתין לתשובה על שאלה";
+        return "Waiting for an answer to a question";
     }
 
     /// <summary>Case-insensitive text search over the raw transcript lines (search

@@ -27,7 +27,7 @@ public partial class ZoneSizeDialog : Window
     {
         if (PreviewText == null || OkButton == null) return;   // during InitializeComponent
         bool ok = ZoneSizeParser.TryParse(SizeBox.Text, out double f);
-        PreviewText.Text = ok ? $"= {f * 100:0.#}% מרוחב המסך" : "ערך לא חוקי";
+        PreviewText.Text = ok ? $"= {f * 100:0.#}% of the screen width" : "Invalid value";
         OkButton.IsEnabled = ok;
     }
 

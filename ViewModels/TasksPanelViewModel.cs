@@ -93,7 +93,7 @@ public sealed class TasksPanelViewModel : INotifyPropertyChanged
         OtherTasks.Clear();
         if (result.Document is not { } doc)
         {
-            ErrorText = result.FileError ?? "שגיאה לא ידועה";
+            ErrorText = result.FileError ?? "Unknown error";
             WarningText = "";
             GeneratedText = "";
             NewSessionPrompt = null;
@@ -110,7 +110,7 @@ public sealed class TasksPanelViewModel : INotifyPropertyChanged
         }
         ShowSeparator = PinnedTasks.Count > 0 && OtherTasks.Count > 0;
         WarningText = result.RecordWarnings.Count == 0 ? ""
-            : $"‏{result.RecordWarnings.Count} רשומות לא נטענו: " + string.Join("; ", result.RecordWarnings);
+            : $"{result.RecordWarnings.Count} records were not loaded: " + string.Join("; ", result.RecordWarnings);
     }
 
     public void Clear()
@@ -127,7 +127,7 @@ public sealed class TasksPanelViewModel : INotifyPropertyChanged
     private static string FormatGenerated(string? iso)
     {
         if (string.IsNullOrWhiteSpace(iso)) return "";
-        return DateTimeOffset.TryParse(iso, out var dt) ? $"עודכן {dt.LocalDateTime:HH:mm dd.MM}" : "";
+        return DateTimeOffset.TryParse(iso, out var dt) ? $"updated {dt.LocalDateTime:HH:mm dd.MM}" : "";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -39,7 +39,7 @@
     </UserControl.Style>
     <Border Background="#FF1B1B1B" BorderBrush="#FF2E2E2E" BorderThickness="1,0,0,0">
         <DockPanel Margin="5,4">
-            <Button DockPanel.Dock="Top" Content="📋" FontSize="14" ToolTip="דף המשימות"
+            <Button DockPanel.Dock="Top" Content="📋" FontSize="14" ToolTip="Tasks page"
                     Background="Transparent" Foreground="White" BorderThickness="0"
                     Padding="2,3" Cursor="Hand" Click="OpenPage_Click"
                     IsEnabled="{Binding TasksPanel.PageButtonEnabled}">

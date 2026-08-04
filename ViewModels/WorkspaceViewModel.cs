@@ -102,7 +102,7 @@ public sealed class WorkspaceViewModel : INotifyPropertyChanged
     public IReadOnlyList<string> ClaudeTabLabels => _claudeTabLabels;
     public int ClaudeTabCount => _claudeTabLabels.Count;
     public bool HasClaudeTabs => _claudeTabLabels.Count > 0;
-    public string ClaudeTabsTooltip => "טאבים פתוחים של Claude Code:" + Environment.NewLine +
+    public string ClaudeTabsTooltip => "Open Claude Code tabs:" + Environment.NewLine +
                                        string.Join(Environment.NewLine, _claudeTabLabels);
 
     public void SetClaudeTabs(List<string> labels)

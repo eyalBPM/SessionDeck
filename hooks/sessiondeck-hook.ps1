@@ -1,5 +1,5 @@
 ﻿# SessionDeck hook bridge for Claude Code (SPEC stage C).
-# Version: 0.8.1  (parsed by install.ps1 — keep in sync with SessionDeck.csproj; release.ps1 syncs automatically)
+# Version: 0.9.0  (parsed by install.ps1 — keep in sync with SessionDeck.csproj; release.ps1 syncs automatically)
 # Called by Claude Code hooks with the event name as argument; the hook payload
 # (session_id, cwd, transcript_path, permission_mode + event-specific fields)
 # arrives as JSON on stdin. Everything the payload provides is forwarded to
@@ -78,7 +78,7 @@ switch ($HookEvent) {
     'PermissionRequest' {
         $cliArgs = @('session', 'status', '--id', $sid, '--state', 'waiting')
         $detail = Get-Trimmed (Get-PermissionSubject $payload)
-        if (-not $detail)             { $detail = 'ממתין לאישור הרשאה' }
+        if (-not $detail)             { $detail = 'Waiting for permission' }
         $cliArgs += @('--detail', $detail, '--permission-dialog')
     }
     'Stop' {
@@ -97,7 +97,7 @@ switch ($HookEvent) {
     'Elicitation' {
         $cliArgs = @('session', 'status', '--id', $sid, '--state', 'waiting')
         $detail = Get-Trimmed ($payload.message, $payload.prompt | Where-Object { $_ } | Select-Object -First 1)
-        if (-not $detail)             { $detail = 'שרת MCP ממתין לקלט' }
+        if (-not $detail)             { $detail = 'An MCP server is waiting for input' }
         $cliArgs += @('--detail', $detail)
     }
     'ElicitationResult' {
@@ -110,9 +110,9 @@ switch ($HookEvent) {
     'PreToolUse' {
         if ($payload.tool_name -notin @('AskUserQuestion', 'ExitPlanMode')) { exit 0 }
         $cliArgs = @('session', 'status', '--id', $sid, '--state', 'waiting')
-        $detail = if ($payload.tool_name -eq 'ExitPlanMode') { 'ממתין לאישור התוכנית' }
+        $detail = if ($payload.tool_name -eq 'ExitPlanMode') { 'Waiting for plan approval' }
                   else { Get-Trimmed $payload.tool_input.questions[0].question }
-        if (-not $detail)             { $detail = 'ממתין לתשובה על שאלה' }
+        if (-not $detail)             { $detail = 'Waiting for an answer to a question' }
         $cliArgs += @('--detail', $detail)
     }
     'PostToolUse' {

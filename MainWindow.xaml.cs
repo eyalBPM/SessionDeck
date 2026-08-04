@@ -369,7 +369,7 @@ public partial class MainWindow : Window
         ApplyDeckVisibility();
         SortWorkspaces();
         QueueSave();
-        SetStatus(ws.Hidden ? $"‏\"{ws.DisplayTitle}\" הוסתר (👁 מוסתרים כדי להציג)" : $"‏\"{ws.DisplayTitle}\" מוצג שוב");
+        SetStatus(ws.Hidden ? $"\"{ws.DisplayTitle}\" hidden (👁 shows hidden ones)" : $"\"{ws.DisplayTitle}\" shown again");
     }
 
     public void EditWorkspace(WorkspaceViewModel ws)
@@ -495,8 +495,8 @@ public partial class MainWindow : Window
            || !string.IsNullOrEmpty(s.TabTitle) || !string.IsNullOrEmpty(s.AutoTitle);
 
     /// <summary>Close sessions whose host died without a SessionEnd hook. Two shapes:
-    /// (א) the workspace's VSCode window is gone — an update/crash kill skips the hooks
-    /// entirely; (ב) the window is up but no tab answers to the session's titles — a
+    /// (a) the workspace's VSCode window is gone — an update/crash kill skips the hooks
+    /// entirely; (b) the window is up but no tab answers to the session's titles — a
     /// restored-then-closed tab was never a live session, so closing it fires nothing.
     /// Both are invisible to the phantom sweep (status isn't idle, the transcript exists).
     /// The close waits out OrphanSessionTtl on both the condition and total silence.</summary>
@@ -950,7 +950,7 @@ public partial class MainWindow : Window
                 _contentMatches.Clear();
                 foreach (var m in matches) _contentMatches.Add(m);
                 ApplySearchVisibility();
-                SetStatus($"חיפוש בתוכן: {matches.Count} sessions מכילים \"{query}\"");
+                SetStatus($"Content search: {matches.Count} sessions contain \"{query}\"");
             });
         }, cts.Token);
     }
@@ -1051,7 +1051,7 @@ public partial class MainWindow : Window
             w.State == BindState.Disconnected && SafeIsMatch(title, w.TitlePattern));
         if (ws == null) return;
         Bind(ws, hwnd, title, process);
-        SetStatus($"‏\"{ws.DisplayTitle}\" התחבר לחלון: {title}");
+        SetStatus($"\"{ws.DisplayTitle}\" bound to window: {title}");
     }
 
     /// <summary>Drag-in (SPEC decision 21.3, secondary channel): only VSCode windows,
@@ -1066,7 +1066,7 @@ public partial class MainWindow : Window
         IntPtr root = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
         if (Vm.FindByHwnd(root) != null)
         {
-            SetStatus("החלון הזה כבר קשור ל-workspace בלוח");
+            SetStatus("That window is already bound to a workspace on the deck");
             return;
         }
         if (!WindowEnumerator.IsEligible(root, Environment.ProcessId)) return;
@@ -1074,7 +1074,7 @@ public partial class MainWindow : Window
         string process = WindowEnumerator.GetProcessName(root);
         if (!WorkspaceMetadata.IsVsCodeProcess(process))
         {
-            SetStatus("רק חלונות VSCode נתמכים בלוח (החלטה 13)");
+            SetStatus("Only VSCode windows are supported on the deck (decision 13)");
             return;
         }
 
@@ -1085,14 +1085,14 @@ public partial class MainWindow : Window
         string name = WorkspaceNameFromTitle(title);
         if (name.Length == 0)
         {
-            SetStatus("לא זוהה שם workspace בכותרת החלון");
+            SetStatus("No workspace name could be read from the window title");
             return;
         }
         var ws = new WorkspaceViewModel { Id = Vm.NextWorkspaceId++, Name = name };
         Vm.Workspaces.Add(ws);
         Bind(ws, root, title, process);
         ApplyDeckVisibility();
-        SetStatus($"נוסף workspace ‏\"{name}\" (גרירה; הנתיב יתמלא מה-hook הראשון)");
+        SetStatus($"Workspace \"{name}\" added (drag-and-drop; the path fills in from the first hook)");
     }
 
     /// <summary>"file - {workspace} - Visual Studio Code" → workspace segment (SPEC §6.6).</summary>
@@ -1215,7 +1215,7 @@ public partial class MainWindow : Window
             }
             var (created, err) = AddWorkspaceFromPath(workspaceArg);
             if (created == null) error = err;
-            else SetStatus($"נוצר workspace ‏\"{created.DisplayTitle}\" מ-hook (cwd)");
+            else SetStatus($"Workspace \"{created.DisplayTitle}\" created from a hook (cwd)");
             return created;
         }
 
@@ -1374,11 +1374,11 @@ public partial class MainWindow : Window
         // (issue 2026-07-19 — e.g. sessions from before a folder rename). Don't send.
         if (!CanResume(ws, session))
         {
-            SetStatus($"‏\"{session.DisplayTitle}\" — קובץ הסשן לא נמצא (הפרויקט שינה שם/מיקום?); פתיחה תיצור שיחה חדשה, לכן בוטלה");
+            SetStatus($"\"{session.DisplayTitle}\" — session file not found (did the project move or get renamed?); opening it would start a new conversation, so it was cancelled");
             return;
         }
         var (sent, _) = OpenSessionInVscode(ws, session);
-        if (sent) SetStatus($"פותח את הסשן ב-VSCode: {session.DisplayTitle}");
+        if (sent) SetStatus($"Opening the session in VSCode: {session.DisplayTitle}");
     }
 
     /// <summary>Resume looks the id up in the workspace's CURRENT transcripts folder — a
@@ -1593,7 +1593,7 @@ public partial class MainWindow : Window
         {
             if (ws.Path.Length > 0)
                 _pendingOpens[WorkspaceMetadata.NormalizePath(ws.Path)] = (null, prompt, DateTime.Now);
-            SetStatus($"‏VSCode נפתח — סשן חדש ייפתח כשהחיבור יעלה");
+            SetStatus("VSCode is starting — the new session will open once the connector is up");
             return (false, "no VSCode connector yet — request queued");
         }
         if (!conn.TrySend(new { Cmd = "newSession", Prompt = prompt, Maximize = Vm.OpenSessionMaximized }))
@@ -1601,7 +1601,7 @@ public partial class MainWindow : Window
             _connectors.Remove(conn);
             return (false, "connector connection lost");
         }
-        SetStatus($"פותח סשן חדש ב-\"{ws.DisplayTitle}\"");
+        SetStatus($"Opening a new session in \"{ws.DisplayTitle}\"");
         return (true, "");
     }
 
@@ -1616,13 +1616,13 @@ public partial class MainWindow : Window
             {
                 if (WindowActions.LaunchVsCode(ws.Path))
                 {
-                    SetStatus($"פותח VSCode עבור \"{ws.DisplayTitle}\"...");
+                    SetStatus($"Launching VSCode for \"{ws.DisplayTitle}\"...");
                     return (true, $"launching VSCode for workspace {ws.Id}");
                 }
-                SetStatus($"‏\"{ws.DisplayTitle}\" — פתיחת VSCode נכשלה");
+                SetStatus($"\"{ws.DisplayTitle}\" — launching VSCode failed");
                 return (false, $"failed to launch VSCode for workspace {ws.Id}");
             }
-            SetStatus($"‏\"{ws.DisplayTitle}\" — אין חלון פתוח ואין נתיב תיקייה");
+            SetStatus($"\"{ws.DisplayTitle}\" — no open window and no folder path");
             return (false, $"workspace {ws.Id} has no bound window and no path");
         }
         WindowActions.Focus(ws.Hwnd);
@@ -1635,11 +1635,11 @@ public partial class MainWindow : Window
     {
         if (ws.State != BindState.Connected || !NativeMethods.IsWindow(ws.Hwnd))
         {
-            SetStatus($"‏\"{ws.DisplayTitle}\" — אין חלון פתוח לסגירה");
+            SetStatus($"\"{ws.DisplayTitle}\" — no open window to close");
             return;
         }
         WindowActions.Close(ws.Hwnd);
-        SetStatus($"סוגר את חלון ה-VSCode של \"{ws.DisplayTitle}\"...");
+        SetStatus($"Closing the VSCode window of \"{ws.DisplayTitle}\"...");
     }
 
     public (bool, string) PinWorkspace(WorkspaceViewModel ws)
@@ -1707,7 +1707,7 @@ public partial class MainWindow : Window
     ///
     /// Nothing escalates while the deck has focus — the user is looking straight at the
     /// blink, and a toast over the window you are already reading is the kind of false
-    /// alarm that makes people mute the app. The ⚙ menu's "התראות Windows" switch turns
+    /// alarm that makes people mute the app. The ⚙ menu's "Windows notifications" switch turns
     /// the whole mechanism off regardless.
     /// </summary>
     private void UpdateAttentionEscalation()
@@ -1750,9 +1750,11 @@ public partial class MainWindow : Window
     private static string AttentionText(IReadOnlyList<(WorkspaceViewModel Ws, SessionViewModel S)> items)
     {
         var (ws, s) = items[0];
-        // RLM keeps the mixed Hebrew/Latin line laid out right-to-left in the shell's balloon.
-        string first = $"‏{ws.DisplayTitle} — {s.DisplayTitle}: {AttentionWord(s.Status)}";
-        return items.Count == 1 ? first : $"{first}{Environment.NewLine}‏ועוד {items.Count - 1}";
+        // The line is an English frame around names that are often Hebrew. A leading LRM
+        // pins the paragraph to LTR, so a Hebrew workspace title can't flip the whole
+        // balloon line right-to-left in the shell; the name itself still renders RTL.
+        string first = $"‎{ws.DisplayTitle} — {s.DisplayTitle}: {AttentionWord(s.Status)}";
+        return items.Count == 1 ? first : $"{first}{Environment.NewLine}and {items.Count - 1} more";
     }
 
     /// <summary>Badge colour comes from the same StatusStyles map as the card border, so a
@@ -1763,9 +1765,9 @@ public partial class MainWindow : Window
 
     private static string AttentionWord(SessionStatus status) => status switch
     {
-        SessionStatus.Waiting => "ממתין לך",
-        SessionStatus.Done => "סיים",
-        SessionStatus.Error => "שגיאה",
+        SessionStatus.Waiting => "waiting for you",
+        SessionStatus.Done => "finished",
+        SessionStatus.Error => "error",
         _ => SessionStatusNames.ToName(status),
     };
 
@@ -1836,9 +1838,9 @@ public partial class MainWindow : Window
             foreach (var m in _monitors) combo.Items.Add(m.DisplayName);
         }
         ZoneModeCombo.Items.Clear();
-        foreach (var name in new[] { "כבוי", "רבע שמאל", "חצי שמאל", "חצי ימין", "רבע ימין", "מסך מלא", "מותאם שמאל…", "מותאם ימין…" }) ZoneModeCombo.Items.Add(name);
+        foreach (var name in new[] { "Off", "Left quarter", "Left half", "Right half", "Right quarter", "Full screen", "Custom left…", "Custom right…" }) ZoneModeCombo.Items.Add(name);
         StageModeCombo.Items.Clear();
-        foreach (var name in new[] { "מסך מלא", "חצי שמאל", "חצי ימין", "מלבן (CLI)" }) StageModeCombo.Items.Add(name);
+        foreach (var name in new[] { "Full screen", "Left half", "Right half", "Rect (CLI)" }) StageModeCombo.Items.Add(name);
         StartupMenuItem.IsChecked = StartupService.IsEnabled();
         VersionMenuItem.Header = $"SessionDeck v{GetType().Assembly.GetName().Version?.ToString(3)}";
         MaximizeSessionMenuItem.IsChecked = Vm.OpenSessionMaximized;
@@ -1854,8 +1856,8 @@ public partial class MainWindow : Window
         _syncingUi = true;
         ZoneMonitorCombo.SelectedIndex = Vm.ZoneMonitor;
         // The custom items display the active size; refresh their text before re-selecting.
-        ZoneModeCombo.Items[(int)ZoneMode.CustomLeft] = $"מותאם שמאל ({Vm.ZoneSize})…";
-        ZoneModeCombo.Items[(int)ZoneMode.CustomRight] = $"מותאם ימין ({Vm.ZoneSize})…";
+        ZoneModeCombo.Items[(int)ZoneMode.CustomLeft] = $"Custom left ({Vm.ZoneSize})…";
+        ZoneModeCombo.Items[(int)ZoneMode.CustomRight] = $"Custom right ({Vm.ZoneSize})…";
         ZoneModeCombo.SelectedIndex = (int)Vm.ZoneMode;
         StageMonitorCombo.SelectedIndex = Vm.StageMonitor;
         StageModeCombo.SelectedIndex = (int)Vm.StageMode;
@@ -1903,7 +1905,7 @@ public partial class MainWindow : Window
         if (mode == StageMode.Rect && Vm.StageRect == null)
         {
             // Custom rect can only be defined via CLI (sessiondeck stage --rect x,y,w,h).
-            SetStatus("מלבן מותאם מוגדר רק דרך CLI: sessiondeck stage --rect x,y,w,h");
+            SetStatus("A custom rect can only be set from the CLI: sessiondeck stage --rect x,y,w,h");
             SyncCombosFromVm();
             return;
         }
@@ -1916,11 +1918,11 @@ public partial class MainWindow : Window
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = "בחר תיקיית פרויקט (workspace)",
+            Title = "Select a project folder (workspace)",
         };
         if (dialog.ShowDialog(this) != true) return;
         var (ws, err) = AddWorkspaceFromPath(dialog.FolderName);
-        SetStatus(ws != null ? $"נוסף workspace ‏\"{ws.DisplayTitle}\"" : err!);
+        SetStatus(ws != null ? $"Workspace \"{ws.DisplayTitle}\" added" : err!);
     }
 
     private void ShowHidden_Changed(object sender, RoutedEventArgs e)
@@ -1976,7 +1978,7 @@ public partial class MainWindow : Window
         _customToggleConfigs = dialog.Result;
         LoadCustomToggles();
         QueueSave();
-        SetStatus($"מתגים עודכנו ({_customToggleConfigs.Count})");
+        SetStatus($"Toggles updated ({_customToggleConfigs.Count})");
     }
 
     private void MaximizeSessionMenuItem_Click(object sender, RoutedEventArgs e)
@@ -2000,7 +2002,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SetStatus("שגיאה בעדכון ה-startup: " + ex.Message);
+            SetStatus("Failed to update the startup entry: " + ex.Message);
             StartupMenuItem.IsChecked = StartupService.IsEnabled();
         }
     }

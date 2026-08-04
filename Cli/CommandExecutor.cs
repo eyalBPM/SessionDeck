@@ -236,7 +236,7 @@ public sealed class CommandExecutor
         if (sub == "list")
         {
             if (Vm.CustomToggles.Count == 0)
-                return Ok("(no toggles — add them via the settings menu: מתגים (Flags))");
+                return Ok("(no toggles — add them from the settings menu: Toggles (flags))");
             return Ok(string.Join(Environment.NewLine,
                 Vm.CustomToggles.Select(t => $"{t.Id}  {(t.Enabled ? "on " : "off")}  {t.Name}")));
         }
