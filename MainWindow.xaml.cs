@@ -610,7 +610,24 @@ public partial class MainWindow : Window
     {
         if (session.Closed) return false;
         var call = session.PendingCall;
-        bool blocked = call != null && (call.IsAsk || IsAgedPermissionDialog(call));
+
+        // A PermissionRequest hook reported an open dialog. PendingCall may not show it
+        // yet — the scan is driven by the transcript's mtime, and the transcript stops
+        // growing exactly while a dialog is open, so the read can lag a tick or more.
+        // Clearing on that stale null is what made v0.8.0 blink back to blue while the
+        // user was still blocked. Hold until the call is actually observed; a subagent's
+        // call is filtered out (isSidechain) and never will be, so that one is left for
+        // the Stop hook. WaitingFromTranscript doubles as the "was observed" marker.
+        if (session.PermissionDialogOpen)
+        {
+            if (call == null && !session.WaitingFromTranscript) return false;
+            if (call == null) session.PermissionDialogOpen = false;   // observed, then resolved
+        }
+
+        // A hook-confirmed dialog needs no ageing — that guesswork is exactly what the
+        // hook replaces.
+        bool blocked = call != null &&
+                       (call.IsAsk || session.PermissionDialogOpen || IsAgedPermissionDialog(call));
 
         if (blocked)
         {
@@ -1234,11 +1251,12 @@ public partial class MainWindow : Window
         if (prev != status)
             LogService.Info("status", $"session={sessionId} {SessionStatusNames.ToName(prev)}→{SessionStatusNames.ToName(status)} ws=\"{ws.DisplayTitle}\"");
         // PermissionRequest fires when the dialog opens, but Claude Code has no matching
-        // "resolved" event — so hand the clearing to the transcript scanner, which sees the
-        // tool_result arrive. Safe because the tool_use is already in the transcript when
-        // the hook lands (measured 2026-08-04: written ~0.5s before it fires).
+        // "resolved" event — so the clearing is handed to the transcript scanner, which
+        // sees the tool_result arrive. Not WaitingFromTranscript directly: that let the
+        // very next tick clear the wait off a PendingCall the scanner had not read yet
+        // (v0.8.0 blinked orange→blue→orange). EvaluatePendingWait promotes this.
         if (status == SessionStatus.Waiting && info.PermissionDialog)
-            session.WaitingFromTranscript = true;
+            session.PermissionDialogOpen = true;
         ApplyHookInfo(session, info);
         LearnTranscriptDir(ws, info);
         RefreshPhantom(session);

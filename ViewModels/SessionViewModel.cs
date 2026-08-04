@@ -82,6 +82,12 @@ public sealed class SessionViewModel : INotifyPropertyChanged, IBlinkable
     /// Runtime only.</summary>
     public bool WaitingFromTranscript { get; set; }
 
+    /// <summary>A PermissionRequest hook reported an open approval dialog that the
+    /// transcript scanner has not corroborated yet. Blocks the scanner from clearing the
+    /// wait off a PendingCall it simply hasn't read — see EvaluatePendingWait. Runtime
+    /// only (T-0318).</summary>
+    public bool PermissionDialogOpen { get; set; }
+
     /// <summary>Last unanswered tool call seen in the transcript, kept between scans so a
     /// permission dialog can be aged past the threshold. The transcript stops changing
     /// while a dialog is open, so re-reading the file would never notice — the clock has
