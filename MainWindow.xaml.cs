@@ -423,12 +423,33 @@ public partial class MainWindow : Window
         s.Phantom = phantom;
     }
 
+    /// <summary>A session the deck only ever heard about through events that carried no
+    /// transcript path at all — hand-driven CLI calls (hooks/README.md) and the cwd safety
+    /// net can both produce one. Nothing to scan, nothing to resume, and unreachable by
+    /// every existing sweep: RefreshPhantom needs a declared path, NeverMaterialized
+    /// returns false without one, and the orphan sweep can't correlate a titleless session
+    /// while VSCode is open. Result: a card that outlived VSCode, restarts and the 15-minute
+    /// orphan TTL (issue 2026-08-04, session "s1").
+    /// Silence — not status — is the guard: while events keep arriving it stays, so the CLI
+    /// sequence in hooks/README.md still drives a visible card.</summary>
+    private static bool Ghost(SessionViewModel s)
+        => !s.Closed && s.TranscriptPath is not { Length: > 0 }
+           && string.IsNullOrEmpty(s.CustomTitle) && string.IsNullOrEmpty(s.TabTitle)
+           && string.IsNullOrEmpty(s.AutoTitle) && s.Description.Length == 0
+           && DateTime.Now - (s.LastEventAt ?? s.StartedAt) > PhantomSessionTtl;
+
     private void RefreshPhantomSessions()
     {
         bool anyChanged = false;
         foreach (var ws in Vm.Workspaces)
         {
             bool changed = false;
+            foreach (var s in ws.Sessions.Where(Ghost).ToList())
+            {
+                LogService.Info("status", $"session={s.SessionId} removed (no transcript, silent) ws=\"{ws.DisplayTitle}\"");
+                ws.Sessions.Remove(s);
+                changed = true;
+            }
             foreach (var s in ws.Sessions.Where(s => s.Phantom).ToList())
             {
                 RefreshPhantom(s);
@@ -1292,14 +1313,16 @@ public partial class MainWindow : Window
         return ($"session {sessionId} → {SessionStatusNames.ToName(status)}", true);
     }
 
-    /// <summary>A session whose declared transcript file was never written and that has no
+    /// <summary>A session whose transcript file was never written and that has no
     /// titles — an empty conversation VSCode spins up eagerly (issue 2026-07-26). Nothing
     /// to display or resume, so on close it is dropped rather than archived.</summary>
     private static bool NeverMaterialized(SessionViewModel s)
     {
         if (!string.IsNullOrEmpty(s.CustomTitle) || !string.IsNullOrEmpty(s.TabTitle) ||
             !string.IsNullOrEmpty(s.AutoTitle) || s.Description.Length > 0) return false;
-        if (s.TranscriptPath is not { Length: > 0 } path) return false;
+        // No path at all is the same verdict, not an exemption — it used to return false
+        // here, which archived titleless ghosts as "session <id>" forever (issue 2026-08-04).
+        if (s.TranscriptPath is not { Length: > 0 } path) return true;
         try { return !File.Exists(path); } catch { return false; }
     }
 

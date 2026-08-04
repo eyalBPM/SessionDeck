@@ -151,3 +151,7 @@ if ((Test-Path $flag) -and ((Get-Content $flag -Raw).Trim() -eq '0')) { exit 0 }
   & $exe session status --id test1 --state done
   & $exe session end    --id test1 --reason other
   ```
+  A hand-driven session like this carries no `--transcript`, so the deck has nothing to
+  scan, correlate or resume for it. Since v0.9.4 such a session is removed once it has
+  been titleless and silent for 30 minutes — skipping the `session end` above leaves the
+  card up for that long, not forever.
