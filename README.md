@@ -8,7 +8,7 @@ SessionDeck tiles every VSCode window into a live grid and shows each Claude Cod
 
 ![The SessionDeck window: four workspace cards, each with a live thumbnail and its sessions](assets/screenshots/deck.png)
 
-> Status: actively developed, `v0.9.3`. MIT licensed.
+> Status: actively developed, `v0.9.4`. MIT licensed.
 
 ---
 
