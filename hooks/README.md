@@ -7,18 +7,32 @@
 | `SessionStart` | `session start` | idle (אפור) | ‏`cwd` (יוצר workspace אם צריך), `source` ‏(startup/resume/clear/compact) |
 | `UserPromptSubmit` | `session status --state working` | כחול קבוע | ה-**prompt** עצמו (`--detail`, מקוצר ל-400 תווים) |
 | `Notification` | `session status --state waiting` | כתום מהבהב | הודעת ההמתנה (`--detail` — למשל "needs your permission to use Bash") |
+| `PermissionRequest` | `session status --state waiting --permission-dialog` | כתום מהבהב | הכלי והארגומנט שלו (`--detail` — למשל `Write: C:\Windows\Temp\x.txt`) |
 | `Stop` | `session status --state done` | ירוק מהבהב → קבוע בלחיצה | |
-| `PreToolUse` ‏(AskUserQuestion / ExitPlanMode) | `session status --state waiting` | כתום מהבהב | טקסט השאלה / "ממתין לאישור התוכנית" — טפסי שאלות לא מפעילים Notification (תיקון 2026-07-19) |
+| `StopFailure` | `session status --state error` | אדום | הודעת השגיאה שהפילה את התור |
+| `PreToolUse` ‏(AskUserQuestion / ExitPlanMode) | `session status --state waiting` | כתום מהבהב | טקסט השאלה / "ממתין לאישור התוכנית" — טפסי שאלות אינם בקשת הרשאה ולכן לא מפעילים `PermissionRequest` |
 | `PostToolUse` ‏(אותם כלים) | `session status --state working` | כחול קבוע | המשתמש ענה — Claude ממשיך לעבוד |
+| `Elicitation` | `session status --state waiting` | כתום מהבהב | בקשת קלט משרת MCP — חסימה אמיתית שלא מייצרת `tool_use`, ולכן הסורק עיוור אליה |
+| `ElicitationResult` | `session status --state working` | כחול קבוע | המשתמש ענה לשרת ה-MCP |
 | `SessionEnd` | `session end` | הכרטיס נסגר | ‏`reason` ‏(clear/logout/prompt_input_exit/other) |
 
 בנוסף, בכל אירוע מועברים (כשקיימים): `transcript_path` ו-`permission_mode`.
 
-### ⚠️ ה-hooks לא מספיקים ב-VSCode — זיהוי "ממתין" מה-transcript ‏(v0.6.17)
+מתוך **31** אירועי ה-hook שקיימים ב-Claude Code (הרשימה המחייבת היא ה-JSON schema של `settings.json` עצמו) SessionDeck רושם את 11 האלה. השאר אינם רלוונטיים למצב הסשן: או שאינם משנים אותו (`InstructionsLoaded`, ‏`MessageDisplay`, ‏`FileChanged`, ‏`ConfigChange`), או שהם מכוסים כבר בעקיפין (`PreCompact`/`PostCompact` — `SessionStart` מגיע עם `source: compact`), או שהם שייכים לזרימות שאינן בשימוש כאן (`WorktreeCreate`, ‏`TeammateIdle`, ‏`TaskCreated`).
 
-ב-**UI המובנה של תוסף Claude Code ב-VSCode** (להבדיל מהטרמינל) האירועים `Notification` ו-`PostToolUse` **לא נורים בפועל**. התוצאה: כשקלוד עצר והמתין לתשובה על שאלה, הכרטיס נשאר כחול "working" במקום כתום מהבהב (תקלה 2026-07-20).
+### זיהוי "ממתין" מה-transcript — מה עוד נדרש מעבר ל-hooks
 
-לכן SessionDeck **לא מסתמך על hooks בלבד** לזיהוי המצב הזה. סורק ה-transcript (שרץ ממילא כל 10 שניות) מחפש `tool_use` **שאין לו `tool_result` תואם** — סימן בלתי-תלוי-hooks שקלוד עצר. יש שתי רמות ודאות, כי ב-transcript דיאלוג הרשאה פתוח נראה **זהה** לכלי שפשוט עדיין רץ:
+ב-**UI המובנה של תוסף Claude Code ב-VSCode** (להבדיל מהטרמינל) `Notification` **לא נורה**, ולפי אנתרופיק זו החלטה מכוונת ולא באג: הסמנטיקה שלו קשורה ל-TUI, ובמקומו ניתן `PermissionRequest`. התוצאה בזמנו הייתה שכשקלוד עצר והמתין, הכרטיס נשאר כחול "working" (תקלה 2026-07-20), ומכאן נולד סורק ה-transcript.
+
+**עדכון 2026-08-04 (T-0318, נבדק אמפירית מול Claude Code 2.1.220):**
+
+- `PermissionRequest` **כן נורה ב-VSCode**, ברגע שהדיאלוג נפתח, עם `tool_name` ו-`tool_input` מלאים. הוא **לא** נורה על קריאות שאושרו אוטומטית — כלומר אין ממנו התראות שווא.
+- `PostToolUse` **כן נורה ב-VSCode**. הקביעה ההפוכה מ-v0.6.17 כבר אינה נכונה; היא תוקנה יחד עם `PermissionRequest`.
+- ל-`PermissionRequest` **אין אירוע "resolved" מקביל** — הוא מודיע שהדיאלוג נפתח ולא שנסגר. לכן הוא נרשם עם `--permission-dialog`, ומסירת ה-`waiting` מוחזרת לסורק (`SessionViewModel.WaitingFromTranscript`). זה בטוח: ה-`tool_use` כבר נמצא ב-transcript כשה-hook נוחת (נמדד: נכתב כ-0.5 שנייה לפניו).
+
+**מה זה משנה בחלוקת העבודה:** ה-hook נותן את הקצה הנכנס — מיידי וּודאי, לכל כלי, כולל כאלה שאינם בטבלת הכיול. הסורק נותן את הקצה היוצא — הוא היחיד שרואה את ה-`tool_result` מגיע. הספים למטה ירדו מתפקיד האיתור הראשי לתפקיד **רשת ביטחון** (תוסף ישן, טרמינל, hook מכובה); כיול מחדש שלהם לאור זה טרם נעשה.
+
+הסורק (שרץ ממילא כל 10 שניות) מחפש `tool_use` **שאין לו `tool_result` תואם** — סימן בלתי-תלוי-hooks שקלוד עצר. יש שתי רמות ודאות, כי ב-transcript דיאלוג הרשאה פתוח נראה **זהה** לכלי שפשוט עדיין רץ:
 
 | מה נמצא | ודאות | מתי נצבע כתום |
 |---|---|---|
@@ -40,7 +54,7 @@
 
 - הופיעה התשובה → חזרה ל-`working`; ה-`Stop` hook ‏(שכן נורה ב-VSCode) ייקח משם ל-`done`.
 - שורות של סוכני-משנה (`isSidechain`) מסוננות — רק השיחה הראשית יכולה לחסום את המשתמש.
-- מצב `waiting` שהגיע מ-hook אמיתי לא מנוקה על ידי הסורק — רק מצב שהסורק עצמו קבע.
+- מצב `waiting` שהגיע מ-hook לא מנוקה על ידי הסורק — למעט `PermissionRequest`, שמבקש זאת במפורש דרך `--permission-dialog` כי אין לו hook שסוגר אותו.
 - הספירה רצה מול הקריאה השמורה בזיכרון ולא מול הקובץ, כי **ה-transcript קופא כל עוד הדיאלוג פתוח** — קריאה חוזרת שלו לעולם לא הייתה מבחינה בחלוף הזמן.
 - כיול ב-`%APPDATA%\SessionDeck\config.json` דרך `PermissionWaitToolSeconds` — מפה של `כלי → שניות`. רק כלים שמופיעים בה נבדקים; מפה ריקה מכבה את ההיסק לגמרי (שאלות עדיין יזוהו). להוסיף `Agent` על אחריותך.
 
@@ -50,7 +64,7 @@
 
 ## התקנה
 
-**הדרך המומלצת (v0.6.29+):** `sessiondeck install-hooks` — ממזג את שבעת ה-hooks לתוך `~/.claude/settings.json` עם הנתיב האמיתי של ההתקנה, אחרי גיבוי. אידמפוטנטי; `sessiondeck uninstall-hooks` מסיר. תומך ב-`--settings <path>` (למשל settings של פרויקט ספציפי) וב-`--dry-run`.
+**הדרך המומלצת (v0.6.29+):** `sessiondeck install-hooks` — ממזג את 11 ה-hooks לתוך `~/.claude/settings.json` עם הנתיב האמיתי של ההתקנה, אחרי גיבוי. אידמפוטנטי; `sessiondeck uninstall-hooks` מסיר. תומך ב-`--settings <path>` (למשל settings של פרויקט ספציפי) וב-`--dry-run`.
 
 **התקנה ידנית (reference):** הוסף ל-`~/.claude/settings.json` — החלף את `D:\Eyal\SessionDeck\hooks` בנתיב האמיתי של הסקריפט אצלך:
 
@@ -66,8 +80,14 @@
     "Notification": [
       { "hooks": [ { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Eyal\\SessionDeck\\hooks\\sessiondeck-hook.ps1\" Notification" } ] }
     ],
+    "PermissionRequest": [
+      { "hooks": [ { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Eyal\\SessionDeck\\hooks\\sessiondeck-hook.ps1\" PermissionRequest" } ] }
+    ],
     "Stop": [
       { "hooks": [ { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Eyal\\SessionDeck\\hooks\\sessiondeck-hook.ps1\" Stop" } ] }
+    ],
+    "StopFailure": [
+      { "hooks": [ { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Eyal\\SessionDeck\\hooks\\sessiondeck-hook.ps1\" StopFailure" } ] }
     ],
     "SessionEnd": [
       { "hooks": [ { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Eyal\\SessionDeck\\hooks\\sessiondeck-hook.ps1\" SessionEnd" } ] }
@@ -77,10 +97,18 @@
     ],
     "PostToolUse": [
       { "matcher": "AskUserQuestion|ExitPlanMode", "hooks": [ { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Eyal\\SessionDeck\\hooks\\sessiondeck-hook.ps1\" PostToolUse" } ] }
+    ],
+    "Elicitation": [
+      { "hooks": [ { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Eyal\\SessionDeck\\hooks\\sessiondeck-hook.ps1\" Elicitation" } ] }
+    ],
+    "ElicitationResult": [
+      { "hooks": [ { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Eyal\\SessionDeck\\hooks\\sessiondeck-hook.ps1\" ElicitationResult" } ] }
     ]
   }
 }
 ```
+
+> **למה לא `PostToolUse` על כל הכלים?** הוא היה סוגר את ה-`waiting` של `PermissionRequest` ישירות, אבל במחיר הרצת תהליך PowerShell **בכל קריאת כלי** — עלות קבועה על כל סשן, גם כשאין שום דיאלוג. הסורק כבר עושה את אותה עבודה בעלות אפס, וההשהיה (עד 10 שניות) נופלת על הקצה הלא-מזיק: חזרה לכחול, לא ההתראה עצמה.
 
 ## מתגים (Flags) — שליטה בתהליכים חיצוניים מה-toolbar
 
@@ -105,8 +133,8 @@ if ((Test-Path $flag) -and ((Get-Content $flag -Raw).Trim() -eq '0')) { exit 0 }
 
 - הסקריפט הוא fire-and-forget: כל כשל נבלע (`exit 0`) כדי לא להפריע ל-session; תואם PowerShell 5.1.
 - הקובץ שמור **UTF-8 עם BOM** — חובה בגלל מחרוזות העברית (PS 5.1 קורא ‎.ps1 בלי BOM כ-ANSI ונשבר). אם עורכים — לשמור באותו encoding.
-- מצב `error`: אין ל-Claude Code אירוע hook ייעודי לשגיאה (SPEC §9.2). המצב קיים ב-CLI
-  (`--state error`) וניתן להפעלה מסקריפטים אחרים; `reason` של SessionEnd נשמר ומוצג.
+- מצב `error`: מאז `StopFailure` יש לו hook ייעודי (עדכון ל-SPEC §9.2, שנכתב כשלא היה).
+  המצב עדיין זמין גם ב-CLI (`--state error`) לסקריפטים אחרים; `reason` של SessionEnd נשמר ומוצג.
 - בדיקה ידנית בלי Claude Code:
   ```powershell
   $exe = "D:\Eyal\SessionDeck\bin\Debug\net10.0-windows\SessionDeck.exe"

@@ -459,7 +459,8 @@ public sealed class CommandExecutor
         Transcript: a.Options.GetValueOrDefault("transcript"),
         Source: a.Options.GetValueOrDefault("source"),
         Mode: a.Options.GetValueOrDefault("mode"),
-        Reason: a.Options.GetValueOrDefault("reason"));
+        Reason: a.Options.GetValueOrDefault("reason"),
+        PermissionDialog: a.Flags.Contains("permission-dialog"));
 
     private (WorkspaceViewModel?, string?) ResolveTarget(ParsedArgs a)
     {

@@ -39,7 +39,8 @@ function Invoke-Hooks([string]$command, [string]$settings, [string[]]$extra = @(
 
 function Read-Json([string]$path) { Get-Content $path -Raw | ConvertFrom-Json }
 
-$events = 'SessionStart', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd', 'PreToolUse', 'PostToolUse'
+$events = 'SessionStart', 'UserPromptSubmit', 'Notification', 'PermissionRequest', 'Stop', 'StopFailure',
+          'SessionEnd', 'PreToolUse', 'PostToolUse', 'Elicitation', 'ElicitationResult'
 
 # --- Case 1: settings.json does not exist -> created (including the directory) ---
 Write-Host "Case 1: missing file (and directory) is created"
@@ -49,7 +50,8 @@ Assert ($r.ExitCode -eq 0) "exit code 0"
 Assert (Test-Path $s) "file created"
 $json = Read-Json $s
 $missing = $events | Where-Object { -not $json.hooks.$_ }
-Assert (-not $missing) "all 7 events present"
+Assert (-not $missing) "all $($events.Count) events present"
+Assert ($json.hooks.PermissionRequest[0].PSObject.Properties.Name -notcontains 'matcher') "PermissionRequest fires for every tool"
 Assert ($json.hooks.PreToolUse[0].matcher -eq 'AskUserQuestion|ExitPlanMode') "PreToolUse matcher"
 Assert ($json.hooks.PostToolUse[0].matcher -eq 'AskUserQuestion|ExitPlanMode') "PostToolUse matcher"
 Assert ($json.hooks.SessionStart[0].PSObject.Properties.Name -notcontains 'matcher') "SessionStart has no matcher"
