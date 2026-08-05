@@ -2,20 +2,27 @@
   "name": "sessiondeck-connector",
   "displayName": "SessionDeck Connector",
   "description": "Reports Claude Code tabs and the git branch to SessionDeck, and opens/resumes Claude sessions on request.",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "publisher": "eyal-sinay",
   "repository": {
     "type": "git",
     "url": "https://github.com/eyalBPM/SessionDeck.git"
   },
   "icon": "assets/logo128.png",
-  "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.94.0"
   },
   "categories": [
+    "AI",
     "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "session manager",
+    "windows",
+    "productivity"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -30,8 +37,10 @@
     ]
   },
   "scripts": {
+    "vscode:prepublish": "npm run licence && npm run compile",
+    "licence": "node -e \"require('fs').copyFileSync('../LICENSE','LICENSE')\"",
     "compile": "tsc -p ./",
-    "package": "vsce package --allow-missing-repository"
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

@@ -11,12 +11,17 @@
 
 import * as vscode from 'vscode';
 import * as net from 'net';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const PIPE_PATH = '\\\\.\\pipe\\sessiondeck';
 const RECONNECT_MS = 5000;
 const SYNC_DEBOUNCE_MS = 300;
 const HEARTBEAT_MS = 2000;         // must stay well under SessionDeck's ActiveTabTtl
 const CLAUDE_VIEWTYPE = 'claudeVSCodePanel';   // actual viewType is prefixed (mainThreadWebview-...)
+const RELEASES_URL = 'https://github.com/eyalBPM/SessionDeck/releases/latest';
+const APP_MISSING_GRACE_MS = 20000;
+const APP_MISSING_DISMISSED = 'sessiondeck.appMissingNoticeDismissed';
 
 let out: vscode.OutputChannel;
 let socket: net.Socket | undefined;
@@ -214,6 +219,55 @@ function connect(): void {
     s.on('close', retry);
 }
 
+/// The extension does nothing on its own — without the Windows app it is an inert
+/// pipe client. Someone who found it by searching "claude code" in the Extensions
+/// pane has no way to know that, and "installed it, it did nothing" is a one-star
+/// review (T-0342).
+///
+/// The hard part is telling that case apart from the normal one. The pipe is down
+/// whenever the app simply isn't running, which happens many times a day and is not
+/// a problem — warning on that would be a false alarm on every reboot. So the notice
+/// is gated on the app never having run on this machine at all: the app writes
+/// %APPDATA%\SessionDeck\config.json on first launch (ConfigStore.ConfigPath), and
+/// that file surviving in AppData is the evidence. Present → silent forever.
+function appEverRan(): boolean {
+    const appData = process.env.APPDATA;
+    if (!appData) {
+        return true;                     // can't tell → assume it did, never guess a warning
+    }
+    try {
+        return fs.existsSync(path.join(appData, 'SessionDeck', 'config.json'));
+    } catch {
+        return true;
+    }
+}
+
+function watchForMissingApp(context: vscode.ExtensionContext): void {
+    if (process.platform !== 'win32' || context.globalState.get<boolean>(APP_MISSING_DISMISSED)) {
+        return;
+    }
+    const timer = setTimeout(async () => {
+        // Re-read the flag rather than trusting the check made when the timer was armed:
+        // several windows opening together all armed one, and by now another may have shown
+        // the notice already.
+        if (connected || appEverRan() || context.globalState.get<boolean>(APP_MISSING_DISMISSED)) {
+            return;
+        }
+        out.appendLine('no SessionDeck app found on this machine — showing the one-time notice');
+        // Marked before the dialog is answered, not after: the notification is modeless, so
+        // waiting for a click would leave the window open for a sibling to stack a duplicate.
+        await context.globalState.update(APP_MISSING_DISMISSED, true);
+        const pick = await vscode.window.showWarningMessage(
+            'SessionDeck Connector on its own does nothing: it is the companion to the SessionDeck ' +
+            'app for Windows, which is not installed on this machine.',
+            'Get SessionDeck', 'Dismiss');
+        if (pick === 'Get SessionDeck') {
+            void vscode.env.openExternal(vscode.Uri.parse(RELEASES_URL));
+        }
+    }, APP_MISSING_GRACE_MS);
+    context.subscriptions.push({ dispose: () => clearTimeout(timer) });
+}
+
 async function initGit(context: vscode.ExtensionContext): Promise<void> {
     try {
         const ext = vscode.extensions.getExtension('vscode.git');
@@ -258,6 +312,7 @@ export function activate(context: vscode.ExtensionContext): void {
     startHeartbeat(context);
     void initGit(context);
     connect();
+    watchForMissingApp(context);
 }
 
 export function deactivate(): void {
