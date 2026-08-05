@@ -11,6 +11,12 @@ to it automatically.
 
 <!-- new releases are inserted directly below this line -->
 
+## v0.9.6 - 2026-08-05
+
+- chore: sync hook script version header to 0.9.6
+- chore(release): one release on GitHub, permanent tags, CHANGELOG.md
+- chore: prepare the repo and the Marketplace listing for promotion (T-0342)
+
 ## v0.9.5 - 2026-08-05
 
 - chore: sync hook script version header to 0.9.5
