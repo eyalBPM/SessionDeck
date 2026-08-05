@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut and publish a SessionDeck release — the one-release-per-major.minor policy, what release.ps1 guards and does, and how to recover when it blocks. Trigger when asked to release, publish, ship, cut a version, tag a version, or when a release run fails.
+description: Cut and publish a SessionDeck release — the single-release policy, CHANGELOG.md, what release.ps1 guards and does, and how to recover when it blocks. Trigger when asked to release, publish, ship, cut a version, tag a version, or when a release run fails.
 ---
 
 # Releasing SessionDeck
@@ -19,16 +19,31 @@ packaging, so a failure surfaces before anything is pushed.
 
 ## The release policy
 
-**One release per `major.minor` line.**
+**Exactly one release on GitHub — always the current version.** Releases here are frequent,
+and every one carries a self-contained ~58MB zip; keeping them would pile up downloads
+nobody wants. So every existing release is deleted on each run, whatever its version line.
 
-- A patch bump (`0.9.0` → `0.9.1`) **replaces** that line's release on GitHub: the old
-  release and tag are deleted, and the new notes cover the whole line.
-- A minor bump (`0.9` → `0.10`) opens a new release.
-- Only the highest version overall is marked *latest* — patching an old line never steals
-  the latest flag.
+Three things used to die together. Only one of them was clutter, so now they part ways:
 
-Because a replacement deletes the old tag, notes for a replacing release are diffed from
-the **oldest** release of that line, not the newest. The script works this out itself.
+| | Kept? | Why |
+|---|---|---|
+| The zip of an old version | **deleted** | This is the clutter. Rebuildable in minutes. |
+| Its **tag** | **kept** | The only way back to an exact past build, and invisible on the Releases page. Rollback = `git checkout v0.9.4` + publish. |
+| Its **notes** | **kept, in `CHANGELOG.md`** | A page that gets deleted cannot hold history. |
+
+Consequences worth knowing:
+
+- The notes baseline is the newest **tag** below the version being released, not the newest
+  release. Under the old release-derived baseline every replacement destroyed its own
+  baseline, so the notes shrank on each patch (v0.9.4 said "since v0.9.3" with 5 commits;
+  v0.9.5 said "since v0.9.4" with 2, and everything before it was gone).
+- `release.ps1` prepends the new section to `CHANGELOG.md` and commits it **before** the
+  push, so the tag `gh` creates already points at a commit that documents itself. The file
+  needs its `<!-- new releases are inserted directly below this line -->` marker — the
+  script blocks if it's missing.
+- The release is always `--latest`. There is no version-line arithmetic left.
+- A downloadable zip exists **only** for the current version. If someone needs an older
+  build, check out its tag and publish.
 
 ## What the script guards before touching anything
 
@@ -39,7 +54,9 @@ It refuses to run, with `RELEASE BLOCKED`, when:
 | Working tree not clean | Commit or stash first. |
 | Not on `main` | Releases are cut from `main`. Merge the branch first. |
 | No `<Version>` in the csproj | Restore the element. |
-| The tag already exists | Bump `<Version>`. This also catches a tag left behind by a deleted release — the script runs `git fetch --tags --prune --prune-tags` first, so a stale local tag is not the cause. |
+| The tag already exists | Bump `<Version>`. Tags are permanent now, so this means the version really was released. |
+| A **newer** tag exists | You are about to publish an older version over a newer one. Check what you're on. |
+| `CHANGELOG.md` lost its marker | Restore the `<!-- new releases … -->` line; the script has nowhere to insert. |
 
 Then, after building, it fails if:
 
@@ -65,8 +82,9 @@ starts fresh for the same reason.
    artifact (`.gitignore`).
 7. Zips the publish output (including `hooks\`) plus the vsix, `install.ps1` and
    `uninstall.ps1` into `SessionDeck-<version>-win-x64.zip`.
-8. Writes the notes, deletes the release+tag being replaced if any, and runs
-   `gh release create`.
+8. Writes the notes, then prepends the same commit list to `CHANGELOG.md` and commits it.
+9. Pushes `main`, deletes **every** existing release (tags untouched), and runs
+   `gh release create … --latest`.
 
 ## Notes
 

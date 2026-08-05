@@ -6,7 +6,8 @@
 # The version in SessionDeck.csproj is the single source of truth. The script:
 #   guards (clean tree, main, unreleased version) -> syncs the hook-script version header
 #   -> publishes self-contained -> runs the install-hooks tests against the published exe
-#   -> packages the vsix only if the extension changed -> zips -> gh release create.
+#   -> packages the vsix only if the extension changed -> zips -> prepends CHANGELOG.md
+#   -> deletes every older release -> gh release create.
 # PowerShell 5.1 compatible.
 [CmdletBinding()]
 param(
@@ -34,35 +35,32 @@ if ($csproj -notmatch '<Version>([0-9]+\.[0-9]+\.[0-9]+)</Version>') { Fail "no 
 $ver = $Matches[1]
 $tag = "v$ver"
 
-# --prune-tags keeps local tags in sync with releases replaced/deleted on GitHub.
-git fetch --tags --prune --prune-tags --force --quiet
+# Tags are never deleted any more (see the policy below), so nothing to prune.
+git fetch --tags --quiet
 if (git tag --list $tag) { Fail "tag $tag already exists - bump <Version> in SessionDeck.csproj first." }
 
-# Release policy: ONE release per major.minor line. A patch bump REPLACES the
-# line's existing release (old release + tag are deleted); a new major.minor
-# opens a new release. Only the highest version overall is marked "latest".
+# Release policy: exactly ONE release on GitHub, always the current version. Every older
+# release is deleted so the page never accumulates self-contained zips nobody downloads.
+# Their TAGS survive - a tag is the only way back to an exact past build, it costs nothing
+# on the releases page, and it keeps the notes baseline below honest however many releases
+# have come and gone. The accumulated history lives in CHANGELOG.md, in the repo, because a
+# release page that gets deleted cannot hold it.
 $verObj = [version]$ver
+$semverTags = @(git tag --list 'v*' | Where-Object { $_ -match '^v[0-9]+\.[0-9]+\.[0-9]+$' })
+$newer = @($semverTags | Where-Object { [version]($_.TrimStart('v')) -gt $verObj })
+if ($newer) { Fail "$($newer -join ', ') already tagged and newer than $ver - releasing this would replace a newer release." }
+
 $releases = @(& $gh release list --json tagName --jq '.[].tagName' 2>$null)
-$sameLine = @($releases | Where-Object { $_ -match "^v$($verObj.Major)\.$($verObj.Minor)\.[0-9]+$" })
-$others = @($releases | Where-Object { $sameLine -notcontains $_ })
 
-foreach ($old in $sameLine) {
-    if ([version]($old.TrimStart('v')) -ge $verObj) { Fail "$old is already released and is not older than $ver." }
-}
-$isLatest = -not ($others | Where-Object { [version]($_.TrimStart('v')) -gt $verObj })
-
-# Notes baseline: when replacing, the new release covers the WHOLE minor line,
-# so diff from the line's oldest release; otherwise from the newest release.
-$prevTag = $null
-if ($sameLine) {
-    $prevTag = $sameLine | Sort-Object { [version]($_.TrimStart('v')) } | Select-Object -First 1
-} elseif ($releases) {
-    $prevTag = $releases | Sort-Object { [version]($_.TrimStart('v')) } | Select-Object -Last 1
-}
+# Notes baseline: the newest tag below this version. Tags outlive releases, so this stays
+# correct no matter how many releases have been deleted (the old release-derived baseline
+# shrank the notes on every patch - each replacement destroyed its own baseline).
+$prevTag = @($semverTags |
+    Where-Object { [version]($_.TrimStart('v')) -lt $verObj } |
+    Sort-Object { [version]($_.TrimStart('v')) }) | Select-Object -Last 1
 
 Write-Host "  version: $ver  (notes baseline: $(if ($prevTag) { $prevTag } else { 'none' }))"
-if ($sameLine) { Write-Host "  will replace: $($sameLine -join ', ')" }
-Write-Host "  will be marked latest: $isLatest"
+if ($releases) { Write-Host "  will delete release(s): $($releases -join ', ')  (tags kept)" }
 
 # --- Sync the hook script's version header (BOM must survive - PS 5.1 + Hebrew) ---
 Step "Hook script version header"
@@ -184,25 +182,48 @@ Versions in this zip: app $ver | extension $extVer | hooks $ver
 ### Changes since $(if ($prevTag) { $prevTag } else { 'the beginning' })
 
 $($changes -join "`n")
+
+Every earlier version: [CHANGELOG.md](https://github.com/eyalBPM/SessionDeck/blob/main/CHANGELOG.md).
+Only this release is kept on the Releases page, but every version's tag survives - ``git checkout v<version>`` rebuilds any of them.
 "@ | Set-Content -Path $notesFile -Encoding UTF8
 Get-Content $notesFile | ForEach-Object { "  | $_" }
 
+# --- CHANGELOG ---------------------------------------------------------------------
+# The releases page holds one release; this file holds the rest. Prepended here, before
+# the push, so the tag gh creates already points at a commit that documents itself.
+Step "CHANGELOG.md"
+$clPath = Join-Path $repo 'CHANGELOG.md'
+$clMarker = '<!-- new releases are inserted directly below this line -->'
+$clText = [IO.File]::ReadAllText($clPath)
+if (-not $clText.Contains($clMarker)) { Fail "CHANGELOG.md is missing its insertion marker." }
+# No trailing newline: the text after the marker already starts with a blank line.
+$clEntry = "## $tag - $(Get-Date -Format 'yyyy-MM-dd')`r`n`r`n$($changes -join "`r`n")"
 if ($DryRun) {
-    Step "DryRun - stopping before: git push, replace [$($sameLine -join ', ')], gh release create $tag (latest: $isLatest)"
+    Write-Host "  would prepend:"
+    $clEntry -split "`r`n" | ForEach-Object { "  | $_" }
+} else {
+    # .Replace, not -replace: a commit subject containing $1 or $& would be eaten by the
+    # regex replacement operator.
+    [IO.File]::WriteAllText($clPath, $clText.Replace($clMarker, "$clMarker`r`n`r`n$clEntry"), [Text.UTF8Encoding]::new($false))
+    git add $clPath
+    git commit -m "docs: changelog for $tag" --quiet
+    Write-Host "  prepended $tag and committed."
+}
+
+if ($DryRun) {
+    Step "DryRun - stopping before: git push, delete [$($releases -join ', ')], gh release create $tag"
     exit 0
 }
 
 Step "Publish"
 git push origin main
-foreach ($old in $sameLine) {
-    Write-Host "  replacing $old (release + tag deleted)"
-    & $gh release delete $old --cleanup-tag --yes
+# Delete every existing release - one release on the page, always the current one. No
+# --cleanup-tag: the tags are the version history and the notes baseline.
+foreach ($old in $releases) {
+    Write-Host "  deleting release $old (tag kept)"
+    & $gh release delete $old --yes
     if ($LASTEXITCODE -ne 0) { Fail "failed to delete release $old." }
-    # gh --cleanup-tag may already remove the local tag; under EAP=Stop a bare
-    # `git tag -d` on a missing tag turns its stderr into a terminating error (v0.6.40 release incident).
-    if (git tag --list $old) { git tag -d $old | Out-Null }
 }
-$latestFlag = if ($isLatest) { '--latest' } else { '--latest=false' }
-& $gh release create $tag $zip --title $tag --notes-file $notesFile $latestFlag
+& $gh release create $tag $zip --title $tag --notes-file $notesFile --latest
 if ($LASTEXITCODE -ne 0) { Fail "gh release create failed." }
 Write-Host "`nDone." -ForegroundColor Green

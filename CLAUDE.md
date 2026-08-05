@@ -141,5 +141,7 @@ Two limits that keep coming back and are not bugs:
 
 Longer step-by-step procedures live as skills under `.claude/skills/`, loaded on demand:
 
-- `release` — cutting and publishing a release, and the one-release-per-`major.minor` policy.
+- `release` — cutting and publishing a release. GitHub keeps exactly one release (the
+  current version); older releases are deleted, their tags are kept, and the accumulated
+  history lives in [`CHANGELOG.md`](CHANGELOG.md), which `release.ps1` prepends to.
 - `manual-verify` — the manual test checklist for what automation can't cover.
