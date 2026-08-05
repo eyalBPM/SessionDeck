@@ -84,8 +84,15 @@ The UI is English and left-to-right, but anything that comes from **outside** th
 
 A note on what depends on what: the **hooks** are what colour the cards, and they work anywhere Claude Code runs — a session in a terminal will appear on the deck with a live status like any other. What needs the VSCode extension is everything that treats a session as a *tab*: revealing it on click, the live tab titles, and the auto-acknowledge when you answer a session in VSCode without touching the deck. Neither macOS nor Linux is supported, and the window layer (DWM thumbnails, the AppBar zone) is Windows-specific enough that this is unlikely to change.
 
-1. Download `SessionDeck-<version>-win-x64.zip` from [Releases](https://github.com/eyalBPM/SessionDeck/releases) and extract it anywhere.
-2. Run the installer (no admin rights required — everything is per-user):
+1. Download `SessionDeck-<version>-win-x64.zip` from [Releases](https://github.com/eyalBPM/SessionDeck/releases), then unblock it **before** extracting — Windows marks downloaded files, and the mark spreads to everything you extract out of the zip:
+
+   ```powershell
+   Unblock-File .\SessionDeck-<version>-win-x64.zip
+   ```
+
+   Already extracted? `Get-ChildItem -Recurse | Unblock-File` inside the folder does the same.
+
+2. Extract it anywhere and run the installer (no admin rights required — everything is per-user):
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1

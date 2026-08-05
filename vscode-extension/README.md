@@ -1,18 +1,52 @@
 # SessionDeck Connector
 
-The companion extension for [SessionDeck](https://github.com/eyalBPM/SessionDeck). It:
+**This extension does nothing on its own.** It is the VS Code half of
+[SessionDeck](https://github.com/eyalBPM/SessionDeck) — a Windows app that shows every
+VS Code window running Claude Code as a live card: a real thumbnail of the window, the
+git branch, and a status light per session driven by Claude Code's hooks. Without that
+app installed there is nothing on the other end of the pipe and nothing to see.
 
-- Sends SessionDeck (named pipe `\\.\pipe\sessiondeck`) a snapshot of the workspace path, the current branch and the open Claude Code tabs — on startup and on every change.
-- Receives `openSession` commands from SessionDeck and activates/reopens the session's tab through Claude Code's `claude-vscode.editor.open` (with a fallback to `claude --resume` in the terminal).
+> **Install the app, not this extension.** The
+> [SessionDeck installer](https://github.com/eyalBPM/SessionDeck/releases/latest)
+> installs the connector for you and keeps the two versions matched. This Marketplace
+> entry exists so the project is findable — installing from here alone leaves you with
+> an inert extension.
 
-## Build and install
+Windows only, and it needs the Claude Code extension for VS Code.
+
+## What it does
+
+- Reports a snapshot to SessionDeck over the named pipe `\\.\pipe\sessiondeck` — the
+  workspace folder, the current git branch and the open Claude Code tabs — on startup
+  and on every change.
+- Handles SessionDeck's requests to open or resume a session, revealing the tab through
+  Claude Code's own editor command (falling back to `claude --resume` in a terminal).
+
+The pipe is polled with a reconnect, so the order the app and VS Code start in doesn't
+matter, and closing SessionDeck is harmless.
+
+## Building it yourself
+
+Only needed if you are working on the extension — the installer ships a built copy.
 
 ```powershell
 cd vscode-extension
 npm install
-npx tsc -p ./
-npx vsce package --allow-missing-repository
+npm run package
 code --install-extension sessiondeck-connector-<version>.vsix
 ```
 
-After installing, run **Reload Window** in every VSCode window. Log: Output → the "SessionDeck" channel. Manual sync: Command Palette → "SessionDeck: Sync Now".
+Then run **Reload Window** in every VS Code window.
+
+## Troubleshooting
+
+| | |
+|---|---|
+| Log | Output panel → the **SessionDeck** channel |
+| Force a report | Command Palette → **SessionDeck: Sync Now** |
+| Cards don't appear | Check SessionDeck itself is running, then Reload Window |
+
+## License
+
+MIT — see the [LICENSE](https://github.com/eyalBPM/SessionDeck/blob/main/LICENSE) in the
+repository root.

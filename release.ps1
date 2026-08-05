@@ -159,7 +159,25 @@ Step "Release notes"
 $notesFile = Join-Path $env:TEMP "sessiondeck-release-notes-$ver.md"
 $changes = if ($prevTag) { git log "$prevTag..HEAD" --no-merges --format='- %s' } else { @('- initial packaged release') }
 @"
-**Install:** download the zip, extract, run ``install.ps1`` (no admin, no .NET needed). **Upgrade** from any previous version the same way. Details in the [README](https://github.com/eyalBPM/SessionDeck#getting-started).
+**Requirements:** Windows 10 or 11 | VS Code with the Claude Code extension | no .NET runtime needed, this build is self-contained.
+
+### Install
+
+1. Download ``SessionDeck-$ver-win-x64.zip`` below, then **unblock it before extracting** - Windows marks every downloaded file, and the mark spreads to everything you extract out of it:
+
+   ``````powershell
+   Unblock-File .\SessionDeck-$ver-win-x64.zip
+   ``````
+
+   (Already extracted? ``Get-ChildItem -Recurse | Unblock-File`` inside the folder does the same.)
+
+2. Extract it anywhere and run the installer - no admin rights, everything is per-user:
+
+   ``````powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+   ``````
+
+It installs the app, the VS Code extension and the Claude Code hooks, then starts the deck. **Upgrading** from any earlier version is the same two steps; your settings survive. Full details in the [README](https://github.com/eyalBPM/SessionDeck#getting-started).
 
 Versions in this zip: app $ver | extension $extVer | hooks $ver
 

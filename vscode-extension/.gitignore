@@ -1,3 +1,8 @@
 node_modules/
 out/
 *.vsix
+
+# Copied from the repo root by the vscode:prepublish step so the packaged vsix carries
+# a licence (the Marketplace shows it as a tab). Generated - the root LICENSE is the
+# only maintained copy.
+LICENSE
