@@ -145,23 +145,3 @@ Longer step-by-step procedures live as skills under `.claude/skills/`, loaded on
   current version); older releases are deleted, their tags are kept, and the accumulated
   history lives in [`CHANGELOG.md`](CHANGELOG.md), which `release.ps1` prepends to.
 - `manual-verify` — the manual test checklist for what automation can't cover.
-
-## חזק וברוך (סיום משימה)
-
-הביטוי **"חזק וברוך"** הוא האישור לכל השלבים כאן — אין לעצור לאישור נוסף על commit/merge/push/release. הנוהל הכללי: skill `hazak-uvaruch`. ההנחיות כאן נקבעו ע"י אייל ב-2026-08-05 והן הסמכות.
-
-**הרצף:**
-
-1. **version bump** — `SessionDeck.csproj` → `<Version>`. בלי זה ה-release ייכשל: `release.ps1` גוזר ממנו את התג, שם ה-zip והכותרת, ו-`gh release create` ייפול על תג קיים. אם התוסף `vscode-extension` השתנה — לבמפ גם את `vscode-extension\package.json` (הסקריפט חוסם אחרת).
-2. **עדכון `README.md`** — אם השינוי מחייב זאת, לפני ה-release.
-3. **commit**
-4. **merge ל-`main`**
-5. **push**
-6. **release** — `.\release.ps1 -DryRun` ואז `.\release.ps1`. הסקריפט עושה את השאר בעצמו: publish, ‏38 טסטים מול ה-exe שפורסם, אריזת zip, ‏`CHANGELOG.md`, ‏`git push origin main`, מחיקת ה-release הקודם (התגיות נשמרות) ו-`gh release create --latest`.
-7. **TaskDeck → `done`** ישירות. **אין מייל עדכונים** — כלי dev ציבורי לקומץ אנשים, ובמכוון אין בו auto-update ואין התראת עדכון.
-
-**כללי זהירות שנשארים בתוקף:**
-
-- כישלון באחד מ-38 הטסטים או באחת המשמרות של `release.ps1` (התאמת ProductVersion, ‏BOM של ה-hook) — עוצר, לדווח ולא לעקוף.
-- לעולם לא `Stop-Process -Force` על האפליקציה — יש `SessionDeck.exe quit`.
-- אימות התקנה על מכונה נקייה אחרי הפרסום הוא באחריות אייל; לא לחכות לו לפני העברה ל-`done`.
